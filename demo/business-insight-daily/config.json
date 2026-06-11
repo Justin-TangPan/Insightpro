@@ -1,0 +1,23 @@
+{
+  "_comment": "Business Insight Daily Agent 配置文件",
+  "llm": {
+    "provider": "deepseek",
+    "api_key": "sk-6a9f457d7b6c4d2590d96dd4629bf44e",
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "max_tokens": 4096,
+    "temperature": 0.7
+  },
+  "search": {
+    "provider": "duckduckgo",
+    "max_results": 10
+  },
+  "schedule": {
+    "auto_refresh_interval_minutes": 3,
+    "enabled": true
+  },
+  "server": {
+    "port": 8099,
+    "host": "0.0.0.0"
+  }
+}

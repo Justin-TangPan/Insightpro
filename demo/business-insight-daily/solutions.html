@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解决方案组合 — Business Insight Daily</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--cp:#cc785c;--cpa:#a9583e;--cps:rgba(204,120,92,0.08);--ci:#141413;--cb:#3d3d3a;--cm:#6c6a64;--cc:#faf9f5;--cssf:#f5f0e8;--csc:#efe9de;--ch:#e6dfd8;--chs:#ebe6df;--csd:#181715;--csde:#252320;--cod:#faf9f5;--cods:#a09d96;--ct:#5db8a6;--ca:#e8a55a;--cs:#5db872;--cw:#d4a017;--ce:#c64545;--fd:'Cormorant Garamond','Georgia','Noto Serif SC',serif;--fb:'Inter',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;--bg-page:var(--cc);--bg-card:var(--csc);--bg-card-alt:var(--cssf);--bg-dark:var(--csd);--text-primary:var(--ci);--text-secondary:var(--cb);--text-tertiary:var(--cm);--border-default:var(--ch);--border-light:var(--chs);--rmd:8px;--rlg:12px;--rxl:16px;--rfull:9999px;--sxs:8px;--ssm:12px;--smd:16px;--slg:24px;--sxl:32px;--sxxl:48px;--ssec:64px;--tf:150ms ease}
+[data-theme="dark"]{--bg-page:#141311;--bg-card:#1f1e1b;--bg-card-alt:#1a1917;--text-primary:#f0ede5;--text-secondary:#c4bfb5;--text-tertiary:#8b857a;--border-default:#2d2a25;--border-light:#24221e;--cps:rgba(204,120,92,0.10)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--fb);background:var(--bg-page);color:var(--text-primary);line-height:1.6;min-height:100vh}
+.header{background:var(--bg-page);border-bottom:1px solid var(--border-default);padding:0 var(--sxl);height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:var(--ssm)}.logo{width:36px;height:36px;background:var(--cp);border-radius:var(--rmd);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--fd);font-weight:600;font-size:18px;text-decoration:none}
+.brand-name a{text-decoration:none;color:inherit;font-family:var(--fd);font-size:20px;font-weight:400;letter-spacing:-0.3px}
+.header-right{display:flex;align-items:center;gap:var(--smd)}.header-date{font-size:13px;color:var(--text-tertiary)}
+.theme-toggle{width:36px;height:36px;border-radius:var(--rfull);border:1px solid var(--border-default);background:var(--bg-card-alt);cursor:pointer;font-size:15px;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;transition:var(--tf)}.theme-toggle:hover{border-color:var(--cp);color:var(--cp)}
+.back-link{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:var(--rmd);border:1px solid var(--border-default);background:var(--bg-card-alt);color:var(--text-tertiary);font-size:13px;font-weight:500;text-decoration:none;transition:var(--tf)}.back-link:hover{border-color:var(--cp);color:var(--cp)}
+.main-container{max-width:1280px;margin:0 auto;padding:var(--sxxl) var(--sxl) var(--ssec);display:flex;flex-direction:column;gap:var(--ssec)}
+.page-hero h1{font-family:var(--fd);font-size:36px;font-weight:400;color:var(--text-primary);letter-spacing:-0.5px;line-height:1.15}
+.page-hero p{font-size:14px;color:var(--text-tertiary);margin-top:var(--sxs)}
+.card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--rlg);overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:var(--sxl) var(--sxl) 0}
+.card-title{font-family:var(--fd);font-size:22px;font-weight:400;color:var(--text-primary);letter-spacing:-0.3px}
+.card-body{padding:var(--sxl)}.card-badge{font-size:11px;font-weight:500;padding:3px 12px;border-radius:var(--rfull);background:var(--cps);color:var(--cp);border:1px solid rgba(204,120,92,0.15)}
+
+/* Solution Package Card */
+.pkg-card{background:var(--bg-card-alt);border:1px solid var(--border-light);border-radius:var(--rlg);padding:0;overflow:hidden;margin-bottom:var(--slg);transition:var(--tf)}
+.pkg-card:hover{border-color:var(--cp)}
+.pkg-hero{padding:var(--sxl);background:var(--bg-dark);color:var(--cod);position:relative}
+.pkg-hero .pkg-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--cp);margin-bottom:var(--sxs);font-weight:600}
+.pkg-hero h3{font-family:var(--fd);font-size:24px;font-weight:400;color:var(--cod);letter-spacing:-0.3px;margin-bottom:var(--sxs)}
+.pkg-hero .pkg-subtitle{font-size:14px;color:var(--cods);line-height:1.6}
+.pkg-body{padding:var(--sxl)}
+.pkg-scenario{font-size:13px;color:var(--text-secondary);line-height:1.7;margin-bottom:var(--slg)}
+.pkg-scenario strong{color:var(--text-primary)}
+.pkg-modules{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--ssm);margin-bottom:var(--slg)}
+.pkg-module{background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--rmd);padding:var(--smd);text-align:center;transition:var(--tf)}
+.pkg-module:hover{border-color:var(--cp)}
+.pkg-module .mod-icon{font-size:24px;margin-bottom:var(--sxs)}
+.pkg-module .mod-name{font-size:12px;font-weight:600;color:var(--text-primary);margin-bottom:4px}
+.pkg-module .mod-tech{font-size:10px;color:var(--text-tertiary)}
+.pkg-arrow{display:flex;align-items:center;justify-content:center;color:var(--cp);font-size:18px;font-weight:700}
+.pkg-benefits{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--ssm);margin-top:var(--smd)}
+.pkg-benefit{text-align:center;padding:var(--ssm)}
+.pkg-benefit .bf-num{font-family:var(--fd);font-size:26px;font-weight:400;color:var(--cp);line-height:1}
+.pkg-benefit .bf-label{font-size:10px;color:var(--text-tertiary);margin-top:4px}
+
+/* CTA band */
+.cta-band{background:var(--cp);color:#fff;padding:var(--sxl);border-radius:var(--rlg);text-align:center;margin-bottom:var(--slg)}
+.cta-band h3{font-family:var(--fd);font-size:24px;font-weight:400;margin-bottom:var(--sxs)}
+.cta-band p{font-size:14px;opacity:0.9;margin-bottom:var(--smd)}
+
+.source-row{display:flex;align-items:center;gap:var(--ssm);margin-top:var(--slg);padding-top:var(--smd);border-top:1px solid var(--border-light)}.source-row-label{font-size:10px;color:var(--text-tertiary);font-weight:500}
+.source-link{font-size:11px;color:var(--text-tertiary);text-decoration:none;opacity:0.7;transition:var(--tf)}.source-link:hover{color:var(--cp);opacity:1}
+@media(max-width:768px){.pkg-modules{grid-template-columns:1fr}.pkg-benefits{grid-template-columns:repeat(2,1fr)}.main-container{padding:var(--slg) var(--smd);gap:var(--sxl)}.page-hero h1{font-size:28px}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-left"><a href="index.html" class="logo">B</a><div class="brand-name"><a href="index.html">Business Insight Daily</a></div></div>
+  <div class="header-right"><span class="header-date">2026年5月28日</span><button class="theme-toggle" onclick="toggleTheme()" title="切换主题">☀</button><a href="index.html" class="back-link">← 返回首页</a></div>
+</header>
+<main class="main-container">
+<section class="page-hero"><h1>解决方案组合</h1><p>可灵活组合的技术方案包。每个方案包由多个子模块串联而成，覆盖从基础设施搭建到业务场景落地的完整链路。选择你的起点，按需叠加模块。</p></section>
+
+<!-- Package 1: 智能数据决策套件 -->
+<div class="pkg-card">
+  <div class="pkg-hero">
+    <div class="pkg-label">方案包 01 · 数据驱动决策</div>
+    <h3>智能数据决策套件</h3>
+    <p class="pkg-subtitle">Dify LLM 应用开发平台 + 数据仓库 + 企业微信/钉钉/飞书告警通道，一站构建"数据查询→智能分析→自动推送"的决策闭环</p>
+  </div>
+  <div class="pkg-body">
+    <div class="pkg-scenario"><strong>适用场景：</strong>零售补货提醒、供应链异常预警、销售日报自动生成、财务指标异动监控。典型客户：日均订单量 > 500 的零售企业、SKU > 1000 的电商商家、需要实时数据看板的运营团队。</div>
+    <div class="pkg-modules">
+      <div class="pkg-module"><div class="mod-icon">🧠</div><div class="mod-name">Dify LLM 平台部署</div><div class="mod-tech">ECS + Docker</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🗄️</div><div class="mod-name">数据仓库对接</div><div class="mod-tech">DWS / GaussDB</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🤖</div><div class="mod-name">数据分析 Agent</div><div class="mod-tech">Dify Workflow</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">📲</div><div class="mod-name">企微/钉钉推送</div><div class="mod-tech">Webhook API</div></div>
+    </div>
+    <div class="pkg-benefits">
+      <div class="pkg-benefit"><div class="bf-num">-70%</div><div class="bf-label">人工报表时间</div></div>
+      <div class="pkg-benefit"><div class="bf-num">实时</div><div class="bf-label">异常告警响应</div></div>
+      <div class="pkg-benefit"><div class="bf-num">0 代码</div><div class="bf-label">自然语言查询</div></div>
+      <div class="pkg-benefit"><div class="bf-num">1周</div><div class="bf-label">部署上线周期</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Package 2: AI 客服全链路 -->
+<div class="pkg-card">
+  <div class="pkg-hero">
+    <div class="pkg-label">方案包 02 · 客户体验升级</div>
+    <h3>AI 客服全链路</h3>
+    <p class="pkg-subtitle">RAG 企业知识库 + 多 Agent 智能路由 + MCP 工具连接 + 全渠道接入，将客服响应时间从"分钟级"压缩到"秒级"</p>
+  </div>
+  <div class="pkg-body">
+    <div class="pkg-scenario"><strong>适用场景：</strong>电商售前咨询、金融产品问答、SaaS 产品技术支持、政务热线智能化。典型客户：月咨询量 > 1 万的企业、客服团队 > 20 人的组织、多平台（Web/微信/电话）服务需求的品牌。</div>
+    <div class="pkg-modules">
+      <div class="pkg-module"><div class="mod-icon">📚</div><div class="mod-name">知识库构建</div><div class="mod-tech">RAG + 多模态索引</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🎯</div><div class="mod-name">智能路由分发</div><div class="mod-tech">多 Agent 编排</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🔧</div><div class="mod-name">工具调用集成</div><div class="mod-tech">MCP Server</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">📞</div><div class="mod-name">全渠道接入</div><div class="mod-tech">Web/微信/API</div></div>
+    </div>
+    <div class="pkg-benefits">
+      <div class="pkg-benefit"><div class="bf-num">< 3秒</div><div class="bf-label">平均响应时间</div></div>
+      <div class="pkg-benefit"><div class="bf-num">-60%</div><div class="bf-label">人工客服成本</div></div>
+      <div class="pkg-benefit"><div class="bf-num">85%</div><div class="bf-label">自动解决率</div></div>
+      <div class="pkg-benefit"><div class="bf-num">7×24</div><div class="bf-label">不间断服务</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Package 3: 开发者效能工坊 -->
+<div class="pkg-card">
+  <div class="pkg-hero">
+    <div class="pkg-label">方案包 03 · 研发效能倍增</div>
+    <h3>开发者效能工坊</h3>
+    <p class="pkg-subtitle">编码 Agent + CI/CD 流水线集成 + 代码安全审计 + 私有化模型部署，打造"写得快、发得稳、查得严"的开发闭环</p>
+  </div>
+  <div class="pkg-body">
+    <div class="pkg-scenario"><strong>适用场景：</strong>企业开发团队效能提升、代码安全合规审查、遗留系统现代化改造。典型客户：开发团队 > 10 人的技术企业、有代码安全合规需求的金融/医疗行业、追求研发效能指标的互联网公司。</div>
+    <div class="pkg-modules">
+      <div class="pkg-module"><div class="mod-icon">💻</div><div class="mod-name">编码 Agent 部署</div><div class="mod-tech">claude-code / codex</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🔄</div><div class="mod-name">CI/CD 集成</div><div class="mod-tech">GitHub Actions</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🛡️</div><div class="mod-name">代码安全审计</div><div class="mod-tech">双 Agent 架构</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🔒</div><div class="mod-name">私有化部署</div><div class="mod-tech">数据不出域</div></div>
+    </div>
+    <div class="pkg-benefits">
+      <div class="pkg-benefit"><div class="bf-num">+40%</div><div class="bf-label">开发效率提升</div></div>
+      <div class="pkg-benefit"><div class="bf-num">-50%</div><div class="bf-label">Bug 逃逸率</div></div>
+      <div class="pkg-benefit"><div class="bf-num">100%</div><div class="bf-label">代码安全审计覆盖</div></div>
+      <div class="pkg-benefit"><div class="bf-num">3天</div><div class="bf-label">集成上线周期</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Package 4: 行业 AI 知识中枢 -->
+<div class="pkg-card">
+  <div class="pkg-hero">
+    <div class="pkg-label">方案包 04 · 行业知识智能化</div>
+    <h3>行业 AI 知识中枢</h3>
+    <p class="pkg-subtitle">多模态知识库 + 行业专属模型微调 + 权限分级管控 + API 开放接口，构建企业级"第二大脑"</p>
+  </div>
+  <div class="pkg-body">
+    <div class="pkg-scenario"><strong>适用场景：</strong>律所判例检索、医院临床知识库、制造企业工艺文档问答、金融机构合规审查。典型客户：拥有大量非结构化文档（> 10 万份）的组织、需要精准领域知识的专业服务机构。</div>
+    <div class="pkg-modules">
+      <div class="pkg-module"><div class="mod-icon">📄</div><div class="mod-name">文档解析管道</div><div class="mod-tech">markitdown 引擎</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🧠</div><div class="mod-name">知识库引擎</div><div class="mod-tech">ragflow 部署</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🎯</div><div class="mod-name">领域模型微调</div><div class="mod-tech">LoRA 微调</div></div>
+      <div class="pkg-arrow">→</div>
+      <div class="pkg-module"><div class="mod-icon">🔌</div><div class="mod-name">API 开放平台</div><div class="mod-tech">RESTful API</div></div>
+    </div>
+    <div class="pkg-benefits">
+      <div class="pkg-benefit"><div class="bf-num">-80%</div><div class="bf-label">文档检索时间</div></div>
+      <div class="pkg-benefit"><div class="bf-num">95%</div><div class="bf-label">问答准确率</div></div>
+      <div class="pkg-benefit"><div class="bf-num">分级</div><div class="bf-label">权限管控</div></div>
+      <div class="pkg-benefit"><div class="bf-num">百万级</div><div class="bf-label">文档承载量</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="cta-band">
+  <h3>选择你的方案起点，按需组合</h3>
+  <p>每个方案包均可独立部署，也可串联形成更大解决方案。模块化设计让你从最痛的那个场景开始，逐步扩展。</p>
+</div>
+
+<div class="source-row"><span class="source-row-label">参考来源：</span><a class="source-link" href="https://www.huaweicloud.com/solution/implementations/" target="_blank">华为云方案实践</a><a class="source-link" href="https://www.aliyun.com/" target="_blank">阿里云</a><a class="source-link" href="https://www.volcengine.com/" target="_blank">火山引擎</a></div>
+</main>
+<footer style="text-align:center;padding:var(--sxl) var(--sxl) var(--ssec);font-size:11px;color:var(--text-tertiary);border-top:1px solid var(--border-light)">
+<p>Business Insight Daily · 商业市场洞察日报 · 数据基于公开信息 · 仅供商业决策参考</p>
+<p style="margin-top:var(--sxs)"><a href="index.html" class="source-link">首页</a> · <a href="dashboard.html" class="source-link">仪表盘</a> · <a href="industry.html" class="source-link">行业洞察</a> · <a href="competitors.html" class="source-link">友商洞察</a> · <a href="projects.html" class="source-link">热点项目</a> · <a href="opportunities.html" class="source-link">商业机会</a> · <a href="practices.html" class="source-link">实践案例</a> · <a href="solutions.html" class="source-link">解决方案</a></p></footer>
+<script>function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme');var n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}(function(){var s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s)})();</script>
+</body>
+</html>

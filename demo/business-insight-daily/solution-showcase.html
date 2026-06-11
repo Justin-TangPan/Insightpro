@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大数据智能分析解决方案 — Business Insight Daily</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--cp:#cc785c;--cpa:#a9583e;--cps:rgba(204,120,92,0.08);--cpsw:rgba(204,120,92,0.14);--ci:#141413;--cb:#3d3d3a;--cm:#6c6a64;--cc:#faf9f5;--cssf:#f5f0e8;--csc:#efe9de;--ch:#e6dfd8;--chs:#ebe6df;--csd:#181715;--csde:#252320;--cod:#faf9f5;--cods:#a09d96;--ct:#5db8a6;--ca:#e8a55a;--cs:#5db872;--cw:#d4a017;--ce:#c64545;--fd:'Cormorant Garamond','Georgia','Noto Serif SC',serif;--fb:'Inter',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;--fm:'JetBrains Mono',monospace;--bg-page:var(--cc);--bg-card:var(--csc);--bg-card-alt:var(--cssf);--bg-dark:var(--csd);--text-primary:var(--ci);--text-secondary:var(--cb);--text-tertiary:var(--cm);--border-default:var(--ch);--border-light:var(--chs);--rmd:8px;--rlg:12px;--rxl:16px;--rfull:9999px;--sxs:8px;--ssm:12px;--smd:16px;--slg:24px;--sxl:32px;--sxxl:48px;--ssec:64px;--tf:150ms ease}
+[data-theme="dark"]{--bg-page:#141311;--bg-card:#1f1e1b;--bg-card-alt:#1a1917;--text-primary:#f0ede5;--text-secondary:#c4bfb5;--text-tertiary:#8b857a;--border-default:#2d2a25;--border-light:#24221e;--cps:rgba(204,120,92,0.10)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}html{font-size:16px;-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+body{font-family:var(--fb);background:var(--bg-page);color:var(--text-primary);line-height:1.6;min-height:100vh}
+.header{background:var(--bg-page);border-bottom:1px solid var(--border-default);padding:0 var(--sxl);height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:var(--ssm)}.logo{width:36px;height:36px;background:var(--cp);border-radius:var(--rmd);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--fd);font-weight:600;font-size:18px;text-decoration:none}
+.brand-name a{text-decoration:none;color:inherit;font-family:var(--fd);font-size:20px;font-weight:400;letter-spacing:-0.3px}
+.header-right{display:flex;align-items:center;gap:var(--smd)}.header-date{font-size:13px;color:var(--text-tertiary)}
+.theme-toggle{width:36px;height:36px;border-radius:var(--rfull);border:1px solid var(--border-default);background:var(--bg-card-alt);cursor:pointer;font-size:15px;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;transition:var(--tf)}.theme-toggle:hover{border-color:var(--cp);color:var(--cp)}
+.back-link{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:var(--rmd);border:1px solid var(--border-default);background:var(--bg-card-alt);color:var(--text-tertiary);font-size:13px;font-weight:500;text-decoration:none;transition:var(--tf)}.back-link:hover{border-color:var(--cp);color:var(--cp)}
+
+/* ── Hero ── */
+.hero-band{background:var(--bg-dark);color:var(--cod);padding:var(--ssec) var(--sxl);text-align:center}
+.hero-band .hero-badge{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--cp);margin-bottom:var(--smd);font-weight:600}
+.hero-band h1{font-family:var(--fd);font-size:48px;font-weight:400;line-height:1.1;letter-spacing:-1px;margin-bottom:var(--smd)}
+.hero-band .hero-sub{font-size:18px;color:var(--cods);max-width:700px;margin:0 auto var(--sxl);line-height:1.6}
+.hero-cta{display:flex;gap:var(--ssm);justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;border-radius:var(--rmd);font-size:14px;font-weight:600;cursor:pointer;border:none;transition:var(--tf);font-family:var(--fb);text-decoration:none}
+.btn-primary{background:var(--cp);color:#fff}.btn-primary:hover{background:var(--cpa)}
+.btn-secondary{background:var(--csde);color:var(--cod);border:1px solid rgba(255,255,255,0.1)}.btn-secondary:hover{border-color:var(--cp);color:var(--cp)}
+.hero-stats{display:flex;gap:var(--sxxl);justify-content:center;margin-top:var(--sxxl);flex-wrap:wrap}
+.hero-stat{text-align:center}.hero-stat .hs-num{font-family:var(--fd);font-size:36px;font-weight:400;color:var(--cp);line-height:1}.hero-stat .hs-label{font-size:12px;color:var(--cods);margin-top:var(--sxs)}
+
+/* ── Section ── */
+.section{padding:var(--ssec) var(--sxl);max-width:1280px;margin:0 auto}
+.section-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--cp);margin-bottom:var(--sxs);font-weight:600}
+.section h2{font-family:var(--fd);font-size:32px;font-weight:400;letter-spacing:-0.5px;margin-bottom:var(--smd)}
+.section .s-desc{font-size:15px;color:var(--text-tertiary);max-width:600px;line-height:1.7;margin-bottom:var(--sxl)}
+
+/* ── Pain Points ── */
+.pain-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--slg)}
+.pain-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--rlg);padding:var(--sxl);text-align:center;transition:var(--tf)}.pain-card:hover{border-color:var(--cp)}
+.pain-card .pc-icon{font-size:36px;margin-bottom:var(--smd)}
+.pain-card h4{font-size:16px;font-weight:600;margin-bottom:var(--sxs)}
+.pain-card p{font-size:13px;color:var(--text-tertiary);line-height:1.6}
+
+/* ── Value Props ── */
+.value-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--slg)}
+.value-card{background:var(--bg-card-alt);border:1px solid var(--border-light);border-radius:var(--rlg);padding:var(--sxl);transition:var(--tf)}.value-card:hover{border-color:var(--cp)}
+.value-card .vc-num{font-family:var(--fd);font-size:48px;font-weight:400;color:var(--cp);line-height:1;margin-bottom:var(--sxs)}
+.value-card h4{font-size:16px;font-weight:600;margin-bottom:var(--sxs)}
+.value-card p{font-size:13px;color:var(--text-tertiary);line-height:1.6}
+
+/* ── Architecture ── */
+.arch-flow{display:flex;align-items:center;gap:var(--smd);flex-wrap:wrap;justify-content:center;margin:var(--sxl) 0}
+.arch-module{background:var(--bg-card);border:2px solid var(--border-default);border-radius:var(--rlg);padding:var(--slg);text-align:center;min-width:180px;transition:var(--tf)}.arch-module:hover{border-color:var(--cp)}
+.arch-module .am-icon{font-size:28px;margin-bottom:var(--sxs)}
+.arch-module .am-name{font-weight:700;font-size:14px;margin-bottom:4px}
+.arch-module .am-desc{font-size:11px;color:var(--text-tertiary);line-height:1.4}
+.arch-arrow{font-size:24px;color:var(--cp);font-weight:700}
+.arch-module.accent{border-color:var(--cp);background:var(--cps)}
+
+/* ── Steps ── */
+.step-row{display:flex;gap:var(--slg);counter-reset:step;flex-wrap:wrap}
+.step{flex:1;min-width:220px;position:relative;padding:var(--slg);background:var(--bg-card-alt);border-radius:var(--rlg);border:1px solid var(--border-light);counter-increment:step}
+.step::before{content:counter(step);position:absolute;top:-16px;left:var(--slg);width:32px;height:32px;background:var(--cp);color:#fff;border-radius:var(--rfull);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+.step h4{font-size:15px;font-weight:600;margin:var(--sxs) 0 var(--sxs)}
+.step p{font-size:12px;color:var(--text-tertiary);line-height:1.6}
+
+/* ── Cases ── */
+.case-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--slg)}
+.case-card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--rlg);overflow:hidden;transition:var(--tf)}.case-card:hover{border-color:var(--cp)}
+.case-card .cc-industry{padding:var(--ssm) var(--slg);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:1px;background:var(--bg-dark);color:var(--cp)}
+.case-card .cc-body{padding:var(--slg)}.case-card h4{font-size:15px;font-weight:600;margin-bottom:var(--sxs)}
+.case-card p{font-size:12px;color:var(--text-tertiary);line-height:1.6;margin-bottom:var(--ssm)}
+.case-metrics{display:flex;gap:var(--smd);flex-wrap:wrap}.case-metrics span{font-size:11px;color:var(--cs);font-weight:600}
+
+/* ── Resources ── */
+.res-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--smd)}
+.res-card{padding:var(--slg);background:var(--bg-card-alt);border:1px solid var(--border-light);border-radius:var(--rlg);text-align:center;transition:var(--tf);text-decoration:none;color:inherit}.res-card:hover{border-color:var(--cp)}
+.res-card .rc-icon{font-size:28px;margin-bottom:var(--sxs)}
+.res-card h5{font-size:13px;font-weight:600;margin-bottom:4px}
+.res-card p{font-size:10px;color:var(--text-tertiary)}
+
+/* ── CTA Footer ── */
+.cta-footer{background:var(--cp);color:#fff;text-align:center;padding:var(--ssec) var(--sxl)}
+.cta-footer h2{font-family:var(--fd);font-size:32px;font-weight:400;margin-bottom:var(--smd)}
+.cta-footer p{font-size:15px;opacity:0.9;margin-bottom:var(--slg);max-width:500px;margin-left:auto;margin-right:auto}
+.cta-footer .btn{background:#fff;color:var(--cp)}.cta-footer .btn-outline-white{background:transparent;color:#fff;border:1px solid rgba(255,255,255,0.4);padding:12px 28px;border-radius:var(--rmd);font-size:14px;font-weight:600;text-decoration:none;transition:var(--tf)}.cta-footer .btn-outline-white:hover{background:rgba(255,255,255,0.1)}
+
+@media(max-width:768px){.hero-band h1{font-size:32px}.pain-grid,.value-grid,.case-grid{grid-template-columns:1fr}.res-grid{grid-template-columns:repeat(2,1fr)}.arch-flow{flex-direction:column}.arch-arrow{transform:rotate(90deg)}.section{padding:var(--sxl) var(--smd)}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-left"><a href="index.html" class="logo">B</a><div class="brand-name"><a href="index.html">Business Insight Daily</a></div></div>
+  <div class="header-right"><span class="header-date">2026年5月28日</span><button class="theme-toggle" onclick="toggleTheme()" title="切换主题">☀</button><a href="solutions.html" class="back-link">← 返回方案列表</a></div>
+</header>
+
+<!-- ═══════ Hero ═══════ -->
+<section class="hero-band">
+  <div class="hero-badge">端到端解决方案 · 大数据 + AI</div>
+  <h1>让数据说话：<br>打造属于你的智能数据分析 Agent</h1>
+  <p class="hero-sub">DWS 数据仓库 + Dify LLM 应用平台 + 企业微信智能推送 — 三合一构建企业级数据分析决策闭环。从"看报表"到"问数据"，只需 3 步。</p>
+  <div class="hero-cta">
+    <a href="#" class="btn btn-primary">📋 获取方案白皮书</a>
+    <a href="#" class="btn btn-secondary">🎬 观看 3 分钟 Demo</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="hs-num">-70%</div><div class="hs-label">人工报表时间</div></div>
+    <div class="hero-stat"><div class="hs-num">实时</div><div class="hs-label">异常告警响应</div></div>
+    <div class="hero-stat"><div class="hs-num">0 代码</div><div class="hs-label">自然语言查询</div></div>
+    <div class="hero-stat"><div class="hs-num">1 周</div><div class="hs-label">部署上线周期</div></div>
+  </div>
+</section>
+
+<!-- ═══════ 客户痛点 ═══════ -->
+<section class="section">
+  <div class="section-label">客户挑战</div>
+  <h2>你的数据分析团队是否也面临这些问题？</h2>
+  <p class="s-desc">传统数据分析方式已经跟不上业务决策的速度。以下三个痛点，你的团队中了几个？</p>
+  <div class="pain-grid">
+    <div class="pain-card">
+      <div class="pc-icon">🐌</div>
+      <h4>报表响应慢</h4>
+      <p>业务部门提一个数据需求，数据分析师排期 3 天、写 SQL 1 天、出报表半天。等报表出来，决策窗口已经关闭。平均每个数据需求从提出到交付需要 5 个工作日。</p>
+    </div>
+    <div class="pain-card">
+      <div class="pc-icon">🔇</div>
+      <h4>异常发现滞后</h4>
+      <p>库存告急？销售额异常下跌？供应链中断？等到月度报表发现时，损失已经发生。"事后诸葛亮"式的数据分析让企业每年损失数百万。</p>
+    </div>
+    <div class="pain-card">
+      <div class="pc-icon">🏝️</div>
+      <h4>数据孤岛严重</h4>
+      <p>ERP 一套数据、CRM 一套数据、财务系统又是一套。想看一个完整的客户画像？先花 2 周做数据集成。数据散落在 5+ 个系统中，彼此无法对话。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 价值主张 ═══════ -->
+<section class="section">
+  <div class="section-label">方案价值</div>
+  <h2>三大核心价值，直击业务痛点</h2>
+  <div class="value-grid">
+    <div class="value-card">
+      <div class="vc-num">-70%</div>
+      <h4>降本增效</h4>
+      <p>用自然语言代替 SQL，业务人员直接"问"数据。数据分析师从"取数工具人"升级为"策略分析师"。人均数据查询效率提升 3 倍。</p>
+    </div>
+    <div class="value-card">
+      <div class="vc-num">实时</div>
+      <h4>智能决策</h4>
+      <p>Dify Agent 7×24 监控关键指标，异常自动推送企微告警。从"事后分析"变为"事前预警"。决策响应速度从"天级"压缩到"分钟级"。</p>
+    </div>
+    <div class="value-card">
+      <div class="vc-num">1 周</div>
+      <h4>快速部署</h4>
+      <p>预置数据连接器 + Dify 模版工作流 + 企微 Webhook —— 三件套开箱即用。从部署到第一个"数据问答"上线，仅需 1 周。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 方案架构 ═══════ -->
+<section class="section" style="background:var(--bg-card);max-width:100%;padding:var(--ssec) var(--sxl)">
+  <div style="max-width:1280px;margin:0 auto">
+  <div class="section-label">技术架构</div>
+  <h2>三模块串联，构建完整数据决策链路</h2>
+  <div class="arch-flow">
+    <div class="arch-module">
+      <div class="am-icon">🗄️</div>
+      <div class="am-name">数据层</div>
+      <div class="am-desc">DWS 数据仓库<br>百亿级数据查询<br>秒级响应</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-module accent">
+      <div class="am-icon">🧠</div>
+      <div class="am-name">智能层</div>
+      <div class="am-desc">Dify LLM 平台<br>自然语言→SQL<br>Agent 自主分析</div>
+    </div>
+    <div class="arch-arrow">→</div>
+    <div class="arch-module">
+      <div class="am-icon">📲</div>
+      <div class="am-name">触达层</div>
+      <div class="am-desc">企微/钉钉/飞书<br>定时推送<br>异常实时告警</div>
+    </div>
+  </div>
+  <div class="step-row">
+    <div class="step">
+      <h4>部署 Dify 平台</h4>
+      <p>在华为云 ECS 上一键部署 Dify，配置 DWS 数据源连接。预置 20+ 数据分析模版工作流。</p>
+    </div>
+    <div class="step">
+      <h4>构建分析 Agent</h4>
+      <p>用 Dify 的可视化编排界面定义分析逻辑：自然语言理解→SQL 生成→数据查询→结果解读→格式化输出。</p>
+    </div>
+    <div class="step">
+      <h4>对接企微推送</h4>
+      <p>配置企微 Webhook，设定触发规则（定时/阈值/事件）。数据分析结果自动推送到指定群聊或个人。</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ═══════ 成功案例 ═══════ -->
+<section class="section">
+  <div class="section-label">客户案例</div>
+  <h2>他们已经在用</h2>
+  <div class="case-grid">
+    <div class="case-card">
+      <div class="cc-industry">🏪 零售</div>
+      <div class="cc-body">
+        <h4>某连锁便利 — 智能补货提醒</h4>
+        <p>全国 2000+ 门店，SKU 超 5000。以前店长凭经验补货，缺货率 12%。部署 DWS+Dify 补货 Agent 后，系统自动分析销量趋势+库存水位，每日早 8 点推送补货建议到企微。</p>
+        <div class="case-metrics"><span>缺货率 -60%</span><span>周转率 +35%</span><span>人力节省 200h/月</span></div>
+      </div>
+    </div>
+    <div class="case-card">
+      <div class="cc-industry">🏭 制造</div>
+      <div class="cc-body">
+        <h4>某汽车零部件 — 质量异常预警</h4>
+        <p>产线每天产生百万级传感器数据。以前质检报表 T+1，发现异常时已产生一批次品。部署方案后，Dify Agent 实时分析产线数据，良率波动 > 2% 自动推送预警。</p>
+        <div class="case-metrics"><span>次品率 -45%</span><span>响应时间: 天→分钟</span></div>
+      </div>
+    </div>
+    <div class="case-card">
+      <div class="cc-industry">💰 金融</div>
+      <div class="cc-body">
+        <h4>某城商行 — 监管报表自动化</h4>
+        <p>每月需向监管报送 50+ 张报表，10 人团队加班 5 天完成。部署方案后，Dify Agent 自动从 DWS 取数、按监管模版生成报表、推送到合规群确认。</p>
+        <div class="case-metrics"><span>报表时间 -80%</span><span>合规差错率 0</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ 资源 ═══════ -->
+<section class="section" style="background:var(--bg-card-alt);max-width:100%;padding:var(--ssec) var(--sxl)">
+  <div style="max-width:1280px;margin:0 auto">
+  <div class="section-label">资源中心</div>
+  <h2>快速上手指南</h2>
+  <div class="res-grid">
+    <a href="#" class="res-card"><div class="rc-icon">📄</div><h5>技术白皮书</h5><p>完整架构设计与技术选型说明 · PDF 下载</p></a>
+    <a href="#" class="res-card"><div class="rc-icon">📖</div><h5>部署指南</h5><p>Step-by-step 部署教程 · 含截图</p></a>
+    <a href="#" class="res-card"><div class="rc-icon">🔧</div><h5>API 文档</h5><p>Dify + DWS 接口文档 · 含示例代码</p></a>
+    <a href="#" class="res-card"><div class="rc-icon">🎮</div><h5>在线 Demo</h5><p>无需部署即刻体验数据分析 Agent</p></a>
+  </div>
+  </div>
+</section>
+
+<!-- ═══════ CTA ═══════ -->
+<section class="cta-footer">
+  <h2>准备好让你的数据"开口说话"了吗？</h2>
+  <p>我们提供免费 POC（概念验证）服务 — 用你的真实数据跑一遍，看看效果。</p>
+  <div style="display:flex;gap:var(--ssm);justify-content:center;flex-wrap:wrap">
+    <a href="#" class="btn">🚀 申请免费 POC</a>
+    <a href="#" class="btn-outline-white">💬 预约方案咨询</a>
+  </div>
+</section>
+
+<footer style="text-align:center;padding:var(--sxl) var(--sxl) var(--ssec);font-size:11px;color:var(--text-tertiary);border-top:1px solid var(--border-light)">
+<p>Business Insight Daily · 商业市场洞察日报 · 数据基于公开信息 · 仅供商业决策参考</p>
+<p style="margin-top:var(--sxs)"><a href="index.html" class="source-link" style="font-size:11px;color:var(--text-tertiary);text-decoration:none;opacity:0.7">首页</a> · <a href="solutions.html" class="source-link" style="font-size:11px;color:var(--text-tertiary);text-decoration:none;opacity:0.7">方案列表</a></p></footer>
+<script>function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme');var n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}(function(){var s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s)})();</script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+beautifulsoup4
+requests
+fastapi
+uvicorn
+pydantic
+python-dotenv
+httpx
+openai
+langchain
+langchain-openai
+apscheduler
+pytz
