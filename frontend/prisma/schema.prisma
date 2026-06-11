@@ -1,0 +1,81 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 用户表
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  tasks         InsightTask[]
+  reports       Report[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 洞察任务表
+model InsightTask {
+  id            String    @id @default(cuid())
+  title         String    // 任务标题，例如 "新能源汽车行业调研"
+  status        TaskStatus @default(PENDING)
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  dataSources   DataSource[]
+  report        Report?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 数据源表
+model DataSource {
+  id            String    @id @default(cuid())
+  type          SourceType
+  content       String?   // 如果是关键词
+  fileUrl       String?   // 如果是上传的 PDF/Markdown
+  taskId        String
+  task          InsightTask @relation(fields: [taskId], references: [id])
+  createdAt     DateTime  @default(now())
+}
+
+// 洞察报告表
+model Report {
+  id            String    @id @default(cuid())
+  content       String    @db.Text // 存储 Markdown 格式的报告
+  summary       String?   @db.Text // AI 生成的简要总结
+  taskId        String    @unique
+  task          InsightTask @relation(fields: [taskId], references: [id])
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// 每日洞察报告
+model DailyInsight {
+  id            String    @id @default(cuid())
+  date          DateTime  @default(now()) @unique
+  industry      Json      // 行业洞察（生物医疗、交通等）
+  hotspots      Json      // 热点洞察（GitHub, CSDN等）
+  news          Json      // 商业新闻热搜
+  opportunities Json      // 商业机会分析
+  createdAt     DateTime  @default(now())
+}
+
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum SourceType {
+  KEYWORD
+  FILE
+}

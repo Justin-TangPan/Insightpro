@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解决方案实践 — Business Insight Daily</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --cp:#cc785c;--cpa:#a9583e;--cps:rgba(204,120,92,0.08);
+  --ci:#141413;--cb:#3d3d3a;--cm:#6c6a64;--cms:#8e8b82;
+  --cc:#faf9f5;--cssf:#f5f0e8;--csc:#efe9de;--ch:#e6dfd8;--chs:#ebe6df;
+  --csd:#181715;--csde:#252320;--cod:#faf9f5;--cods:#a09d96;
+  --ct:#5db8a6;--ca:#e8a55a;--cs:#5db872;--cw:#d4a017;--ce:#c64545;
+  --fd:'Cormorant Garamond','Georgia','Noto Serif SC',serif;
+  --fb:'Inter',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+  --bg-page:var(--cc);--bg-card:var(--csc);--bg-card-alt:var(--cssf);--bg-dark:var(--csd);--bg-dark-elevated:var(--csde);
+  --text-primary:var(--ci);--text-secondary:var(--cb);--text-tertiary:var(--cm);
+  --border-default:var(--ch);--border-light:var(--chs);
+  --rmd:8px;--rlg:12px;--rfull:9999px;
+  --sxs:8px;--ssm:12px;--smd:16px;--slg:24px;--sxl:32px;--sxxl:48px;--ssec:64px;
+  --tf:150ms ease;
+}
+[data-theme="dark"]{--bg-page:#141311;--bg-card:#1f1e1b;--bg-card-alt:#1a1917;--bg-dark:#0d0d0b;--bg-dark-elevated:#1f1e1b;--text-primary:#f0ede5;--text-secondary:#c4bfb5;--text-tertiary:#8b857a;--border-default:#2d2a25;--border-light:#24221e;--cps:rgba(204,120,92,0.10)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{font-family:var(--fb);background:var(--bg-page);color:var(--text-primary);line-height:1.6;min-height:100vh}
+.header{background:var(--bg-page);border-bottom:1px solid var(--border-default);padding:0 var(--sxl);height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.header-left{display:flex;align-items:center;gap:var(--ssm)}
+.logo{width:36px;height:36px;background:var(--cp);border-radius:var(--rmd);display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--fd);font-weight:600;font-size:18px;text-decoration:none}
+.brand-name a{text-decoration:none;color:inherit;font-family:var(--fd);font-size:20px;font-weight:400;letter-spacing:-0.3px}
+.header-right{display:flex;align-items:center;gap:var(--smd)}
+.header-date{font-size:13px;color:var(--text-tertiary)}
+.theme-toggle{width:36px;height:36px;border-radius:var(--rfull);border:1px solid var(--border-default);background:var(--bg-card-alt);cursor:pointer;font-size:15px;color:var(--text-tertiary);display:flex;align-items:center;justify-content:center;transition:var(--tf)}
+.theme-toggle:hover{border-color:var(--cp);color:var(--cp)}
+.back-link{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:var(--rmd);border:1px solid var(--border-default);background:var(--bg-card-alt);color:var(--text-tertiary);font-size:13px;font-weight:500;text-decoration:none;transition:var(--tf)}
+.back-link:hover{border-color:var(--cp);color:var(--cp)}
+.main-container{max-width:1280px;margin:0 auto;padding:var(--sxxl) var(--sxl) var(--ssec);display:flex;flex-direction:column;gap:var(--ssec)}
+.page-hero h1{font-family:var(--fd);font-size:36px;font-weight:400;color:var(--text-primary);letter-spacing:-0.5px;line-height:1.15}
+.page-hero p{font-size:14px;color:var(--text-tertiary);margin-top:var(--sxs)}
+.card{background:var(--bg-card);border:1px solid var(--border-default);border-radius:var(--rlg);overflow:hidden}
+.card-header{display:flex;align-items:center;justify-content:space-between;padding:var(--sxl) var(--sxl) 0}
+.card-title{font-family:var(--fd);font-size:22px;font-weight:400;color:var(--text-primary);letter-spacing:-0.3px}
+.card-body{padding:var(--sxl)}
+.card-badge{font-size:11px;font-weight:500;padding:3px 12px;border-radius:var(--rfull);background:var(--cps);color:var(--cp);border:1px solid rgba(204,120,92,0.15)}
+.practice-item{background:var(--bg-card-alt);border:1px solid var(--border-light);border-radius:var(--rlg);padding:var(--slg);margin-bottom:var(--smd);transition:var(--tf);border-left:3px solid transparent}
+.practice-item:hover{border-left-color:var(--cp)}
+.practice-item h4{font-size:16px;font-weight:600;color:var(--text-primary);margin-bottom:var(--sxs)}
+.meta{display:flex;gap:var(--ssm);flex-wrap:wrap;margin-bottom:var(--ssm)}
+.meta span{font-size:10px;padding:3px 10px;border-radius:var(--rfull);font-weight:500}
+.meta-company{background:var(--cps);color:var(--cp);border:1px solid rgba(204,120,92,0.15)}
+.meta-domain{background:rgba(93,184,114,0.08);color:var(--cs)}
+.meta-tech{background:rgba(93,184,166,0.08);color:var(--ct)}
+.meta-signal{background:rgba(198,69,69,0.08);color:var(--ce)}
+.practice-item .context{font-size:13px;color:var(--text-tertiary);font-style:italic;margin-bottom:var(--ssm);padding-bottom:var(--ssm);border-bottom:1px solid var(--border-light)}
+.practice-item p{font-size:14px;color:var(--text-secondary);line-height:1.8}
+.metrics-box{margin:var(--ssm) 0;padding:var(--ssm) var(--smd);background:rgba(93,184,114,0.05);border-radius:var(--rmd);display:flex;gap:var(--slg);flex-wrap:wrap;border:1px solid rgba(93,184,114,0.1)}
+.metrics-box .metric{text-align:center}
+.metrics-box .metric .num{font-family:var(--fd);font-size:22px;font-weight:400;color:var(--cs);line-height:1}
+.metrics-box .metric .lbl{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+.takeaway{margin-top:var(--ssm);padding:var(--ssm) var(--smd);background:var(--cps);border-radius:var(--rmd);font-size:13px;color:var(--cp);font-weight:500;line-height:1.7;border:1px solid rgba(204,120,92,0.12)}
+.trend-block p{font-size:14px;color:var(--text-secondary);line-height:1.8;margin-bottom:var(--ssm)}.trend-block strong{color:var(--text-primary)}
+.decision-block{padding:var(--smd);background:var(--bg-card-alt);border-radius:var(--rmd);border-left:3px solid var(--ct);margin-bottom:var(--ssm)}
+.decision-block h4{font-size:14px;color:var(--ct);font-weight:600;margin-bottom:var(--sxs)}
+.decision-block p{font-size:13px;color:var(--text-secondary);line-height:1.7}
+.source-row{display:flex;align-items:center;gap:var(--ssm);margin-top:var(--slg);padding-top:var(--smd);border-top:1px solid var(--border-light)}.source-row-label{font-size:10px;color:var(--text-tertiary);font-weight:500}
+.source-link{font-size:11px;color:var(--text-tertiary);text-decoration:none;opacity:0.7;transition:var(--tf)}.source-link:hover{color:var(--cp);opacity:1}
+@media(max-width:768px){.main-container{padding:var(--slg) var(--smd);gap:var(--sxl)}.page-hero h1{font-size:28px}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="header-left"><a href="index.html" class="logo">B</a><div class="brand-name"><a href="index.html">Business Insight Daily</a></div></div>
+  <div class="header-right"><span class="header-date">2026年5月28日</span><button class="theme-toggle" onclick="toggleTheme()" title="切换主题">☀</button><a href="index.html" class="back-link">← 返回首页</a></div>
+</header>
+
+<main class="main-container">
+  <section class="page-hero"><h1>解决方案实践</h1><p>深度拆解 2026 年 5 月最具参考价值的企业 AI 落地方案，提取可复制的架构范式、决策权衡与量化成果。数据更新至 2026-05-28</p></section>
+
+  <section class="card"><div class="card-header"><div class="card-title">本月重点实践案例</div><span class="card-badge">7 个案例</span></div><div class="card-body">
+
+    <div class="practice-item"><h4>腾讯 WorkBuddy — 中国最大规模效率 AI 智能体部署</h4>
+    <div class="meta"><span class="meta-company">腾讯</span><span class="meta-domain">办公效率</span><span class="meta-tech">多Agent+Hy3</span><span class="meta-signal">战略级案例</span></div>
+    <div class="context">为什么关注：首日算力十连扩——这是中国 AI 办公市场需求的真实压力测试。WorkBuddy 的规模化部署验证了"办公 Agent 已具备 PMF"的核心假设。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">10×</div><div class="lbl">首日算力扩容</div></div><div class="metric"><div class="num">数十款</div><div class="lbl">Q1 Agent 上线</div></div><div class="metric"><div class="num">599亿</div><div class="lbl">Q1 To B 营收</div></div></div>
+    <p>WorkBuddy 发布首日因用户涌入算力紧急扩容 10 倍。随后打通腾讯乐享知识库与腾讯文档，形成"知识管理+Agent 办公"闭环。QClaw 面向大众用户，扫码即用，已接入 DS-V4、Hy3 preview 和 Hermes 类型 Agent。元宝电脑端"元宝派"将 Agent 能力延展至社群协作——社交裂变+AI 能力=爆发式增长。Agent 累计上线数十款覆盖通用和垂直场景。</p>
+    <div class="takeaway">关键启示：① "产品力+算力储备"双重保障——需求预测和弹性算力是 Agent 规模化运营的前提 ② 知识库打通是 Agent 实用性的核心门槛——没有知识库的 Agent 只是"高级聊天机器人" ③ 社群协作场景打开 Agent 传播飞轮——社交传播是降低获客成本的最有效杠杆 ④ To B 营收 599 亿验证了 AI 作为第二增长曲线的商业价值</div></div>
+
+    <div class="practice-item"><h4>火山引擎 AgentPlan — 业界首个 Agent 订阅服务</h4>
+    <div class="meta"><span class="meta-company">火山引擎</span><span class="meta-domain">AI订阅</span><span class="meta-tech">DeepSeek V4+Seed</span><span class="meta-signal">商业模式创新</span></div>
+    <div class="context">为什么关注：AgentPlan 是 AI 商业化从"按 Token 计费"到"订阅制"的首次验证——这可能是 AI 行业商业模式的转折点。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">80%</div><div class="lbl">成本节省 vs API</div></div><div class="metric"><div class="num">4档</div><div class="lbl">套餐 40-200元/月</div></div><div class="metric"><div class="num">日均3000万</div><div class="lbl">座舱交互次数</div></div></div>
+    <p>AgentPlan 业界首个面向 Agent 场景的订阅服务。一站式打包主流模型和 Harness 能力（联网搜索、高精度 Embedding、多模态生成）。核心创新在于"订阅制锁定的不是模型调用量，而是 Agent 消费场景"——将 AI 从 IaaS/PaaS 计费逻辑转向 SaaS LTV 逻辑。相比后付费 API 最高节省 80% 成本，使中长尾客户 AI 采用决策门槛大幅降低。ArkClaw 图形化界面实现了"非技术人员也能用 Agent"——AI 民主化的重要里程碑。</p>
+    <div class="takeaway">关键启示：① 订阅制将客户 LTV 从"按次付费"提升为"月度订阅"——SaaS 已验证的变现模型 ② "模型+工具+图形界面"一站式是破圈关键——降低使用门槛比降低价格更重要 ③ 80% 成本降幅证明"AI 订阅"相比"API 按量"有结构性成本优势 ④ AgentPlan 的成功将倒逼其他云厂商跟进订阅制——行业商业模式将被重塑</div></div>
+
+    <div class="practice-item"><h4>阿里云百炼平台全面开放 — 大模型生态联盟实践</h4>
+    <div class="meta"><span class="meta-company">阿里云</span><span class="meta-domain">模型平台</span><span class="meta-tech">Qwen3.7-Max+多模型</span><span class="meta-signal">战略转折</span></div>
+    <div class="context">为什么关注：阿里放弃"自研壁垒"选择"平台开放"——这标志着中国 AI 行业从模型军备竞赛进入生态竞争阶段。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">150+</div><div class="lbl">千问云模型数</div></div><div class="metric"><div class="num">6家</div><div class="lbl">首批合作模型商</div></div><div class="metric"><div class="num">全栈</div><div class="lbl">芯片+云+模型</div></div></div>
+    <p>阿里云宣布百炼平台全面开放，与月之暗面、MiniMax、智谱、阶跃星辰等达成合作。GLM-5.1、MiniMaxM2.7、KimiK2.6 等竞争对手模型已上架百炼——阿里用平台方身份而非模型方身份参与竞争，战略定位关键升维。千问云（qianwenai.com）集成 150+ 主流模型 API，百炼 CLI 上线实现一行指令接入全栈 AI 能力。阿里是国内唯一覆盖"芯片（真武 M890）→云→模型→推理"全栈的厂商。</p>
+    <div class="takeaway">关键启示：① 模型平台从"自研壁垒"走向"生态开放"是必然——用户要最好的模型而非某一个模型 ② CLI 化是 AI 工具链新标准——"一行命令全栈 AI"是终极开发者体验 ③ 全栈整合在 AI 算力紧缺时代具有稀缺性优势 ④ 开放竞品模型上架看似削弱自研优势，实则以平台身份锁定更大生态价值</div></div>
+
+    <div class="practice-item"><h4>AWS Bedrock AgentCore — 企业 Agent 生产级部署标杆</h4>
+    <div class="meta"><span class="meta-company">AWS</span><span class="meta-domain">企业AI</span><span class="meta-tech">Bedrock+MCP</span><span class="meta-signal">安全壁垒</span></div>
+    <div class="context">为什么关注：AWS 是唯一支持 Agent 自主支付的公有云平台——这定义了 Agent "能力边界"的上限。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">40+</div><div class="lbl">Agent Skills</div></div><div class="metric"><div class="num">数月→数天</div><div class="lbl">模型定制提速</div></div><div class="metric"><div class="num">IAM守卫</div><div class="lbl">审计全链路</div></div></div>
+    <p>Bedrock AgentCore 上线自主支付能力（preview），使 AI Agent 可独立完成交易闭环——Agent 从"信息处理"到"价值交换"的质变。SageMaker AI 推出 Agentic 模型定制，将部署周期从数月缩短至数天，解决了企业 AI 落地最大瓶颈。MCP Server 正式 GA，集成 IAM 和 CloudTrail 审计——安全合规直接嵌入基础设施层。AWS 策略明确：以企业级安全合规为护城河，与国内厂商的"低价+生态"形成差异化竞争。</p>
+    <div class="takeaway">关键启示：① Agent 商业闭环必须打通支付——"能干活+能收钱"才是完整 Agent ② MCP Server GA+IAM 守卫是企业安全启用 Agent 的基础设施 ③ Agentic 模型定制提速是工程化落地关键突破 ④ AWS 的策略证明"安全"可以作为差异化竞争力而非成本中心</div></div>
+
+    <div class="practice-item"><h4>火山引擎 AI 座舱 — 700 万辆车搭载豆包大模型</h4>
+    <div class="meta"><span class="meta-company">火山引擎</span><span class="meta-domain">汽车</span><span class="meta-tech">AgenticAI座舱+豆包</span><span class="meta-signal">垂直深耕</span></div>
+    <div class="context">为什么关注：日均 3000 万次交互是 AI 座舱 PMF 的最强证据——不是 Demo，是真实的用户行为。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">700万+</div><div class="lbl">搭载车辆</div></div><div class="metric"><div class="num">50+品牌</div><div class="lbl">145款车型</div></div><div class="metric"><div class="num">3000万次</div><div class="lbl">日均交互</div></div></div>
+    <p>火山基于 AgenticAI 架构的全链路端到端 AI 座舱方案，单一 AI 大脑整合车控、智驾、导航与座舱功能——架构简化意味着更低延迟、更高可靠性。豆包座舱助手与手机端豆包 App 互联互通，形成"手机 AI→车机 AI"无缝闭环。从"多 Agent 协同"到"单一 AI 大脑"是架构范式升级——简单就是可靠。700 万辆搭载规模证明车厂对 AI 座舱方案的买单意愿，这为其他垂直行业的 AI 落地提供了参考模板。</p>
+    <div class="takeaway">关键启示：① 从多 Agent 到单一 AI 大脑是架构范式升级——简单就是可靠 ② 手机+车机 AI 联动形成生态闭环——用户不需要两个 AI 助手 ③ 日均 3000 万次交互 = PMF 强力信号——先有量再有质 ④ 垂直行业深耕（汽车）比通用型 Agent 更容易建立护城河</div></div>
+
+    <div class="practice-item"><h4>腾讯 Hy3 大模型开源策略 — 开源与闭源的商业平衡</h4>
+    <div class="meta"><span class="meta-company">腾讯</span><span class="meta-domain">大模型</span><span class="meta-tech">Hy3 preview MoE</span><span class="meta-signal">开源博弈</span></div>
+    <div class="context">为什么关注：Hy3 登顶 OpenRouter 同时选择开源——腾讯在"开源获生态 vs 闭源保商业"之间找到了独特的平衡点。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">295B</div><div class="lbl">MoE 总参数</div></div><div class="metric"><div class="num">21B</div><div class="lbl">激活参数</div></div><div class="metric"><div class="num">10×</div><div class="lbl">Token 两周增</div></div></div>
+    <p>Hy3 preview 采用 295B MoE 架构，激活 21B 参数，256K 上下文窗口。发布后连续三周登顶 OpenRouter——这是中国大模型首次在全球开源排行榜持续领先。Agent 能力大幅提升，已在元宝/ima/CodeBuddy/WorkBuddy/QQ 等十余款产品首发。结束限免后仍保持榜首，证明不是"免费效应"而是真实竞争力。开源策略的核心逻辑：用开源获生态+开发者心智，用闭源产品（元宝/WorkBuddy）变现。</p>
+    <div class="takeaway">关键启示：① 开源获生态+闭源变现是模型商业化的可行路径——Hy3 证明了这一点 ② OpenRouter 榜首不是终点而是"技术合法性"证明——消除客户对模型能力的疑虑 ③ 多产品首发（10+款）确保开源模型的商业价值能快速转化 ④ 开源不等于免费——通过 API 服务和产品集成的间接变现是可持续模式</div></div>
+
+    <div class="practice-item"><h4>中国移动+火山引擎机密模型服务 — AI 安全合规标杆</h4>
+    <div class="meta"><span class="meta-company">移动+火山</span><span class="meta-domain">安全合规</span><span class="meta-tech">机密模型+数据不出域</span><span class="meta-signal">合规标杆</span></div>
+    <div class="context">为什么关注：这是运营商+云厂商在 AI 安全合规领域的首次深度合作——为电信/金融/政务等敏感行业提供了可复制的合规方案模板。</div>
+    <div class="metrics-box"><div class="metric"><div class="num">数据不出域</div><div class="lbl">安全等级</div></div><div class="metric"><div class="num">机密模型</div><div class="lbl">汽车专区</div></div><div class="metric"><div class="num">联合发布</div><div class="lbl">运营商+云</div></div></div>
+    <p>中国移动与火山引擎联合发布机密模型汽车专区——数据不出域、模型推理在可信执行环境中完成。这是运营商+云厂商在 AI 安全合规领域的首次深度合作，为电信、金融、政务等敏感行业提供了可复制的合规方案模板。机密模型服务的核心价值在于解决了"企业想用 AI 但不敢把数据给云厂商"的信任瓶颈——这是企业 AI 渗透率能否从 30% 提升到 70% 的关键变量。</p>
+    <div class="takeaway">关键启示：① 安全合规不是"要不要做"而是"如何做到让客户信服"——机密模型是信任的基础设施 ② 运营商+云厂商联合是破解"数据不出域"难题的有效模式 ③ 这种方案不仅服务于汽车行业，可复制到金融/医疗/政务 ④ 安全合规能力正在成为 To B 市场的准入条件而非加分项</div></div>
+
+    <div class="source-row"><span class="source-row-label">数据来源：</span><a class="source-link" href="https://www.tencent.com/" target="_blank">腾讯</a><a class="source-link" href="https://www.volcengine.com/" target="_blank">火山引擎</a><a class="source-link" href="https://www.aliyun.com/" target="_blank">阿里云</a><a class="source-link" href="https://aws.amazon.com/" target="_blank">AWS</a><a class="source-link" href="https://openrouter.ai/" target="_blank">OpenRouter</a></div>
+  </div></section>
+
+  <section class="card"><div class="card-header"><div class="card-title">实践趋势总结</div></div>
+  <div class="card-body"><div class="trend-block">
+    <p><strong>趋势一：从平台建设走向场景深耕。</strong> 云厂商已完成 Agent 平台基础设施建设，2026 年 5 月密集实践表明竞争正从"谁有平台"转向"谁的平台在真实场景跑得好"。WorkBuddy 算力十连扩和 AgentPlan 订阅化是典型信号——基础设施搭好之后，考验的是产品力和运营力。判断：2026 下半年将出现"Agent 场景杀手应用"——最可能在办公效率、智能客服、编码三个方向率先跑出。</p>
+    <p><strong>趋势二：模型开放是主旋律。</strong> 阿里百炼上架竞品模型、火山 AgentPlan 支持 DeepSeek V4、腾讯 Hy3 选择开源——模型平台从封闭走向开放生态已不可逆。对下游客户而言，"不把所有鸡蛋放在一个模型篮子里"成为最佳实践。但开放不意味着无差别——选择"开放到哪一层"（API 层开放 vs 模型权重开放）是战略决策。</p>
+    <p><strong>趋势三：AI 商业化进入订阅+按量混合模式。</strong> 火山 AgentPlan、阿里 TokenPlan、腾讯 Token Plan 表明 AI 服务正从纯 API 走向灵活混合计费。这种模式更接近传统 SaaS 商业逻辑，有利于构建可预测的经常性收入。但对云厂商而言，"订阅制低价"与"API 按量高价"之间的内部博弈将是一个需要精细管理的难题。</p>
+    <p><strong>趋势四：安全合规成为方案落地的硬门槛——且正在升级为差异化竞争力。</strong> 阿里 Agentic 代码安全、AWS IAM 守卫、移动+火山机密模型——安全合规正从"满足合规要求"升级为"构建竞争壁垒"。方案的选择标准已从"技术和价格"二选一变为"技术+价格+安全"三要素。忽视安全合规的方案将在企业选型中被一票否决。</p>
+  </div></div></section>
+
+  <section class="card"><div class="card-header"><div class="card-title">关键决策参考框架</div></div>
+  <div class="card-body">
+    <div class="decision-block"><h4>🔹 自建 vs 采购 Agent 平台</h4><p><strong>自建</strong>：当你有独特的行业数据和业务逻辑、需要深度定制化工作流、且团队有 AI/ML 工程能力时。代表案例：大型金融机构自建风控 Agent。<strong>采购</strong>：当你的需求是通用 Agent 能力（客服、编码、知识库）、希望快速落地、且不希望投入大量 AI 工程资源时。代表方案：火山 AgentPlan 或阿里百炼。关键判断标准：你的差异化在"AI 技术"还是"业务 know-how"？如果在后者，采购通用平台+定制业务逻辑是最优解。</p></div>
+    <div class="decision-block"><h4>🔹 开源模型 vs 闭源模型</h4><p><strong>选开源</strong>：当你有模型微调需求、关注数据安全（本地部署）、且团队有模型运维能力时。代表：DeepSeek V4、Hy3。优势：可控性强、长期 TCO 低。<strong>选闭源</strong>：当你追求模型能力上限、不需要微调、且希望开箱即用时。代表：GPT-5、Claude 4。优势：模型能力强、运维成本低。建议：大多数企业应采用"开源为主+闭源为辅"的混合策略——日常任务用开源降成本，高价值任务用闭源提质量。</p></div>
+    <div class="decision-block"><h4>🔹 单 Agent vs 多 Agent 架构</h4><p><strong>单 Agent</strong>：适用于功能相对集中的场景（如单一客服助手、编码助手）。优势：架构简单、延迟低、维护成本小。代表：腾讯 WorkBuddy。<strong>多 Agent</strong>：适用于复杂业务流程（如售前+售后+工单全流程）。优势：分工协作、可独立扩展、容错性强。代表：阿里双 Agent 代码安全。关键判断：你的业务是否可以清晰拆分成多个独立子任务？如果可以，多 Agent 架构能带来更好的可维护性和扩展性。</p></div>
+  </div></section>
+</main>
+
+<footer style="text-align:center;padding:var(--sxl) var(--sxl) var(--ssec);font-size:11px;color:var(--text-tertiary);border-top:1px solid var(--border-light)">
+  <p>Business Insight Daily · 商业市场洞察日报 · 数据基于公开信息 · 仅供商业决策参考</p>
+  <p style="margin-top:var(--sxs)"><a href="index.html" class="source-link">首页</a> · <a href="dashboard.html" class="source-link">仪表盘</a> · <a href="industry.html" class="source-link">行业洞察</a> · <a href="competitors.html" class="source-link">友商洞察</a> · <a href="projects.html" class="source-link">热点项目</a> · <a href="opportunities.html" class="source-link">商业机会</a> · <a href="practices.html" class="source-link">实践案例</a> · <a href="solutions.html" class="source-link">解决方案</a></p>
+</footer>
+
+<script>
+function toggleTheme(){var h=document.documentElement;var c=h.getAttribute('data-theme');var n=c==='dark'?'light':'dark';h.setAttribute('data-theme',n);localStorage.setItem('theme',n)}
+(function(){var s=localStorage.getItem('theme');if(s)document.documentElement.setAttribute('data-theme',s)})();
+</script>
+</body>
+</html>
