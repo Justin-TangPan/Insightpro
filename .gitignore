@@ -31,6 +31,7 @@ frontend/out/
 *.swo
 .claude/
 .trae/
+.serena/
 
 # OS
 .DS_Store
@@ -42,3 +43,10 @@ frontend/prisma/migrations/
 # Runtime caches / local knowledge stores
 backend/deep_searcher.db/
 backend/deep_searcher_qdrant/
+
+# Runtime logs
+backend/stdout.log
+backend/stderr.log
+frontend/stdout.log
+frontend/stderr.log
+scripts/*.log

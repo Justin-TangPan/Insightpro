@@ -7,7 +7,7 @@ import {
   Factory, Stethoscope, Landmark, ShoppingCart, Globe,
   GraduationCap, Truck, Zap, Leaf, Loader2, Calendar,
   TrendingUp, Target, Clock, DollarSign, ChevronRight,
-  AlertTriangle, CheckCircle2, Lightbulb
+  AlertTriangle, CheckCircle2, Lightbulb, ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
 
@@ -60,19 +60,26 @@ export default function BiddingPage() {
   const [activeIndustry, setActiveIndustry] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 10;
 
-  const industries = [...new Set(items.map(i => i.industry))];
+  const industries = stats ? stats.by_industry.map(i => i.industry) : [];
 
-  const fetchData = async () => {
+  const fetchData = async (p?: number) => {
+    const currentPage = p ?? page;
     setLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
-        fetch(`${API}/api/bidding/list?days=30${activeIndustry ? `&industry=${activeIndustry}` : ""}`),
+        fetch(`${API}/api/bidding/list?days=30&page=${currentPage}&page_size=${pageSize}${activeIndustry ? `&industry=${activeIndustry}` : ""}`),
         fetch(`${API}/api/bidding/stats`),
       ]);
       const listData = await listRes.json();
       const statsData = await statsRes.json();
       setItems(listData.items || []);
+      setTotal(listData.total || 0);
+      setTotalPages(listData.total_pages || 1);
       setStats(statsData);
     } catch (err) {
       console.error("Failed to fetch bidding data:", err);
@@ -85,7 +92,8 @@ export default function BiddingPage() {
     setLoading(true);
     try {
       await fetch(`${API}/api/bidding/refresh`, { method: "POST" });
-      await fetchData();
+      setPage(1);
+      await fetchData(1);
     } catch (err) {
       console.error("Refresh failed:", err);
     }
@@ -105,14 +113,7 @@ export default function BiddingPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [activeIndustry]);
-
-  const totalBudget = items.reduce((sum, item) => {
-    const b = item.budget || "0";
-    if (b.includes("亿")) return sum + parseFloat(b) * 10000;
-    if (b.includes("万")) return sum + parseFloat(b);
-    return sum;
-  }, 0);
+  useEffect(() => { setPage(1); fetchData(1); }, [activeIndustry]);
 
   const urgencyInfo = (deadline: string) => {
     const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
@@ -164,7 +165,7 @@ export default function BiddingPage() {
           </div>
           <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-sm">
             <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">估算总预算</p>
-            <p className="text-2xl font-serif font-bold text-ink mt-1">{totalBudget > 0 ? `${(totalBudget / 10000).toFixed(1)}亿` : "—"}</p>
+            <p className="text-sm font-serif font-bold text-ink mt-1">{stats.total_budget || "—"}</p>
           </div>
         </div>
       )}
@@ -272,6 +273,57 @@ export default function BiddingPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-ink-muted">
+            共 {total} 条，第 {page}/{totalPages} 页
+          </p>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { const p = page - 1; setPage(p); fetchData(p); }}
+              disabled={page <= 1}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-ink-secondary hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              上一页
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .reduce<(number | string)[]>((acc, p, i, arr) => {
+                if (i > 0 && typeof arr[i - 1] === "number" && p - (arr[i - 1] as number) > 1) acc.push("...");
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) =>
+                typeof p === "string" ? (
+                  <span key={`ellipsis-${i}`} className="px-1.5 text-xs text-ink-muted">...</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => { setPage(p); fetchData(p); }}
+                    className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all ${
+                      p === page
+                        ? "bg-slate-900 text-white"
+                        : "bg-white border border-slate-200 text-ink-secondary hover:border-slate-300"
+                    }`}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+            <button
+              onClick={() => { const p = page + 1; setPage(p); fetchData(p); }}
+              disabled={page >= totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-ink-secondary hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              下一页
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
