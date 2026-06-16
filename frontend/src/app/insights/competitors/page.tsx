@@ -1,7 +1,7 @@
 "use client";
 
 import { SectionHeader } from "@/components/section-header";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Cloud, ExternalLink, ChevronRight, ArrowUpRight,
   Globe, Server, Cpu, Zap, ShieldCheck, Star,
@@ -29,6 +29,21 @@ interface Vendor {
   description: string;
   products: { name: string; url: string }[];
   news: VendorNews[];
+}
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+interface SummaryNewsItem {
+  id: number;
+  title: string;
+  summary: string;
+  link: string;
+  category: string;
+  date: string;
+}
+
+interface VendorSummary {
+  [vendor: string]: SummaryNewsItem[];
 }
 
 const vendors: Vendor[] = [
@@ -188,9 +203,29 @@ const categoryColors: Record<string, string> = {
   "最新动态": "bg-sky-50 text-sky-700 border-sky-200",
 };
 
+const vendorMeta: Record<string, { icon: string; color: string; borderColor: string }> = {
+  "AWS": { icon: "🟠", color: "text-orange-600", borderColor: "border-orange-200" },
+  "Azure": { icon: "🔵", color: "text-blue-600", borderColor: "border-blue-200" },
+  "阿里云": { icon: "🟧", color: "text-orange-500", borderColor: "border-orange-200" },
+  "腾讯云": { icon: "🟢", color: "text-green-600", borderColor: "border-green-200" },
+  "火山云": { icon: "🔥", color: "text-blue-500", borderColor: "border-blue-200" },
+};
+
 export default function CompetitorsPage() {
   const [activeVendor, setActiveVendor] = useState<string | null>(null);
+  const [summary, setSummary] = useState<VendorSummary>({});
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const selectedVendor = vendors.find((v) => v.id === activeVendor);
+
+  useEffect(() => {
+    fetch(`${API}/api/competitors/summary`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSummary(data.vendors || {});
+        setSummaryLoading(false);
+      })
+      .catch(() => setSummaryLoading(false));
+  }, []);
 
   return (
     <div className="space-y-10">
@@ -200,6 +235,56 @@ export default function CompetitorsPage() {
         subtitle="六大云厂商最新动态：新产品发布、新案例、新解决方案、商业策略追踪"
         image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80"
       />
+
+      {/* News Summary Overview */}
+      {!summaryLoading && Object.keys(summary).length > 0 && (
+        <div className="rounded-2xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" />
+            <h4 className="font-bold text-sm text-ink">友商最新动态概览</h4>
+            <span className="text-[10px] text-ink-muted ml-auto">
+              {Object.values(summary).reduce((acc, items) => acc + items.length, 0)} 条动态 · {Object.keys(summary).length} 家厂商
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+            {Object.entries(summary).map(([vendor, items]) => {
+              const meta = vendorMeta[vendor] || { icon: "☁️", color: "text-slate-600", borderColor: "border-slate-200" };
+              return (
+                <div key={vendor} className="p-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{meta.icon}</span>
+                    <span className={`font-bold text-sm ${meta.color}`}>{vendor}</span>
+                    <span className="text-[10px] text-ink-muted ml-auto">{items.length} 条</span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {items.map((item) => (
+                      <a
+                        key={item.id}
+                        href={item.link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block group"
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-ink-muted shrink-0 mt-0.5">
+                            {item.category}
+                          </span>
+                          <p className="text-xs font-semibold text-ink group-hover:text-primary transition-colors leading-snug line-clamp-2">
+                            {item.title}
+                          </p>
+                        </div>
+                        <p className="text-[11px] text-ink-secondary leading-relaxed mt-1 line-clamp-2 ml-[52px]">
+                          {item.summary}
+                        </p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Vendor Selector */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">

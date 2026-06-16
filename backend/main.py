@@ -343,24 +343,36 @@ def collect_bidding_data():
     conn.close()
     return len(todays_items)
 
-def get_bidding_opportunities(industry=None, status=None, days=30):
+def get_bidding_opportunities(industry=None, status=None, days=30, page=None, page_size=None):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    query = "SELECT * FROM bidding_opportunities WHERE bid_date >= ?"
+    base_where = "WHERE bid_date >= ?"
     params = [cutoff]
     if industry:
-        query += " AND industry = ?"
+        base_where += " AND industry = ?"
         params.append(industry)
     if status:
-        query += " AND status = ?"
+        base_where += " AND status = ?"
         params.append(status)
-    query += " ORDER BY CAST(REPLACE(REPLACE(budget,'亿元','00000000'),'万元','0000') AS INTEGER) DESC, relevance_score DESC"
+
+    # 获取总数
+    count_query = f"SELECT COUNT(*) FROM bidding_opportunities {base_where}"
+    c.execute(count_query, params)
+    total = c.fetchone()[0]
+
+    # 分页查询
+    order_clause = " ORDER BY CAST(REPLACE(REPLACE(budget,'亿元','00000000'),'万元','0000') AS INTEGER) DESC, relevance_score DESC"
+    query = f"SELECT * FROM bidding_opportunities {base_where}{order_clause}"
+    if page is not None and page_size is not None:
+        offset = (page - 1) * page_size
+        query += " LIMIT ? OFFSET ?"
+        params.extend([page_size, offset])
     c.execute(query, params)
     rows = c.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [dict(r) for r in rows], total
 
 def get_bidding_stats():
     """招标统计"""
@@ -561,6 +573,37 @@ def get_competitor_news(date: str = None) -> list:
     rows = c.fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+def get_competitor_summary(limit_per_vendor: int = 3) -> dict:
+    """获取每个云厂商的最新 N 条新闻摘要，按厂商分组"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("""
+        SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY vendor ORDER BY scrape_date DESC, id DESC) as rn
+            FROM competitor_news
+        ) WHERE rn <= ?
+        ORDER BY vendor, rn
+    """, (limit_per_vendor,))
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    grouped = {}
+    for row in rows:
+        vendor = row["vendor"]
+        if vendor not in grouped:
+            grouped[vendor] = []
+        grouped[vendor].append({
+            "id": row["id"],
+            "title": row["title"],
+            "summary": row["summary"],
+            "link": row["link"],
+            "category": row["category"],
+            "date": row["scrape_date"],
+        })
+
+    return grouped
 
 def refresh_competitor_news():
     """刷新友商动态（每日自动轮换内容）"""
@@ -1266,6 +1309,20 @@ async def get_competitors():
          "vs_huawei": "华为云在政企市场、信创替代、端边云协同等场景具有独特优势，是唯一能提供'芯片+操作系统+数据库+云平台'全栈信创方案的厂商。"}
     ]
 
+@app.get("/api/competitors/summary")
+async def competitors_summary():
+    """获取每个云厂商的最新新闻摘要，按厂商分组"""
+    summary = get_competitor_summary(limit_per_vendor=3)
+    # 如果数据库中没有数据，触发一次刷新
+    if not summary:
+        try:
+            refresh_competitor_news()
+            summary = get_competitor_summary(limit_per_vendor=3)
+        except Exception:
+            pass
+    total = sum(len(items) for items in summary.values())
+    return {"vendors": summary, "total": total, "count": len(summary)}
+
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats():
     """获取数据大屏统计指标"""
@@ -1735,10 +1792,13 @@ async def bidding_list(
     industry: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     days: int = Query(30, ge=1, le=90),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
 ):
-    """获取招标信息列表"""
-    items = get_bidding_opportunities(industry=industry, status=status, days=days)
-    return {"items": items, "count": len(items)}
+    """获取招标信息列表（支持分页）"""
+    items, total = get_bidding_opportunities(industry=industry, status=status, days=days, page=page, page_size=page_size)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    return {"items": items, "count": len(items), "total": total, "page": page, "page_size": page_size, "total_pages": total_pages}
 
 @app.get("/api/bidding/stats")
 async def bidding_stats():
@@ -1748,7 +1808,7 @@ async def bidding_stats():
 @app.post("/api/bidding/analyze")
 async def bidding_analyze():
     """AI 分析招标机会"""
-    items = get_bidding_opportunities(days=30)
+    items, total_count = get_bidding_opportunities(days=30)
     if not items:
         return {"analysis": "暂无招标数据，请先刷新", "total": 0}
 
@@ -1899,7 +1959,7 @@ async def industry_analysis(industry: str = Query("制造", description="行业�
         ctx_str = context_to_str(ctx)
 
         # Get bidding data for this industry
-        bids = get_bidding_opportunities(industry=industry, days=60)
+        bids, _ = get_bidding_opportunities(industry=industry, days=60)
         bid_context = ""
         if bids:
             for b in bids[:5]:

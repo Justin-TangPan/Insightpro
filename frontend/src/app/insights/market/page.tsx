@@ -11,6 +11,10 @@ import {
   Brain, Eye
 } from "lucide-react";
 import Link from "next/link";
+import {
+  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  Radar, ResponsiveContainer, Tooltip, Legend
+} from "recharts";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -64,6 +68,28 @@ export default function MarketIntelligencePage() {
   const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
   const [industryAnalysis, setIndustryAnalysis] = useState<IndustryAnalysis | null>(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [radarIndustries, setRadarIndustries] = useState<string[]>(["政务", "医疗", "制造", "金融", "能源"]);
+
+  const radarColors: Record<string, string> = {
+    "政务": "#8b5cf6", "制造": "#3b82f6", "医疗": "#f43f5e",
+    "金融": "#10b981", "零售": "#f59e0b", "教育": "#6366f1",
+    "交通": "#ef4444", "能源": "#eab308", "农业": "#22c55e",
+  };
+
+  // Transform heatmap data into radar chart format
+  const radarData = heatmap.length > 0
+    ? [
+        { dimension: "需求热度", ...Object.fromEntries(heatmap.map(h => [h.industry, h.demand])) },
+        { dimension: "竞争烈度", ...Object.fromEntries(heatmap.map(h => [h.industry, h.competition])) },
+        { dimension: "政策支持", ...Object.fromEntries(heatmap.map(h => [h.industry, h.policy])) },
+      ]
+    : [];
+
+  const toggleRadarIndustry = (industry: string) => {
+    setRadarIndustries(prev =>
+      prev.includes(industry) ? prev.filter(i => i !== industry) : [...prev, industry]
+    );
+  };
 
   const fetchAll = async () => {
     setLoading(true);
@@ -286,6 +312,131 @@ export default function MarketIntelligencePage() {
               </table>
             </div>
           </div>
+
+          {/* Industry Comparison Radar Chart */}
+          {radarData.length > 0 && (
+            <div className="rounded-xl bg-white border border-slate-200/80 overflow-hidden shadow-sm">
+              <div className="px-6 py-4 border-b border-slate-100">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    <h3 className="font-bold text-sm text-ink">行业对比雷达图</h3>
+                    <span className="text-[10px] text-ink-muted ml-1">需求 · 竞争 · 政策 三维度对比</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                {/* Industry Toggle Buttons */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {heatmap.map(item => {
+                    const isActive = radarIndustries.includes(item.industry);
+                    const Icon = industryIcons[item.industry] || Globe;
+                    return (
+                      <button
+                        key={item.industry}
+                        onClick={() => toggleRadarIndustry(item.industry)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          isActive
+                            ? "border-primary/30 bg-indigo-50 text-primary shadow-sm"
+                            : "border-slate-200 bg-white text-ink-muted hover:border-slate-300"
+                        }`}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {item.industry}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Radar Chart */}
+                <div className="flex flex-col lg:flex-row gap-6">
+                  <div className="flex-1 min-h-[360px]">
+                    <ResponsiveContainer width="100%" height={360}>
+                      <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+                        <PolarGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                        <PolarAngleAxis
+                          dataKey="dimension"
+                          tick={{ fill: "#475569", fontSize: 13, fontWeight: 600 }}
+                        />
+                        <PolarRadiusAxis
+                          angle={90}
+                          domain={[0, 100]}
+                          tick={{ fill: "#94a3b8", fontSize: 10 }}
+                          axisLine={false}
+                        />
+                        {radarIndustries.map(industry => (
+                          <Radar
+                            key={industry}
+                            name={industry}
+                            dataKey={industry}
+                            stroke={radarColors[industry] || "#6366f1"}
+                            fill={radarColors[industry] || "#6366f1"}
+                            fillOpacity={0.12}
+                            strokeWidth={2}
+                            dot={{ r: 4, fill: radarColors[industry] || "#6366f1", strokeWidth: 0 }}
+                          />
+                        ))}
+                        <Tooltip
+                          contentStyle={{
+                            background: "#fff",
+                            border: "1px solid #e2e8f0",
+                            borderRadius: "10px",
+                            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+                            fontSize: "12px",
+                            padding: "10px 14px",
+                          }}
+                          formatter={(value, name) => [`${value} 分`, name]}
+                        />
+                        <Legend
+                          iconType="circle"
+                          iconSize={8}
+                          wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }}
+                        />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Right side: Industry Score Summary */}
+                  <div className="lg:w-64 space-y-3">
+                    <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">选中行业评分</p>
+                    {radarIndustries.map(industry => {
+                      const item = heatmap.find(h => h.industry === industry);
+                      if (!item) return null;
+                      const avg = Math.round((item.demand + item.competition + item.policy) / 3);
+                      return (
+                        <div key={industry} className="rounded-lg border border-slate-100 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 rounded-full" style={{ background: radarColors[industry] || "#6366f1" }} />
+                              <span className="text-xs font-bold text-ink">{industry}</span>
+                            </div>
+                            <span className="text-xs font-bold text-primary">{avg}</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <div className="text-center">
+                              <p className="text-[9px] text-ink-muted">需求</p>
+                              <p className="text-xs font-semibold text-ink">{item.demand}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-[9px] text-ink-muted">竞争</p>
+                              <p className="text-xs font-semibold text-ink">{item.competition}</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-[9px] text-ink-muted">政策</p>
+                              <p className="text-xs font-semibold text-ink">{item.policy}</p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {radarIndustries.length === 0 && (
+                      <p className="text-xs text-ink-muted text-center py-4">请在上方选择行业</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Industry Deep Analysis Panel */}
           {selectedIndustry && (
