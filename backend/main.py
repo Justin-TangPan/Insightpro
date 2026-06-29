@@ -37,6 +37,17 @@ from deep_searcher_integration import (
     deep_research,
 )
 
+# ─── Crawlers Integration ───
+from crawlers import (
+    init_crawler_tables,
+    run_daily_crawl,
+    get_industry_news,
+    get_policy_updates,
+    get_cloud_vendor_news,
+    get_homepage_stats,
+    get_homepage_modules,
+)
+
 # ─── 数据库初始化 ───
 DB_PATH = os.path.join(os.path.dirname(__file__), "trending.db")
 
@@ -463,6 +474,9 @@ def init_demand_db():
     conn.close()
 
 init_demand_db()
+
+# ─── 初始化爬虫数据表 ───
+init_crawler_tables()
 
 def collect_demand_signals():
     """自动采集行业需求信号"""
@@ -957,9 +971,13 @@ def cleanup_old_data():
     cutoff = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("DELETE FROM github_trending WHERE scrape_date < ?", (cutoff))
-    c.execute("DELETE FROM baidu_hotsearch WHERE scrape_date < ?", (cutoff))
-    c.execute("DELETE FROM scrape_log WHERE scrape_date < ?", (cutoff))
+    c.execute("DELETE FROM github_trending WHERE scrape_date < ?", (cutoff,))
+    c.execute("DELETE FROM baidu_hotsearch WHERE scrape_date < ?", (cutoff,))
+    c.execute("DELETE FROM scrape_log WHERE scrape_date < ?", (cutoff,))
+    c.execute("DELETE FROM competitor_news WHERE scrape_date < ?", (cutoff,))
+    c.execute("DELETE FROM demand_signals WHERE signal_date < ?", (cutoff,))
+    c.execute("DELETE FROM bidding_opportunities WHERE bid_date < ?", (cutoff,))
+    c.execute("DELETE FROM demand_reports WHERE report_date < ?", (cutoff,))
     deleted = c.execute("SELECT changes()").fetchone()[0]
     conn.commit()
     conn.close()
@@ -1004,10 +1022,19 @@ def refresh_and_store():
 # ─── 定时任务调度器 ───
 from pytz import timezone as tz
 scheduler = BackgroundScheduler()
-scheduler.add_job(refresh_and_store, CronTrigger(hour=9, minute=0, timezone=tz("Asia/Shanghai")), id="github_daily")
-scheduler.add_job(collect_bidding_data, CronTrigger(hour=8, minute=30, timezone=tz("Asia/Shanghai")), id="bidding_daily")
+# 8:00 — 需求信号采集
 scheduler.add_job(collect_demand_signals, CronTrigger(hour=8, minute=0, timezone=tz("Asia/Shanghai")), id="demand_daily")
+# 8:30 — 招标信息采集
+scheduler.add_job(collect_bidding_data, CronTrigger(hour=8, minute=30, timezone=tz("Asia/Shanghai")), id="bidding_daily")
+# 9:00 — GitHub Trending 抓取
+scheduler.add_job(refresh_and_store, CronTrigger(hour=9, minute=0, timezone=tz("Asia/Shanghai")), id="github_daily")
+# 9:00 — 全量爬虫（36氪/财联社/第一财经/AI产业/政策/云厂商动态）
+scheduler.add_job(run_daily_crawl, CronTrigger(hour=9, minute=0, timezone=tz("Asia/Shanghai")), id="daily_crawl")
+# 9:02 — 友商动态刷新
+scheduler.add_job(refresh_competitor_news, CronTrigger(hour=9, minute=2, timezone=tz("Asia/Shanghai")), id="competitor_daily")
+# 9:05 — 每日邮件
 scheduler.add_job(send_daily_digest, CronTrigger(hour=9, minute=5, timezone=tz("Asia/Shanghai")), id="daily_email")
+# 3:00 — 数据清理
 scheduler.add_job(cleanup_old_data, CronTrigger(hour=3, minute=0, timezone=tz("Asia/Shanghai")), id="cleanup")
 
 @asynccontextmanager
@@ -1349,6 +1376,75 @@ async def get_dashboard_stats():
         ]
     }
 
+# ─── 首页实时数据 API ───
+
+@app.get("/api/homepage/stats")
+async def homepage_stats():
+    """首页看板统计数据（从数据库实时聚合）"""
+    return get_homepage_stats()
+
+@app.get("/api/homepage/modules")
+async def homepage_modules():
+    """首页各模块预览数据（每个模块最新 3 条）"""
+    return get_homepage_modules()
+
+# ─── 行业新闻 API ───
+
+@app.get("/api/industry-news")
+async def industry_news(
+    days: int = Query(7, ge=1, le=90),
+    source: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """获取行业新闻（36氪/财联社/第一财经/AI产业）"""
+    items = get_industry_news(days=days, source=source, limit=limit)
+    return {"items": items, "count": len(items)}
+
+# ─── 政策法规 API ───
+
+@app.get("/api/policy/list")
+async def policy_list(
+    days: int = Query(30, ge=1, le=90),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """获取政策法规列表"""
+    items = get_policy_updates(days=days, limit=limit)
+    return {"items": items, "count": len(items)}
+
+# ─── 云厂商动态 API ───
+
+@app.get("/api/cloud-vendors")
+async def cloud_vendors(
+    days: int = Query(7, ge=1, le=90),
+    vendor: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """获取云厂商最新动态"""
+    items = get_cloud_vendor_news(days=days, vendor=vendor, limit=limit)
+    return {"items": items, "count": len(items)}
+
+# ─── 手动触发爬虫 API ───
+
+@app.post("/api/crawl/trigger")
+async def trigger_crawl():
+    """手动触发全量爬虫"""
+    try:
+        stats = run_daily_crawl()
+        return {"status": "success", "message": f"爬取完成", "stats": stats}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"爬取失败: {str(e)}")
+
+@app.get("/api/crawl/status")
+async def crawl_status():
+    """获取最近一次爬取状态"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    c.execute("SELECT * FROM scrape_log ORDER BY id DESC LIMIT 10")
+    logs = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return {"logs": logs}
+
 # DeepSeek 配置
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
@@ -1371,28 +1467,68 @@ async def root():
 
 @app.get("/api/daily-insight")
 async def get_daily_insight():
-    """获取或生成今日商业市场洞察"""
-    # 实际项目中这里应从数据库读取，若无则触发生成
-    # 为了演示，我们直接返回一个经过深度提示词优化的结构化数据
+    """获取今日商业市场洞察（从数据库实时聚合）"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+
+    # 行业新闻
+    industry = []
+    try:
+        c.execute("SELECT title, source, url, category FROM industry_news WHERE crawl_date >= ? ORDER BY id DESC LIMIT 3", (week_ago,))
+        for r in c.fetchall():
+            industry.append({"name": r["source"], "summary": r["title"], "link": r["url"] or "#"})
+    except Exception:
+        pass
+
+    # 技术热点
+    hotspots = []
+    try:
+        c.execute("SELECT repo_name, description, repo_url, language FROM github_trending WHERE scrape_date = ? AND category = 'daily' ORDER BY id LIMIT 3", (today,))
+        for r in c.fetchall():
+            hotspots.append({"platform": r["language"] or "GitHub", "title": r["repo_name"], "link": r["repo_url"]})
+    except Exception:
+        pass
+
+    # 快讯
+    news = []
+    try:
+        c.execute("SELECT title, url, source FROM industry_news ORDER BY id DESC LIMIT 3")
+        for r in c.fetchall():
+            news.append({"title": r["title"], "link": r["url"] or "#", "source": r["source"]})
+    except Exception:
+        pass
+
+    # 招标机会
+    opportunities = []
+    try:
+        c.execute("SELECT title, industry, budget, summary FROM bidding_opportunities WHERE bid_date >= ? ORDER BY relevance_score DESC LIMIT 3", (week_ago,))
+        for r in c.fetchall():
+            opportunities.append({"target": r["industry"], "advice": r["summary"][:80] if r["summary"] else "", "opportunity": r["title"]})
+    except Exception:
+        pass
+
+    # 政策
+    policies = []
+    try:
+        c.execute("SELECT title, source, url FROM policy_updates WHERE crawl_date >= ? ORDER BY id DESC LIMIT 3", (week_ago,))
+        for r in c.fetchall():
+            policies.append({"title": r["title"], "source": r["source"], "link": r["url"] or "#"})
+    except Exception:
+        pass
+
+    conn.close()
+
     return {
-        "date": "2026-05-30",
-        "industry": [
-            {"name": "生物医疗", "summary": "基因编辑技术 CRIPSR 2.0 进入临床三期...", "link": "https://www.nature.com/subjects/biotechnology"},
-            {"name": "交通", "summary": "低空经济政策放宽，eVTOL 适航证核发加速...", "link": "https://www.caac.gov.cn/"},
-            {"name": "互联网", "summary": "分布式 AI 算力网络标准化协议发布...", "link": "https://www.techcrunch.com"},
-        ],
-        "hotspots": [
-            {"platform": "GitHub", "title": "Auto-GPT-Next: 全自主商业智能代理", "link": "https://github.com/trending"},
-            {"platform": "CSDN", "title": "2026 开发者生态报告：低代码与 AI 深度融合", "link": "https://www.csdn.net"},
-        ],
-        "news": [
-            {"title": "全球半导体供应链重组：东南亚份额占比升至 30%", "link": "https://www.reuters.com/business/"},
-            {"title": "新能源汽车价格战告一段落，品牌忠诚度成为核心", "link": "https://www.bloomberg.com/asia"},
-        ],
-        "opportunities": [
-            {"target": "腰部客户", "advice": "建议关注数字化转型中的订阅制安全服务...", "opportunity": "中小企业安全合规市场"},
-            {"target": "长尾客户", "advice": "利用轻量化 AI 工具降低运营成本...", "opportunity": "个体工商户自动化套件"},
-        ]
+        "date": today,
+        "industry": industry,
+        "hotspots": hotspots,
+        "news": news,
+        "opportunities": opportunities,
+        "policies": policies,
     }
 
 async def run_analysis(task_id: str, title: str, content: str):
@@ -2047,4 +2183,4 @@ async def daily_insight_enhanced():
         return {"error": str(e), "date": today}
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
