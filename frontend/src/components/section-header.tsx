@@ -23,15 +23,18 @@ export function SectionHeader({ badge, title, subtitle, action, image }: Section
         </div>
       )}
 
-      <div className="relative px-8 py-8">
+      <div className="relative px-10 py-10">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-3">
+          <div className="space-y-4 max-w-3xl">
             {badge && <GradientBadge>{badge}</GradientBadge>}
-            <h2 className="text-3xl md:text-4xl font-serif font-bold tracking-tight text-ink leading-tight">
+            <div className="editorial-rule">
+              <span className="editorial-rule__diamond" />
+            </div>
+            <h2 className="text-4xl md:text-5xl serif-display text-ink">
               {title}
             </h2>
             {subtitle && (
-              <p className="text-base text-ink-secondary max-w-2xl leading-relaxed">
+              <p className="text-base text-ink-secondary max-w-2xl leading-loose">
                 {subtitle}
               </p>
             )}

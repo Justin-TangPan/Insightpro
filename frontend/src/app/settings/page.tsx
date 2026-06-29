@@ -126,8 +126,8 @@ export default function SettingsPage() {
           </div>
           <div className="space-y-3.5">
             <div>
-              <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">用户名</label>
-              <input type="text" defaultValue="Justin Tang" className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">用户名</label>
+              <input type="text" defaultValue="Justin Tang" className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">邮箱</label>
@@ -153,8 +153,8 @@ export default function SettingsPage() {
             {notifications.map((item, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
                 <div>
-                  <p className="text-[13px] font-medium text-ink">{item.label}</p>
-                  <p className="text-[11px] text-ink-muted mt-0.5">{item.desc}</p>
+                  <p className="text-sm font-medium text-ink">{item.label}</p>
+                  <p className="text-xs text-ink-muted mt-0.5">{item.desc}</p>
                 </div>
                 <button
                   type="button"
@@ -173,7 +173,7 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2.5">
               <Mail className="h-4 w-4 text-ink-muted" />
-              <h3 className="font-semibold text-sm text-ink">邮件订阅管理</h3>
+              <h3 className="serif-heading text-sm text-ink">邮件订阅管理</h3>
               <span className="text-[10px] font-medium text-ink-muted">每天 09:05 自动发送</span>
             </div>
             <button
@@ -258,7 +258,7 @@ export default function SettingsPage() {
           <div className="space-y-0.5">
             {dataSources.map((src, i) => (
               <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
-                <span className="text-[13px] font-medium text-ink">{src.name}</span>
+                <span className="text-sm font-medium text-ink">{src.name}</span>
                 <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${src.ok ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
                   {src.status}
                 </span>

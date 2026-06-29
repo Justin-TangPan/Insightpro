@@ -23,9 +23,9 @@ export default function ReportsPage() {
               </Link>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 rounded-full gradient-primary text-white text-[10px] font-semibold">Industry Report</span>
+                  <span className="px-2.5 py-0.5 rounded-full gradient-primary text-white text-xs font-semibold">Industry Report</span>
                   <span className="text-ink-muted text-xs">•</span>
-                  <span className="text-[11px] text-ink-muted font-medium flex items-center gap-1">
+                  <span className="text-xs text-ink-muted font-medium flex items-center gap-1">
                     <Calendar className="h-3 w-3" /> {dateStr}
                   </span>
                 </div>
@@ -63,7 +63,7 @@ export default function ReportsPage() {
                 { label: "政策支持", value: "72/100", color: "bg-emerald-500", w: "72%" },
               ].map((m) => (
                 <div key={m.label}>
-                  <div className="flex justify-between text-[11px] font-semibold mb-1.5">
+                  <div className="flex justify-between text-xs font-semibold mb-1.5">
                     <span className="text-ink-muted uppercase tracking-wider">{m.label}</span>
                     <span className="text-ink">{m.value}</span>
                   </div>
@@ -77,7 +77,7 @@ export default function ReportsPage() {
 
           {/* Key Takeaways */}
           <div className="space-y-3.5">
-            <h3 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider pl-1">核心结论提炼</h3>
+            <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider pl-1">核心结论提炼</h3>
 
             <div className="rounded-xl border-l-4 border-primary bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-center gap-2 text-primary mb-2.5">
@@ -118,7 +118,7 @@ export default function ReportsPage() {
             <article className="prose prose-slate prose-headings:font-serif prose-headings:font-medium prose-p:text-ink-secondary prose-p:leading-8 max-w-none">
               <div className="flex items-center gap-2 mb-8">
                 <div className="h-1 w-10 gradient-primary rounded-full" />
-                <span className="text-[10px] font-semibold text-primary uppercase tracking-[0.3em]">Deep Insight Editorial</span>
+                <span className="text-xs font-semibold text-primary uppercase tracking-[0.3em]">Deep Insight Editorial</span>
               </div>
 
               <h2 className="text-2xl text-ink mb-6">执行摘要：从政策驱动到价值回归</h2>
@@ -156,20 +156,20 @@ export default function ReportsPage() {
               <h3 className="text-xl text-ink mt-10 mb-5">结论与战略建议</h3>
               <div className="grid md:grid-cols-2 gap-5 mt-6 not-prose">
                 <div className="p-5 rounded-xl bg-slate-50 border border-slate-200/60">
-                  <h5 className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">短期策略</h5>
+                  <h5 className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">短期策略</h5>
                   <p className="text-sm text-ink-secondary leading-relaxed">
                     优化供应链成本结构，通过规模效应确保现金流安全，应对持续全年的价格挑战。
                   </p>
                 </div>
                 <div className="p-5 rounded-xl gradient-primary text-white shadow-md shadow-indigo-500/20">
-                  <h5 className="text-[10px] font-semibold text-white/70 uppercase tracking-wider mb-2">长期战略</h5>
+                  <h5 className="text-xs font-semibold text-white/70 uppercase tracking-wider mb-2">长期战略</h5>
                   <p className="text-sm text-white/90 leading-relaxed">
                     加大 AI 算法自研投入，构建差异化的智能座舱与自动驾驶体验，从"卖硬件"向"卖服务"转型。
                   </p>
                 </div>
               </div>
 
-              <div className="mt-14 pt-6 border-t border-slate-100 flex items-center justify-between text-[10px] text-ink-muted font-medium uppercase tracking-wider">
+              <div className="mt-14 pt-6 border-t border-slate-100 flex items-center justify-between text-xs text-ink-muted font-medium uppercase tracking-wider">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1"><Globe className="h-3 w-3" /> Data: Multiple Sources</span>
                   <span>•</span>

@@ -43,13 +43,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <MobileNavTrigger />
                   <div className="flex items-center gap-2 bg-slate-50 px-3.5 py-1.5 rounded-lg border border-slate-200/60 w-60 lg:w-72 focus-within:border-slate-300 focus-within:bg-white transition-all">
                     <Search className="h-3.5 w-3.5 text-ink-muted" />
-                    <input type="text" placeholder="搜索行业、竞品或历史报告..." className="bg-transparent border-none text-[13px] focus:outline-none w-full text-ink placeholder:text-ink-muted" />
+                    <input type="text" placeholder="搜索行业、竞品或历史报告..." className="bg-transparent border-none text-sm focus:outline-none w-full text-ink placeholder:text-ink-muted" />
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
-                    <p className="text-[10px] text-ink-muted font-medium uppercase tracking-wider">Today</p>
-                    <p className="text-[13px] font-serif font-semibold text-ink">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-xs text-ink-muted font-medium uppercase tracking-wider">Today</p>
+                    <p className="text-sm serif-heading text-ink">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                   </div>
                   <div className="h-6 w-px bg-slate-200 hidden sm:block" />
                   <button className="relative h-8 w-8 rounded-lg bg-slate-50 border border-slate-200/60 flex items-center justify-center hover:bg-slate-100 transition-colors">

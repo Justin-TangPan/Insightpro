@@ -130,19 +130,19 @@ export default function DemandPage() {
       {trends && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">信号总量</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">信号总量</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{trends.total_signals}</p>
           </div>
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">覆盖行业</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">覆盖行业</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{industries.length}</p>
           </div>
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">数据来源</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">数据来源</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{Object.keys(trends.by_type).length} 类</p>
           </div>
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">热门标签</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">热门标签</p>
             <div className="flex flex-wrap gap-1 mt-2">
               {trends.hot_tags.slice(0, 3).map((t, i) => (
                 <span key={i} className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-primary">{t.tag}</span>
@@ -209,7 +209,7 @@ export default function DemandPage() {
                       <span className="text-[9px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-ink-muted">{sig.industry}</span>
                       <span className="text-[9px] font-semibold text-amber-600">相关度 {Math.round(sig.relevance_score * 100)}%</span>
                     </div>
-                    <h4 className="font-semibold text-sm text-ink mb-1">{sig.title}</h4>
+                    <h4 className="serif-heading text-sm text-ink mb-1">{sig.title}</h4>
                     <p className="text-xs text-ink-secondary leading-relaxed line-clamp-2">{sig.summary}</p>
                     {sig.demand_tags && (
                       <div className="flex flex-wrap gap-1.5 mt-2">
@@ -237,7 +237,7 @@ export default function DemandPage() {
         <div className="rounded-lg bg-white border border-slate-200/80 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
             <FileText className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold text-sm text-ink">AI 行业需求洞察报告</h3>
+            <h3 className="serif-heading text-sm text-ink">AI 行业需求洞察报告</h3>
           </div>
           <div className="prose prose-sm max-w-none text-ink-secondary leading-relaxed whitespace-pre-wrap">
             {report}

@@ -39,6 +39,10 @@
   --font-serif: var(--font-cormorant), Georgia, serif;
   --font-sans: 'Mona Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
 
+  /* Typography scale */
+  --text-caption: 0.6875rem;
+  --text-caption--line-height: 1.15;
+
   /* Shadows - subtle & professional */
   --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.04);
   --shadow-card-hover: 0 2px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.06);
@@ -53,6 +57,94 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+}
+
+/* ── Serif Typography Utilities ── */
+.serif-display {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+.serif-heading {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.serif-stat {
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  font-feature-settings: "tnum";
+}
+
+/* ── Editorial Decorative Elements ── */
+.editorial-rule {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.editorial-rule::before,
+.editorial-rule::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-border);
+}
+.editorial-rule__diamond {
+  width: 5px;
+  height: 5px;
+  background: var(--color-primary);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+
+/* Pull quote */
+.pull-quote {
+  position: relative;
+  padding: 1.5rem 1.5rem 1.5rem 2.5rem;
+  margin: 1.5rem 0;
+  font-family: var(--font-cormorant), Georgia, serif;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: var(--color-ink);
+  border-left: 3px solid var(--color-primary);
+  background: rgba(37, 99, 235, 0.03);
+}
+.pull-quote::before {
+  content: "\201C";
+  position: absolute;
+  top: 0.25rem;
+  left: 0.5rem;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--color-primary);
+  opacity: 0.25;
+  font-family: var(--font-cormorant), Georgia, serif;
+}
+
+/* Label caption utility */
+.text-caption {
+  font-size: 0.6875rem;
+  line-height: 1.15;
+}
+
+/* Card accent top border */
+.card-accent-top {
+  position: relative;
+}
+.card-accent-top::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 1.5rem;
+  right: 1.5rem;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  border-radius: 1px;
+  opacity: 0.25;
 }
 
 /* Scrollbar */

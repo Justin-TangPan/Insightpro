@@ -349,9 +349,9 @@ export default function CasesPage() {
           const color = v === "华为云" ? "from-rose-500 to-pink-500" : v === "AWS" ? "from-orange-500 to-amber-500" : "from-blue-500 to-cyan-500";
           return (
             <div key={v} className="rounded-xl bg-white border border-slate-200/60 p-4 shadow-sm">
-              <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">{v}</p>
+              <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">{v}</p>
               <p className="text-2xl font-serif font-bold text-ink mt-1">{count}</p>
-              <span className="text-[10px] text-ink-muted">个案例</span>
+              <span className="text-xs text-ink-muted">个案例</span>
             </div>
           );
         })}
@@ -366,7 +366,7 @@ export default function CasesPage() {
                 <div className="h-7 w-7 rounded bg-white/10 flex items-center justify-center">
                   <c.icon className="h-3.5 w-3.5 text-white" />
                 </div>
-                <span className="text-[11px] font-semibold text-white/80 uppercase tracking-wider">{c.industry} · {c.tag}</span>
+                <span className="text-xs font-semibold text-white/80 uppercase tracking-wider">{c.industry} · {c.tag}</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${c.vendorColor}`}>
@@ -385,11 +385,11 @@ export default function CasesPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
                 <div className="rounded-lg border-l-4 border-primary bg-indigo-50/30 p-4">
-                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-2">方案</p>
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-2">方案</p>
                   <p className="text-xs text-ink font-medium leading-relaxed">{c.solution}</p>
                 </div>
                 <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50/30 p-4 md:col-span-2">
-                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-2">效果</p>
+                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-2">效果</p>
                   <p className="text-xs text-ink-secondary leading-relaxed">{c.result}</p>
                 </div>
               </div>
@@ -398,7 +398,7 @@ export default function CasesPage() {
                 href={c.source.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-50 border border-slate-200/60 text-[11px] text-ink-muted hover:text-ink hover:border-slate-300 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded bg-slate-50 border border-slate-200/60 text-xs text-ink-muted hover:text-ink hover:border-slate-300 transition-colors"
               >
                 <ExternalLink className="h-3 w-3" />
                 {c.source.title}

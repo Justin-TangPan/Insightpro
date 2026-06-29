@@ -145,7 +145,7 @@ export default function HistoryPage() {
                       <CalendarDays className="h-3.5 w-3.5 text-ink-muted" />
                       <span className="text-sm font-semibold text-ink">{entry.date}</span>
                     </div>
-                    <p className="text-[11px] text-ink-muted">
+                    <p className="text-xs text-ink-muted">
                       {new Date(entry.date).toLocaleDateString("zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                     </p>
                   </div>
@@ -173,15 +173,15 @@ export default function HistoryPage() {
                         {j + 1}
                       </span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-ink group-hover:text-primary transition-colors truncate">
+                        <p className="serif-heading text-xs text-ink group-hover:text-primary transition-colors truncate">
                           {item.repo_name}
                         </p>
-                        <p className="text-[11px] text-ink-muted line-clamp-1 mt-0.5">
+                        <p className="text-xs text-ink-muted line-clamp-1 mt-0.5">
                           {item.description || "暂无描述"}
                         </p>
                         <div className="flex items-center gap-3 mt-1.5">
                           {item.language && item.language !== "N/A" && (
-                            <span className="text-[10px] text-ink-muted">{item.language}</span>
+                            <span className="text-xs text-ink-muted">{item.language}</span>
                           )}
                           <span className="flex items-center gap-0.5 text-[10px] text-ink-muted">
                             <Star className="h-2.5 w-2.5" /> {item.stars}

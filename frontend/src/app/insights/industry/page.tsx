@@ -306,8 +306,8 @@ export default function IndustryInsightPage() {
                     <ind.icon className="h-5 w-5 text-ink-secondary" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-ink">{ind.name}</h3>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${ind.statusColor}`}>
+                    <h3 className="serif-heading text-lg text-ink">{ind.name}</h3>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${ind.statusColor}`}>
                       {ind.status}
                     </span>
                   </div>
@@ -315,8 +315,8 @@ export default function IndustryInsightPage() {
                 <ChevronRight className={`h-4 w-4 text-ink-muted transition-transform ${expanded === i ? "rotate-90" : ""}`} />
               </div>
 
-              <p className="text-xs text-ink-secondary leading-relaxed mb-2">{ind.summary}</p>
-              <p className="text-[10px] font-medium text-ink-muted">{ind.trend}</p>
+              <p className="text-sm text-ink-secondary leading-relaxed mb-2">{ind.summary}</p>
+              <p className="text-xs font-medium text-ink-muted">{ind.trend}</p>
 
               <div className="flex flex-wrap gap-2 mt-3">
                 {ind.links.map((link, j) => (
@@ -325,7 +325,7 @@ export default function IndustryInsightPage() {
                     href={link.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-[10px] text-ink-muted hover:text-primary transition-colors"
+                    className="flex items-center gap-1 text-xs text-ink-muted hover:text-primary transition-colors"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <ExternalLink className="h-2.5 w-2.5" />
@@ -337,14 +337,14 @@ export default function IndustryInsightPage() {
 
             {expanded === i && (
               <div className="border-t border-slate-100 p-5 bg-slate-50/50 space-y-4">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">具体客户方案（{ind.cases.length} 个案例）</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">具体客户方案（{ind.cases.length} 个案例）</p>
                 {ind.cases.map((c, j) => (
                   <div key={j} className="rounded-lg bg-white border border-slate-200/60 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <ShieldCheck className="h-3.5 w-3.5 text-primary" />
                       <span className="text-xs font-semibold text-ink">{c.vendor}</span>
                       <span className="text-[10px] text-ink-muted">·</span>
-                      <span className="text-[10px] text-ink-muted">{c.customer}</span>
+                      <span className="text-xs text-ink-muted">{c.customer}</span>
                     </div>
                     <p className="text-xs text-ink-secondary mb-1.5"><strong>方案：</strong>{c.solution}</p>
                     <p className="text-xs text-emerald-700 mb-2"><strong>效果：</strong>{c.result}</p>
@@ -352,7 +352,7 @@ export default function IndustryInsightPage() {
                       href={c.source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-[10px] text-primary hover:underline"
+                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                     >
                       <ExternalLink className="h-2.5 w-2.5" />
                       {c.source.title}

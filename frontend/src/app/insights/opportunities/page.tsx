@@ -147,20 +147,20 @@ export default function OpportunitiesPage() {
                 <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-900 text-white text-[10px] font-bold">
                   {i + 1}
                 </span>
-                <h3 className="font-bold text-ink text-sm">{opp.title}</h3>
+                <h3 className="serif-heading text-lg text-ink">{opp.title}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${opp.priorityColor}`}>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${opp.priorityColor}`}>
                   {opp.priority}优先级
                 </span>
-                <span className="text-[10px] text-ink-muted">{opp.marketSize}</span>
+                <span className="text-xs text-ink-muted">{opp.marketSize}</span>
               </div>
             </div>
 
             <div className="p-5 space-y-4">
               {/* Source References */}
               <div>
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">信息来源（关联子版块）</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">信息来源（关联子版块）</p>
                 <div className="space-y-1.5">
                   {opp.sources.map((src, j) => (
                     <Link
@@ -168,7 +168,7 @@ export default function OpportunitiesPage() {
                       href={src.href}
                       className="flex items-start gap-2 text-xs text-ink-secondary hover:text-primary transition-colors"
                     >
-                      <span className="text-[10px] font-semibold text-primary shrink-0 mt-px">[{src.module}]</span>
+                      <span className="text-xs font-semibold text-primary shrink-0 mt-px">[{src.module}]</span>
                       <span>{src.insight}</span>
                     </Link>
                   ))}
@@ -179,7 +179,7 @@ export default function OpportunitiesPage() {
               <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Target className="h-4 w-4 text-primary" />
-                  <span className="text-[10px] font-semibold text-ink uppercase tracking-wider">综合分析</span>
+                  <span className="text-xs font-semibold text-ink uppercase tracking-wider">综合分析</span>
                 </div>
                 <p className="text-sm text-ink-secondary leading-relaxed">{opp.analysis}</p>
               </div>
@@ -187,11 +187,11 @@ export default function OpportunitiesPage() {
               {/* Action + Advantage */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="rounded-lg border-l-4 border-primary bg-indigo-50/30 p-3">
-                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">建议行动</p>
+                  <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">建议行动</p>
                   <p className="text-xs text-ink-secondary leading-relaxed">{opp.action}</p>
                 </div>
                 <div className="rounded-lg border-l-4 border-emerald-500 bg-emerald-50/30 p-3">
-                  <p className="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider mb-1">华为云优势</p>
+                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wider mb-1">华为云优势</p>
                   <p className="text-xs text-emerald-800 leading-relaxed">{opp.huaweiAdvantage}</p>
                 </div>
               </div>

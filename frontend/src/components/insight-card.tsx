@@ -28,8 +28,8 @@ export function InsightCard({ children, className = "", href, gradient = false, 
 
 export function InsightCardHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
-      <h3 className="font-serif text-xl font-bold text-ink">{title}</h3>
+    <div className="flex items-center justify-between mb-6 pb-5 border-b border-slate-100">
+      <h3 className="text-2xl serif-heading text-ink">{title}</h3>
       {action}
     </div>
   );
@@ -59,7 +59,7 @@ export function StatCard({
   };
 
   const content = (
-    <div className="group rounded-2xl bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 hover:-translate-y-0.5">
+    <div className="group rounded-2xl bg-white border border-slate-200/60 p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 hover:-translate-y-0.5">
       <div className="flex items-center justify-between mb-3">
         <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${colorMap[color] || colorMap.primary} flex items-center justify-center`}>
           <Icon className="h-5 w-5 text-white" />
@@ -70,8 +70,8 @@ export function StatCard({
           </span>
         )}
       </div>
-      <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-0.5">{label}</p>
-      <h3 className="text-2xl font-serif font-bold text-ink">{value}</h3>
+      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">{label}</p>
+      <h3 className="text-3xl serif-stat text-ink">{value}</h3>
     </div>
   );
 
@@ -83,7 +83,7 @@ export function StatCard({
 
 export function GradientBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center px-3 py-1 rounded-full text-[11px] font-semibold text-white gradient-primary">
+    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold text-white gradient-primary">
       {children}
     </span>
   );

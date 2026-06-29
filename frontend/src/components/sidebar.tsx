@@ -36,7 +36,7 @@ function NavGroup({ label, icon: Icon, items, defaultOpen = false }: {
     <div>
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-[13px] font-semibold text-ink-secondary hover:text-ink hover:bg-slate-50 transition-colors"
+        className="w-full flex items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-ink-secondary hover:text-ink hover:bg-slate-50 transition-colors"
       >
         <div className="flex items-center gap-2.5">
           <Icon className="h-4 w-4 text-ink-muted" />
@@ -52,7 +52,7 @@ function NavGroup({ label, icon: Icon, items, defaultOpen = false }: {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center rounded-md px-3 py-1.5 text-[13px] transition-colors ${
+              className={`flex items-center rounded-md px-3 py-1.5 text-sm transition-colors ${
                 item.indent ? "pl-6" : ""
               } ${
                 pathname === item.href
@@ -78,7 +78,7 @@ function NavLink({ href, icon: Icon, label }: { href: string; icon: LucideIcon; 
   return (
     <Link
       href={href}
-      className={`group flex items-center rounded-lg px-3 py-2 text-[13px] transition-colors ${
+      className={`group flex items-center rounded-lg px-3 py-2 text-sm transition-colors ${
         isActive
           ? "bg-slate-50 font-semibold text-ink border border-slate-200/60"
           : "text-ink-secondary hover:text-ink hover:bg-slate-50"
@@ -117,7 +117,7 @@ export function Sidebar() {
             I
           </div>
           <div>
-            <span className="text-[15px] font-serif font-bold tracking-tight text-ink block leading-tight">InsightPro</span>
+            <span className="text-lg serif-heading text-ink block">InsightPro</span>
             <span className="text-[9px] font-semibold text-ink-muted uppercase tracking-[0.15em]">Business Intelligence</span>
           </div>
         </Link>
@@ -172,14 +172,14 @@ export function Sidebar() {
       </nav>
 
       {/* User */}
-      <div className="border-t border-slate-100 p-4">
+      <div className="border-t border-slate-100 p-5">
         <div className="flex items-center gap-2.5 mb-2.5">
           <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-white text-[11px] font-bold">
             JT
           </div>
           <div className="flex-1 overflow-hidden">
-            <p className="text-[13px] font-semibold truncate">Justin Tang</p>
-            <p className="text-[10px] text-ink-muted font-medium">Premium Plan</p>
+            <p className="text-sm font-semibold truncate">Justin Tang</p>
+            <p className="text-xs text-ink-muted font-medium">Premium Plan</p>
           </div>
         </div>
         <Link href="/settings" onClick={closeMobile} className="flex items-center rounded-md px-2.5 py-1.5 text-xs text-ink-muted hover:text-ink hover:bg-slate-50 transition-colors">

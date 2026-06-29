@@ -164,27 +164,27 @@ export default function MarketIntelligencePage() {
           <div className="rounded-xl bg-white border border-slate-200/80 p-6 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Sparkles className="h-5 w-5 text-primary" />
-              <h3 className="font-serif font-bold text-lg text-ink">市场全景速览</h3>
+              <h3 className="serif-heading text-xl text-ink">市场全景速览</h3>
             </div>
             <p className="text-sm text-ink-secondary leading-relaxed mb-5">{overview.summary}</p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
               <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">市场状态</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">市场状态</p>
                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${statusColor(overview.market_status)}`}>
                   {overview.market_status === "扩张" ? "↑ 扩张" : overview.market_status === "稳定" ? "→ 稳定" : "↓ 收缩"}
                 </span>
               </div>
               <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">覆盖行业</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">覆盖行业</p>
                 <p className="text-xl font-serif font-bold text-ink">{stats?.industries || 0} 个</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">需求信号</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">需求信号</p>
                 <p className="text-xl font-serif font-bold text-ink">{stats?.signals || 0} 条</p>
               </div>
               <div className="rounded-lg bg-slate-50 p-4">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">招标项目</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">招标项目</p>
                 <p className="text-xl font-serif font-bold text-ink">{stats?.tenders || 0} 个</p>
               </div>
             </div>
@@ -192,7 +192,7 @@ export default function MarketIntelligencePage() {
             {/* Top Industries */}
             {overview.top_industries && overview.top_industries.length > 0 && (
               <div className="mb-5">
-                <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-3">TOP 高增长行业</p>
+                <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-3">TOP 高增长行业</p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   {overview.top_industries.map((ind, i) => (
                     <div key={i} className="rounded-lg border border-slate-200/60 p-4 bg-gradient-to-br from-slate-50 to-white">
@@ -200,10 +200,10 @@ export default function MarketIntelligencePage() {
                         <span className="flex h-5 w-5 items-center justify-center rounded bg-primary text-white text-[9px] font-bold">
                           {i + 1}
                         </span>
-                        <p className="font-bold text-sm text-ink">{ind.name}</p>
+                        <p className="serif-heading text-sm text-ink">{ind.name}</p>
                       </div>
                       <p className="text-xs text-ink-secondary mb-1">{ind.driver}</p>
-                      <span className="text-[10px] font-semibold text-emerald-600">{ind.growth}</span>
+                      <span className="text-xs font-semibold text-emerald-600">{ind.growth}</span>
                     </div>
                   ))}
                 </div>
@@ -212,7 +212,7 @@ export default function MarketIntelligencePage() {
 
             {/* Hot Tags */}
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-semibold text-ink-muted">热门需求标签：</span>
+              <span className="text-xs font-semibold text-ink-muted">热门需求标签：</span>
               {overview.hot_tags?.map((tag, i) => (
                 <span key={i} className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-primary">{tag}</span>
               ))}
@@ -222,7 +222,7 @@ export default function MarketIntelligencePage() {
               <div className="mt-4 rounded-lg bg-slate-50 border border-slate-100 p-3 flex items-start gap-2">
                 <Brain className="h-4 w-4 text-primary mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">综合研判</p>
+                  <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">综合研判</p>
                   <p className="text-xs text-ink-secondary">{overview.outlook}</p>
                 </div>
               </div>
@@ -234,19 +234,19 @@ export default function MarketIntelligencePage() {
             <div className="px-6 py-4 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                <h3 className="font-bold text-sm text-ink">行业热度矩阵</h3>
+                <h3 className="serif-heading text-sm text-ink">行业热度矩阵</h3>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left py-3 px-6 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">行业</th>
-                    <th className="text-center py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">需求热度</th>
-                    <th className="text-center py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">竞争烈度</th>
-                    <th className="text-center py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">政策支持</th>
-                    <th className="text-center py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">增长状态</th>
-                    <th className="text-right py-3 px-6 text-[10px] font-semibold text-ink-muted uppercase tracking-wider"></th>
+                    <th className="text-left py-3 px-6 text-xs font-semibold text-ink-muted uppercase tracking-wider">行业</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">需求热度</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">竞争烈度</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">政策支持</th>
+                    <th className="text-center py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">增长状态</th>
+                    <th className="text-right py-3 px-6 text-xs font-semibold text-ink-muted uppercase tracking-wider"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -320,7 +320,7 @@ export default function MarketIntelligencePage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <BarChart3 className="h-4 w-4 text-primary" />
-                    <h3 className="font-bold text-sm text-ink">行业对比雷达图</h3>
+                    <h3 className="serif-heading text-sm text-ink">行业对比雷达图</h3>
                     <span className="text-[10px] text-ink-muted ml-1">需求 · 竞争 · 政策 三维度对比</span>
                   </div>
                 </div>
@@ -398,7 +398,7 @@ export default function MarketIntelligencePage() {
 
                   {/* Right side: Industry Score Summary */}
                   <div className="lg:w-64 space-y-3">
-                    <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">选中行业评分</p>
+                    <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">选中行业评分</p>
                     {radarIndustries.map(industry => {
                       const item = heatmap.find(h => h.industry === industry);
                       if (!item) return null;
@@ -463,13 +463,13 @@ export default function MarketIntelligencePage() {
                 <div className="p-6 space-y-5">
                   {/* Market Size */}
                   <div className="rounded-lg bg-slate-50 border border-slate-100 p-4">
-                    <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">市场规模</p>
+                    <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">市场规模</p>
                     <p className="text-sm font-bold text-ink">{industryAnalysis.market_size}</p>
                   </div>
 
                   {/* Key Trends */}
                   <div>
-                    <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">关键趋势</p>
+                    <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">关键趋势</p>
                     <div className="flex flex-wrap gap-2">
                       {industryAnalysis.key_trends?.map((t, i) => (
                         <span key={i} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-indigo-50 text-xs text-primary border border-indigo-100">
@@ -483,7 +483,7 @@ export default function MarketIntelligencePage() {
                   {/* Pain Points */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">客户痛点</p>
+                      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">客户痛点</p>
                       <div className="space-y-2">
                         {industryAnalysis.pain_points?.map((p, i) => (
                           <div key={i} className="flex items-start gap-2 text-xs text-ink-secondary">
@@ -494,7 +494,7 @@ export default function MarketIntelligencePage() {
                       </div>
                     </div>
                     <div>
-                      <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">竞争格局</p>
+                      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">竞争格局</p>
                       <div className="rounded-lg bg-rose-50/50 border border-rose-100 p-3">
                         <p className="text-xs text-ink-secondary leading-relaxed">{industryAnalysis.competition}</p>
                       </div>
@@ -503,7 +503,7 @@ export default function MarketIntelligencePage() {
 
                   {/* Opportunities */}
                   <div>
-                    <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-2">机会点</p>
+                    <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">机会点</p>
                     <div className="space-y-2">
                       {industryAnalysis.opportunities?.map((opp, i) => (
                         <div key={i} className="flex items-start gap-3 p-3 rounded-lg border border-slate-200/60">
@@ -514,7 +514,7 @@ export default function MarketIntelligencePage() {
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="text-xs font-bold text-ink">{opp.title}</p>
+                              <p className="serif-heading text-xs text-ink">{opp.title}</p>
                               <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
                                 opp.priority === "高" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"
                               }`}>{opp.priority}优先级</span>

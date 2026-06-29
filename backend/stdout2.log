@@ -1,0 +1,90 @@
+定时任务调度器已启动，每天早上 9:00 自动刷新 GitHub Trending
+[OK] DeepSearcher initialized, RAG engine ready
+INFO:     127.0.0.1:49222 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49225 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49227 - "GET /api/homepage/modules HTTP/1.1" 200 OK
+[18:24:03] 开始每日全量爬取...
+[Crawler] GET https://36kr.com/newsflashes failed: requests.api.get() got multiple values for keyword argument 'timeout'
+[Crawler] yicai: 0 items
+[Crawler] 36kr: 0 items
+[Crawler] GET https://www.cls.cn/nodeapi/updateTelegraphList failed: 404 Client Error: Not Found for url: https://www.cls.cn/nodeapi/updateTelegraphList?app=CailianpressWeb&os=web&sv=7.7.5&rn=20
+[Crawler] policy: 0 items
+[Crawler] ai_news: 10 items
+[Crawler] cls: 4 items
+[Crawler] GET https://www.aliyun.com/activity/daily failed: 404 Client Error: Not Found for url: https://cn.aliyun.com/activity/daily?from_alibabacloud=
+[Crawler] cloud_vendors: 0 items
+[18:24:20] 每日爬取完成: 14 条新数据, 耗时 16.6s
+INFO:     127.0.0.1:49230 - "POST /api/crawl/trigger HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49255 - "GET /api/industry-news HTTP/1.1" 200 OK
+ 定时任务调度器已启动，每天早上 9:00 自动刷新 GitHub Trending
+[OK] DeepSearcher initialized, RAG engine ready
+INFO:     127.0.0.1:50051 - "GET / HTTP/1.1" 200 OK
+[18:55:17] 开始每日全量爬取...
+[Crawler] GET https://36kr.com/newsflashes failed: requests.api.get() got multiple values for keyword argument 'timeout'
+[Crawler] 36kr: 0 items
+[Crawler] GET https://www.cls.cn/nodeapi/updateTelegraphList failed: 404 Client Error: Not Found for url: https://www.cls.cn/nodeapi/updateTelegraphList?app=CailianpressWeb&os=web&sv=7.7.5&rn=20
+[Crawler] policy: 16 items
+[Crawler] cls: 4 items
+[Crawler] ai_news: 10 items
+[Crawler] yicai: 0 items
+[Crawler] GET https://www.aliyun.com/activity/daily failed: 404 Client Error: Not Found for url: https://cn.aliyun.com/activity/daily?from_alibabacloud=
+[Crawler] cloud_vendors: 0 items
+[18:55:37] 每日爬取完成: 16 条新数据, 耗时 19.7s
+INFO:     127.0.0.1:50117 - "POST /api/crawl/trigger HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50248 - "GET /api/policy/list HTTP/1.1" 200 OK
+ 定时任务调度器已启动，每天早上 9:00 自动刷新 GitHub Trending
+[OK] DeepSearcher initialized, RAG engine ready
+INFO:     127.0.0.1:50612 - "GET / HTTP/1.1" 200 OK
+[19:01:40] 开始每日全量爬取...
+[Crawler] GET https://36kr.com/newsflashes failed: requests.api.get() got multiple values for keyword argument 'timeout'
+[Crawler] yicai: 0 items
+[Crawler] 36kr: 0 items
+[Crawler] GET https://www.cls.cn/nodeapi/updateTelegraphList failed: 404 Client Error: Not Found for url: https://www.cls.cn/nodeapi/updateTelegraphList?app=CailianpressWeb&os=web&sv=7.7.5&rn=20
+[Crawler] policy: 16 items
+[Crawler] GET https://www.huaweicloud.com/news/ failed: 404 Client Error: Not Found for url: https://www.huaweicloud.com/news/
+[Crawler] cls: 4 items
+[Crawler] ai_news: 10 items
+[Crawler] GET https://www.amazonaws.cn/about-aws/news/ failed: 404 Client Error:  for url: https://www.amazonaws.cn/about-aws/news/
+[Crawler] cloud_vendors: 6 items
+[19:01:50] 每日爬取完成: 6 条新数据, 耗时 10.0s
+INFO:     127.0.0.1:50684 - "POST /api/crawl/trigger HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50767 - "GET /api/cloud-vendors HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50787 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50798 - "GET /api/homepage/modules HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50823 - "GET /api/daily-insight HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50939 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51717 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51717 - "GET /api/baidu-hotsearch HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51718 - "GET /api/homepage/modules HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51719 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51719 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51719 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51719 - "OPTIONS /api/chat/stream HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51719 - "POST /api/chat/stream HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51719 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51719 - "GET /api/baidu-hotsearch HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51720 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51800 - "GET /api/homepage/modules HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51881 - "GET /api/bidding/list?days=30&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51882 - "GET /api/bidding/stats HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51883 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51882 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51882 - "GET /api/bidding/list?days=30&page=1&page_size=10 HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51883 - "GET /api/bidding/stats HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51881 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51883 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51883 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51881 - "GET /api/demand/signals?days=30 HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51882 - "GET /api/demand/trends HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51882 - "GET /api/market/overview HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51883 - "OPTIONS /api/track HTTP/1.1" 204 No Content
+INFO:     94.74.90.21:51881 - "GET /api/market/heatmap HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53832 - "GET /api/homepage/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53841 - "GET /api/crawl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53870 - "GET /api/crawl/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50883 - "GET /api/github-trending?since=daily HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50900 - "GET /api/industry-news?days=7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50905 - "GET /api/policy/list HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50917 - "GET /api/cloud-vendors HTTP/1.1" 200 OK
+INFO:     94.74.90.21:51004 - "GET /api/industry-news HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54082 - "GET / HTTP/1.1" 200 OK

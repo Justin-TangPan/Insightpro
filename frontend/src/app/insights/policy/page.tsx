@@ -121,7 +121,7 @@ export default function PolicyPage() {
         action={
           <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-slate-200/60 bg-white shadow-[var(--shadow-card)]">
             <div className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
-            <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">实时监测中</span>
+            <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">实时监测中</span>
           </div>
         }
       />
@@ -140,10 +140,10 @@ export default function PolicyPage() {
                 <stat.icon className={`h-4 w-4 ${stat.color}`} />
               </div>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-0.5">{stat.label}</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">{stat.label}</p>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl font-serif font-bold ${stat.color}`}>{stat.value}</span>
-              <span className="text-[11px] font-medium text-ink-muted">{stat.unit}</span>
+              <span className="text-xs font-medium text-ink-muted">{stat.unit}</span>
             </div>
           </div>
         ))}
@@ -169,11 +169,11 @@ export default function PolicyPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-3">
-                    <h3 className="font-bold text-lg text-ink">{p.title}</h3>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${severityMap[p.severity].class}`}>
+                    <h3 className="serif-heading text-2xl text-ink">{p.title}</h3>
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${severityMap[p.severity].class}`}>
                       {severityMap[p.severity].label}
                     </span>
-                    <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                    <span className="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
                       {p.status}
                     </span>
                   </div>
@@ -181,7 +181,7 @@ export default function PolicyPage() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <span className="hidden md:block text-[11px] text-ink-muted font-medium">{p.source}</span>
+                <span className="hidden md:block text-xs text-ink-muted font-medium">{p.source}</span>
                 <ChevronRight className={`h-5 w-5 text-ink-muted transition-transform ${activePolicy === p.id ? "rotate-90" : ""}`} />
               </div>
             </div>
@@ -192,11 +192,11 @@ export default function PolicyPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                   <div className="space-y-4">
                     <div>
-                      <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">政策概要</p>
+                      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">政策概要</p>
                       <p className="text-sm text-ink-secondary leading-relaxed">{p.summary}</p>
                     </div>
                     <div>
-                      <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">对业务的影响</p>
+                      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">对业务的影响</p>
                       <div className="border-l-4 border-rose-400 pl-4 py-2 bg-rose-50/50 rounded-r-lg">
                         <p className="text-sm text-ink-secondary leading-relaxed">{p.impact}</p>
                       </div>
@@ -204,7 +204,7 @@ export default function PolicyPage() {
                   </div>
                   <div className="space-y-4">
                     <div>
-                      <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">建议行动</p>
+                      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">建议行动</p>
                       <div className="border-l-4 border-emerald-400 pl-4 py-2 bg-emerald-50/50 rounded-r-lg">
                         <p className="text-sm font-medium text-ink-secondary leading-relaxed">{p.action}</p>
                       </div>
@@ -213,7 +213,7 @@ export default function PolicyPage() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-ink-muted" />
                         <div>
-                          <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">关键时间节点</p>
+                          <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">关键时间节点</p>
                           <p className="text-sm font-bold text-ink">{p.deadline}</p>
                         </div>
                       </div>
@@ -230,7 +230,7 @@ export default function PolicyPage() {
       {/* Strategic Summary */}
       <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)]">
         <div className="mb-6">
-          <h3 className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-1">Policy Radar</h3>
+          <h3 className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">Policy Radar</h3>
           <h2 className="text-xl font-serif font-bold text-ink">政策雷达 · 商机洞察</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

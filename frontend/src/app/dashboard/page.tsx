@@ -117,7 +117,7 @@ export default function DashboardPage() {
                 <kpi.icon className="h-5 w-5 text-white" />
               </div>
             </div>
-            <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider mb-0.5">{kpi.label}</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">{kpi.label}</p>
             <p className="text-2xl font-serif font-bold text-ink">{kpi.value.toLocaleString()}</p>
           </div>
         ))}
@@ -127,7 +127,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Daily PV/UV Trend */}
         <div className="rounded-xl bg-white border border-slate-200/60 p-6 shadow-sm">
-          <h3 className="font-serif text-lg font-bold text-ink mb-5">每日 PV/UV 趋势</h3>
+          <h3 className="serif-heading text-xl text-ink mb-6">每日 PV/UV 趋势</h3>
           <div className="h-64">
             {analytics?.daily && analytics.daily.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -148,7 +148,7 @@ export default function DashboardPage() {
 
         {/* Top Pages Bar Chart */}
         <div className="rounded-xl bg-white border border-slate-200/60 p-6 shadow-sm">
-          <h3 className="font-serif text-lg font-bold text-ink mb-5">页面访问排行</h3>
+          <h3 className="serif-heading text-xl text-ink mb-6">页面访问排行</h3>
           <div className="h-64">
             {analytics?.pages && analytics.pages.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -169,7 +169,7 @@ export default function DashboardPage() {
 
         {/* Page Trend by Module */}
         <div className="rounded-xl bg-white border border-slate-200/60 p-6 shadow-sm lg:col-span-2">
-          <h3 className="font-serif text-lg font-bold text-ink mb-5">各模块访问趋势</h3>
+          <h3 className="serif-heading text-xl text-ink mb-6">各模块访问趋势</h3>
           <div className="h-64">
             {trendChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -203,16 +203,16 @@ export default function DashboardPage() {
       {/* Recent Visits Table */}
       <div className="rounded-xl bg-white border border-slate-200/60 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="font-serif text-lg font-bold text-ink">最近访问记录</h3>
+          <h3 className="serif-heading text-xl text-ink">最近访问记录</h3>
           <span className="text-xs text-ink-muted">实时更新</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left py-2 px-3 text-[11px] font-semibold text-ink-muted uppercase tracking-wider">页面</th>
-                <th className="text-left py-2 px-3 text-[11px] font-semibold text-ink-muted uppercase tracking-wider">访客 ID</th>
-                <th className="text-left py-2 px-3 text-[11px] font-semibold text-ink-muted uppercase tracking-wider">访问时间</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-ink-muted uppercase tracking-wider">页面</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-ink-muted uppercase tracking-wider">访客 ID</th>
+                <th className="text-left py-2 px-3 text-xs font-semibold text-ink-muted uppercase tracking-wider">访问时间</th>
               </tr>
             </thead>
             <tbody>

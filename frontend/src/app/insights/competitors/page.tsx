@@ -241,8 +241,8 @@ export default function CompetitorsPage() {
         <div className="rounded-2xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
           <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
             <Activity className="h-4 w-4 text-primary" />
-            <h4 className="font-bold text-sm text-ink">友商最新动态概览</h4>
-            <span className="text-[10px] text-ink-muted ml-auto">
+            <h4 className="font-bold text-sm serif-heading text-ink">友商最新动态概览</h4>
+            <span className="text-xs text-ink-muted ml-auto">
               {Object.values(summary).reduce((acc, items) => acc + items.length, 0)} 条动态 · {Object.keys(summary).length} 家厂商
             </span>
           </div>
@@ -254,7 +254,7 @@ export default function CompetitorsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-base">{meta.icon}</span>
                     <span className={`font-bold text-sm ${meta.color}`}>{vendor}</span>
-                    <span className="text-[10px] text-ink-muted ml-auto">{items.length} 条</span>
+                    <span className="text-xs text-ink-muted ml-auto">{items.length} 条</span>
                   </div>
                   <div className="space-y-2.5">
                     {items.map((item) => (
@@ -273,7 +273,7 @@ export default function CompetitorsPage() {
                             {item.title}
                           </p>
                         </div>
-                        <p className="text-[11px] text-ink-secondary leading-relaxed mt-1 line-clamp-2 ml-[52px]">
+                        <p className="text-xs text-ink-secondary leading-relaxed mt-1 line-clamp-2 ml-[52px]">
                           {item.summary}
                         </p>
                       </a>
@@ -308,7 +308,7 @@ export default function CompetitorsPage() {
                   <Cloud className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-ink">{v.name}</h3>
+                  <h3 className="serif-heading text-xl text-ink">{v.name}</h3>
                   <span className={`rounded-full text-[10px] font-semibold px-2 py-0.5 ${v.bgColor} ${v.color}`}>{v.region}</span>
                 </div>
               </div>
@@ -317,7 +317,7 @@ export default function CompetitorsPage() {
               }`} />
             </div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">份额</span>
+              <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">份额</span>
               <span className="text-xs font-semibold text-ink-secondary">{v.marketShare}</span>
             </div>
             <p className="text-xs text-ink-secondary leading-relaxed line-clamp-2">{v.description}</p>
@@ -341,11 +341,11 @@ export default function CompetitorsPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[11px] text-white/60 font-semibold uppercase tracking-wider">核心产品</p>
+                <p className="text-xs text-white/60 font-semibold uppercase tracking-wider">核心产品</p>
                 <div className="flex flex-wrap gap-2 mt-1">
                   {selectedVendor.products.slice(0, 3).map((p, i) => (
                     <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 text-[10px] font-semibold text-white hover:bg-white/25 transition-colors">
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 text-xs font-semibold text-white hover:bg-white/25 transition-colors">
                       {p.name.split("(")[0].trim()}
                       <ExternalLink className="h-2.5 w-2.5" />
                     </a>
@@ -385,7 +385,7 @@ export default function CompetitorsPage() {
             <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
               <Newspaper className="h-4 w-4 text-primary" />
               <h4 className="font-bold text-sm text-ink">最新动态</h4>
-              <span className="text-[10px] text-ink-muted ml-auto">{selectedVendor.news.length} 条</span>
+              <span className="text-xs text-ink-muted ml-auto">{selectedVendor.news.length} 条</span>
             </div>
             <div className="divide-y divide-slate-100">
               {selectedVendor.news.map((item, i) => {
@@ -403,7 +403,7 @@ export default function CompetitorsPage() {
                         </span>
                         {item.date && <span className="text-[10px] text-ink-muted">{item.date}</span>}
                       </div>
-                      <h5 className="font-bold text-sm text-ink group-hover:text-primary transition-colors mb-1">
+                      <h5 className="font-bold text-sm serif-heading text-ink group-hover:text-primary transition-colors mb-1">
                         {item.title}
                       </h5>
                       <p className="text-xs text-ink-secondary leading-relaxed">{item.summary}</p>
@@ -429,10 +429,10 @@ export default function CompetitorsPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/50">
-                    <th className="text-left py-3 px-5 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">厂商</th>
-                    <th className="text-left py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">市场份额</th>
-                    <th className="text-left py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">AI 核心产品</th>
-                    <th className="text-left py-3 px-4 text-[10px] font-semibold text-ink-muted uppercase tracking-wider">核心优势</th>
+                    <th className="text-left py-3 px-5 text-xs font-semibold text-ink-muted uppercase tracking-wider">厂商</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">市场份额</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">AI 核心产品</th>
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">核心优势</th>
                   </tr>
                 </thead>
                 <tbody>

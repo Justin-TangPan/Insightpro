@@ -27,16 +27,16 @@ export default function NewsPage() {
           >
             <div className="p-6 space-y-4 flex-1">
               <div className="flex items-center justify-between">
-                <span className="inline-flex items-center px-3 py-1 rounded-full gradient-primary text-white text-[10px] font-semibold">
+                <span className="inline-flex items-center px-3 py-1 rounded-full gradient-primary text-white text-xs font-semibold">
                   {item.source}
                 </span>
-                <span className="flex items-center gap-1.5 text-[11px] font-medium text-ink-muted">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-ink-muted">
                   <Calendar className="h-3 w-3" />
                   {item.date}
                 </span>
               </div>
 
-              <h3 className="text-lg font-semibold text-ink group-hover:text-primary transition-colors leading-snug">
+              <h3 className="text-lg serif-heading text-ink group-hover:text-primary transition-colors leading-snug">
                 {item.title}
               </h3>
 

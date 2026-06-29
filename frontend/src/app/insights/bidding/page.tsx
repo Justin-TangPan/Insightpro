@@ -150,21 +150,21 @@ export default function BiddingPage() {
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">招标项目</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">招标项目</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{stats.total}</p>
             <span className="text-[10px] text-emerald-600 font-medium">近30天活跃</span>
           </div>
           <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">开放中</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">开放中</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{stats.open_count}</p>
             <span className="text-[10px] text-amber-600 font-medium">可投标</span>
           </div>
           <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">覆盖行业</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">覆盖行业</p>
             <p className="text-2xl font-serif font-bold text-ink mt-1">{industries.length}</p>
           </div>
           <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-sm">
-            <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider">估算总预算</p>
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">估算总预算</p>
             <p className="text-sm font-serif font-bold text-ink mt-1">{stats.total_budget || "—"}</p>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function BiddingPage() {
                           匹配度 {Math.round(item.relevance_score * 100)}%
                         </span>
                       </div>
-                      <h3 className="font-bold text-sm text-ink mb-1">{item.title}</h3>
+                      <h3 className="serif-heading text-sm text-ink mb-1">{item.title}</h3>
                       <p className="text-xs text-ink-muted">{item.procuring_entity}</p>
                     </div>
                   </div>
@@ -239,24 +239,24 @@ export default function BiddingPage() {
                     <p className="text-xs text-ink-secondary leading-relaxed">{item.summary}</p>
                     {item.requirements && (
                       <div className="rounded-lg border border-slate-200/60 p-3 bg-white">
-                        <p className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider mb-1">技术要求</p>
+                        <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">技术要求</p>
                         <p className="text-xs text-ink-secondary whitespace-pre-line">{item.requirements}</p>
                       </div>
                     )}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {item.qualification && (
                         <div className="rounded-lg border-l-4 border-amber-400 bg-amber-50/30 p-3">
-                          <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider mb-1">资质要求</p>
+                          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-1">资质要求</p>
                           <p className="text-xs text-ink-secondary">{item.qualification}</p>
                         </div>
                       )}
                       <div className="rounded-lg border-l-4 border-primary bg-indigo-50/30 p-3">
-                        <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">截止时间</p>
+                        <p className="text-xs font-semibold text-primary uppercase tracking-wider mb-1">截止时间</p>
                         <p className="text-xs font-bold text-ink">{item.deadline}</p>
                       </div>
                       {item.contact && (
                         <div className="rounded-lg border-l-4 border-emerald-400 bg-emerald-50/30 p-3">
-                          <p className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider mb-1">联系方式</p>
+                          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-1">联系方式</p>
                           <p className="text-xs text-ink-secondary">{item.contact}</p>
                         </div>
                       )}
@@ -332,7 +332,7 @@ export default function BiddingPage() {
         <div className="rounded-xl bg-white border border-slate-200/80 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
             <Lightbulb className="h-4 w-4 text-amber-500" />
-            <h3 className="font-semibold text-sm text-ink">AI 招标市场分析报告</h3>
+            <h3 className="serif-heading text-sm text-ink">AI 招标市场分析报告</h3>
             {analysisLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-muted" />}
           </div>
           {analysisLoading ? (

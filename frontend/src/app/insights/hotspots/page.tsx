@@ -194,11 +194,11 @@ export default function HotspotsPage() {
                       : "bg-slate-50 border border-slate-200/60 hover:border-primary/30"
                   }`}
                 >
-                  <span className="text-[10px] font-semibold uppercase tracking-wider">
+                  <span className="text-xs font-semibold uppercase tracking-wider">
                     {new Date(h.date).toLocaleDateString("zh-CN", { weekday: "short" })}
                   </span>
                   <span className="text-base font-bold">{h.date.slice(8)}</span>
-                  <span className={`text-[10px] ${historyDate === h.date ? "text-white/70" : "text-ink-muted"}`}>{h.items.length} 项</span>
+                  <span className={`text-xs ${historyDate === h.date ? "text-white/70" : "text-ink-muted"}`}>{h.items.length} 项</span>
                 </button>
               ))}
             </div>
@@ -250,7 +250,7 @@ export default function HotspotsPage() {
                     <span className="flex h-6 w-6 items-center justify-center rounded-md gradient-primary text-white text-[10px] font-bold shrink-0">
                       {i + 1}
                     </span>
-                    <h4 className="font-semibold text-sm text-ink group-hover:text-primary transition-colors truncate">
+                    <h4 className="serif-heading text-sm text-ink group-hover:text-primary transition-colors truncate">
                       {item.repo_name}
                     </h4>
                   </div>
@@ -274,7 +274,7 @@ export default function HotspotsPage() {
                   <GitFork className="h-3 w-3" /> {item.forks}
                 </span>
                 {item.today_stars && (
-                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                     <TrendingUp className="h-3 w-3" /> {item.today_stars}
                   </span>
                 )}

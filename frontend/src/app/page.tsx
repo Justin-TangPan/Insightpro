@@ -143,7 +143,7 @@ export default function DashboardPage() {
           <div className="relative px-8 py-10 md:py-12">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div className="space-y-3 max-w-xl">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/10 text-[11px] font-semibold">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/10 text-xs font-semibold">
                   <Clock className="h-3 w-3" />
                   Daily Business Intelligence
                 </div>
@@ -156,7 +156,7 @@ export default function DashboardPage() {
               </div>
               <div className="flex flex-col items-end gap-3 shrink-0">
                 <div className="text-right">
-                  <p className="text-[10px] text-white/40 font-medium uppercase tracking-wider">Edition</p>
+                  <p className="text-xs text-white/40 font-medium uppercase tracking-wider">Edition</p>
                   <p className="text-lg font-serif font-bold">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                 </div>
                 <Link href="/dashboard" className="flex items-center gap-2 rounded-lg bg-white/10 px-5 py-2 text-[13px] font-semibold hover:bg-white/20 transition-colors border border-white/10">
@@ -184,10 +184,10 @@ export default function DashboardPage() {
             <div className="h-8 w-8 rounded-md bg-slate-50 border border-slate-200/60 flex items-center justify-center mb-2">
               <item.icon className="h-4 w-4 text-ink-secondary" />
             </div>
-            <p className="text-[10px] font-medium text-ink-muted uppercase tracking-wider mb-0.5">{item.label}</p>
+            <p className="text-xs font-medium text-ink-muted uppercase tracking-wider mb-0.5">{item.label}</p>
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-serif font-bold text-ink">{item.value}</span>
-              <span className="text-[10px] text-ink-muted">{item.unit}</span>
+              <span className="text-xl serif-stat text-ink">{item.value}</span>
+              <span className="text-xs text-ink-muted">{item.unit}</span>
             </div>
           </Link>
         ))}
@@ -198,7 +198,7 @@ export default function DashboardPage() {
         {/* Left */}
         <div className="lg:col-span-2 space-y-5">
           <div className="flex items-center justify-between">
-            <h2 className="font-serif text-xl font-bold text-ink">市场洞察看板</h2>
+            <h2 className="serif-heading text-2xl text-ink">市场洞察看板</h2>
             <span className="text-xs text-ink-muted">点击模块查看详情 →</span>
           </div>
 
@@ -214,7 +214,7 @@ export default function DashboardPage() {
                     <mod.icon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 flex items-center justify-between">
-                    <h3 className="font-semibold text-[13px] text-ink">{mod.label}</h3>
+                    <h3 className="text-sm font-semibold text-ink">{mod.label}</h3>
                     <ChevronRight className="h-3.5 w-3.5 text-ink-muted group-hover:text-ink transition-colors" />
                   </div>
                 </div>
@@ -224,7 +224,7 @@ export default function DashboardPage() {
                       <span className="h-1 w-1 rounded-full bg-slate-300 mt-1.5 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-ink-secondary leading-relaxed line-clamp-1">{item.title}</p>
-                        <span className="text-[10px] font-medium text-ink-muted">{item.tag}</span>
+                        <span className="text-xs font-medium text-ink-muted">{item.tag}</span>
                       </div>
                     </div>
                   ))}
@@ -263,7 +263,7 @@ export default function DashboardPage() {
           {/* Baidu Hot Search */}
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100">
-              <h3 className="font-serif text-base font-bold text-ink flex items-center gap-1.5">
+              <h3 className="serif-heading text-lg text-ink flex items-center gap-1.5">
                 <span>🔥</span> 百度实时热搜
               </h3>
               <div className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
@@ -280,17 +280,17 @@ export default function DashboardPage() {
                       <span className={`flex h-4.5 w-4.5 items-center justify-center rounded text-[9px] font-bold shrink-0 ${item.rank <= 3 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-ink-muted'}`}>{item.rank}</span>
                       <span className="text-xs text-ink-secondary group-hover:text-ink transition-colors truncate">{item.title}</span>
                     </div>
-                    <span className="text-[10px] font-medium text-ink-muted shrink-0 ml-2">{item.hot}</span>
+                    <span className="text-xs font-medium text-ink-muted shrink-0 ml-2">{item.hot}</span>
                   </a>
                 ))
               )}
             </div>
-            <p className="text-[10px] text-ink-muted text-center mt-3 pt-2.5 border-t border-slate-100">每 5 分钟自动刷新</p>
+            <p className="text-xs text-ink-muted text-center mt-3 pt-2.5 border-t border-slate-100">每 5 分钟自动刷新</p>
           </div>
 
           {/* Stats */}
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
-            <h3 className="font-serif text-base font-bold text-ink mb-3 pb-2.5 border-b border-slate-100">📊 今日数据</h3>
+            <h3 className="serif-heading text-lg text-ink mb-3 pb-2.5 border-b border-slate-100">📊 今日数据</h3>
             <div className="space-y-2">
               {[
                 { label: "新增分析任务", value: "18", trend: "+5" },
@@ -301,8 +301,8 @@ export default function DashboardPage() {
                 <div key={i} className="flex items-center justify-between py-1">
                   <span className="text-xs text-ink-secondary">{stat.label}</span>
                   <div className="flex items-center gap-1.5">
-                    <span className="text-[13px] font-serif font-bold text-ink">{stat.value}</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">{stat.trend}</span>
+                    <span className="text-sm serif-heading text-ink">{stat.value}</span>
+                    <span className="text-xs text-emerald-600 font-medium">{stat.trend}</span>
                   </div>
                 </div>
               ))}
@@ -315,10 +315,10 @@ export default function DashboardPage() {
           {/* Status */}
           <div className="rounded-lg bg-white border border-slate-200/80 p-4 shadow-sm">
             <div className="flex items-center justify-between mb-2.5">
-              <h3 className="font-serif text-base font-bold text-ink">⚡ 系统状态</h3>
+              <h3 className="serif-heading text-lg text-ink">⚡ 系统状态</h3>
               <div className="flex items-center gap-1.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-medium text-emerald-600">正常</span>
+                <span className="text-xs font-medium text-emerald-600">正常</span>
               </div>
             </div>
             <div className="space-y-1.5">
@@ -332,7 +332,7 @@ export default function DashboardPage() {
                     <div className="h-1 w-1 rounded-full bg-emerald-500" />
                     <span className="text-ink-secondary">{sys.label}</span>
                   </div>
-                  <span className="text-[10px] text-ink-muted">{sys.latency}</span>
+                  <span className="text-xs text-ink-muted">{sys.latency}</span>
                 </div>
               ))}
             </div>
