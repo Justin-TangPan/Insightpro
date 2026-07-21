@@ -1,18 +1,16 @@
 "use client";
 
-import { InsightCard, InsightCardHeader } from "@/components/insight-card";
 import { SectionHeader } from "@/components/section-header";
 import { useState } from "react";
 import {
-  Shield, FileText, AlertTriangle, CheckCircle2, ExternalLink,
+  Shield, FileText, AlertTriangle,
   Globe, Lock, RefreshCw, DollarSign, BookOpen, ChevronRight,
-  ArrowUpRight, Clock, Scale, Target, TrendingUp
+  Clock, Scale, Target, TrendingUp
 } from "lucide-react";
-import Link from "next/link";
 
 const policies: Array<{
   id: string;
-  icon: any;
+  icon: React.ElementType;
   title: string;
   subtitle: string;
   status: string;

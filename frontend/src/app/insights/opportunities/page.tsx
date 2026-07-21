@@ -2,9 +2,8 @@
 
 import { SectionHeader } from "@/components/section-header";
 import {
-  Lightbulb, Target, TrendingUp, ShieldCheck, Globe, BookOpen,
-  Activity, Zap, ExternalLink, ArrowRight, CheckCircle2,
-  AlertTriangle
+  Lightbulb, Target, ShieldCheck, Globe, BookOpen,
+  Activity, Zap, ArrowRight
 } from "lucide-react";
 import Link from "next/link";
 

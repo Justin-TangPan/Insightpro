@@ -1,0 +1,22 @@
+[Unit]
+Description=InsightPro FastAPI backend
+After=network-online.target
+Wants=network-online.target
+PartOf=insight-web.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/AIProject/insight-web/backend
+EnvironmentFile=-/root/AIProject/insight-web/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=STARTUP_CATCHUP_ENABLED=true
+ExecStart=/opt/insight-web-venv/bin/python -m uvicorn main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=insight-web.target

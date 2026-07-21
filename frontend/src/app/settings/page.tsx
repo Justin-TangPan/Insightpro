@@ -2,9 +2,9 @@
 
 import { SectionHeader } from "@/components/section-header";
 import { useState, useEffect } from "react";
+import { API } from "@/lib/api";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2 } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface Subscriber {
   id: number;
@@ -15,12 +15,22 @@ interface Subscriber {
 
 export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
-  const [toggles, setToggles] = useState([true, true, true, false]);
+  const [toggles, setToggles] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("notification_toggles");
+        if (saved) return JSON.parse(saved);
+      } catch {}
+    }
+    return [true, true, true, false];
+  });
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [subscriberError, setSubscriberError] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [emailStatus, setEmailStatus] = useState("");
   const [testing, setTesting] = useState(false);
+  const [databaseConnected, setDatabaseConnected] = useState(false);
 
   const handleSave = () => {
     setSaved(true);
@@ -28,22 +38,32 @@ export default function SettingsPage() {
   };
 
   const handleToggle = (index: number) => {
-    setToggles((prev) => prev.map((v, i) => (i === index ? !v : v)));
+    setToggles((prev: boolean[]) => {
+      const next = prev.map((v, i) => (i === index ? !v : v));
+      try { localStorage.setItem("notification_toggles", JSON.stringify(next)); } catch {}
+      return next;
+    });
   };
 
   // Fetch subscribers
   const fetchSubscribers = async () => {
     try {
-      const res = await fetch(`${API}/api/email/subscribers`);
+      const res = await authenticatedFetch(`${API}/api/email/subscribers`);
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setSubscribers(data.subscribers || []);
+      setSubscriberError("");
     } catch (err) {
       console.error("Failed to fetch subscribers:", err);
+      setSubscriberError(err instanceof Error ? err.message : "订阅者加载失败");
     }
   };
 
   useEffect(() => {
-    fetchSubscribers();
+    void Promise.resolve().then(fetchSubscribers);
+    fetch(`${API}/api/system/health/ready`)
+      .then((res) => setDatabaseConnected(res.ok))
+      .catch(() => setDatabaseConnected(false));
   }, []);
 
   // Add subscriber
@@ -55,13 +75,14 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: newEmail, name: newName }),
       });
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setEmailStatus(data.message);
       setNewEmail("");
       setNewName("");
       fetchSubscribers();
       setTimeout(() => setEmailStatus(""), 3000);
-    } catch (err) {
+    } catch {
       setEmailStatus("订阅失败");
     }
   };
@@ -69,7 +90,7 @@ export default function SettingsPage() {
   // Remove subscriber
   const handleRemove = async (email: string) => {
     try {
-      await fetch(`${API}/api/email/subscribers/${encodeURIComponent(email)}`, { method: "DELETE" });
+      await authenticatedFetch(`${API}/api/email/subscribers/${encodeURIComponent(email)}`, { method: "DELETE" });
       fetchSubscribers();
     } catch (err) {
       console.error("Failed to remove subscriber:", err);
@@ -80,15 +101,16 @@ export default function SettingsPage() {
   const handleTestEmail = async () => {
     setTesting(true);
     try {
-      const res = await fetch(`${API}/api/email/test`, {
+      const res = await authenticatedFetch(`${API}/api/email/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: "1315304560@qq.com" }),
       });
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setEmailStatus(data.message || "测试邮件已发送");
       setTimeout(() => setEmailStatus(""), 5000);
-    } catch (err) {
+    } catch {
       setEmailStatus("发送失败，请检查 SMTP 配置");
     } finally {
       setTesting(false);
@@ -106,7 +128,7 @@ export default function SettingsPage() {
     { name: "GitHub Trending", status: "已连接", ok: true },
     { name: "百度热搜", status: "已连接", ok: true },
     { name: "DeepSeek AI", status: "已连接", ok: true },
-    { name: "Supabase", status: "未配置", ok: false },
+    { name: "Supabase", status: databaseConnected ? "已连接" : "未连接", ok: databaseConnected },
   ];
 
   return (
@@ -222,8 +244,12 @@ export default function SettingsPage() {
           <div className="space-y-1">
             {subscribers.length === 0 ? (
               <div className="text-center py-6">
-                <p className="text-sm text-ink-muted">暂无订阅者</p>
-                <p className="text-[11px] text-ink-muted mt-1">默认发送至 tangpan10@huawei.com</p>
+                <p className="text-sm text-ink-muted">{subscriberError || "暂无订阅者"}</p>
+                {subscriberError && (
+                  <a href="/auth/login" className="mt-2 inline-flex rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                    登录后查看订阅者
+                  </a>
+                )}
               </div>
             ) : (
               subscribers.map((sub) => (
@@ -276,11 +302,11 @@ export default function SettingsPage() {
           <div className="space-y-3.5">
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">API Key</label>
-              <input type="password" defaultValue="sk-xxxx" className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="password" defaultValue="••••••••" disabled className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">数据库连接</label>
-              <input type="password" defaultValue="postgresql://..." className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="password" defaultValue="postgresql://••••••••" disabled className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
             </div>
           </div>
         </div>

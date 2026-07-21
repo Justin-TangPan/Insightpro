@@ -1,0 +1,22 @@
+[Unit]
+Description=InsightPro Next.js frontend
+After=network-online.target insight-backend.service
+Wants=network-online.target
+Requires=insight-backend.service
+PartOf=insight-web.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/AIProject/insight-web/frontend
+Environment=NODE_ENV=production
+Environment=PATH=/root/.hermes/node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+ExecStart=/root/.hermes/node/bin/npm run start -- --hostname 0.0.0.0 --port 3000
+Restart=always
+RestartSec=5
+TimeoutStartSec=60
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=insight-web.target

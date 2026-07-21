@@ -1,0 +1,7 @@
+[Unit]
+Description=InsightPro web platform
+Requires=insight-backend.service insight-frontend.service
+After=network-online.target insight-backend.service
+
+[Install]
+WantedBy=multi-user.target

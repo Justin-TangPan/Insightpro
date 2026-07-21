@@ -2,11 +2,11 @@
 
 import { SectionHeader } from "@/components/section-header";
 import { useState, useEffect } from "react";
+import { API } from "@/lib/api";
 import {
   Cloud, ExternalLink, ChevronRight, ArrowUpRight,
-  Globe, Server, Cpu, Zap, ShieldCheck, Star,
-  TrendingUp, Package, FileText, Newspaper,
-  ShoppingCart, Building2, Factory, Activity
+  Server, ShieldCheck,
+  Package, FileText, Newspaper, Activity
 } from "lucide-react";
 
 interface VendorNews {
@@ -31,8 +31,6 @@ interface Vendor {
   news: VendorNews[];
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 interface SummaryNewsItem {
   id: number;
   title: string;
@@ -46,7 +44,7 @@ interface VendorSummary {
   [vendor: string]: SummaryNewsItem[];
 }
 
-const vendors: Vendor[] = [
+const allVendors: Vendor[] = [
   {
     id: "aws",
     name: "AWS",
@@ -192,6 +190,8 @@ const vendors: Vendor[] = [
   },
 ];
 
+const vendors = allVendors.filter((vendor) => vendor.id !== "huawei");
+
 const categoryIcons: Record<string, React.ElementType> = {
   "产品发布": Package, "案例发布": FileText, "解决方案": ShieldCheck, "最新动态": Newspaper,
 };
@@ -219,9 +219,11 @@ export default function CompetitorsPage() {
 
   useEffect(() => {
     fetch(`${API}/api/competitors/summary`)
-      .then((res) => res.json())
+      .then((res) => { if (!res.ok) throw new Error(`API error: ${res.status}`); return res.json(); })
       .then((data) => {
-        setSummary(data.vendors || {});
+        setSummary(Object.fromEntries(
+          Object.entries(data.vendors || {}).filter(([vendor]) => vendor !== "华为云")
+        ) as VendorSummary);
         setSummaryLoading(false);
       })
       .catch(() => setSummaryLoading(false));
@@ -232,7 +234,7 @@ export default function CompetitorsPage() {
       <SectionHeader
         badge="Cloud Vendor Research"
         title="云厂商商业调研"
-        subtitle="六大云厂商最新动态：新产品发布、新案例、新解决方案、商业策略追踪"
+        subtitle="五大竞争云厂商最新动态：新产品发布、新案例、新解决方案、商业策略追踪"
         image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80"
       />
 
@@ -302,7 +304,7 @@ export default function CompetitorsPage() {
               <div className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
                   activeVendor === v.id
-                    ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white"
+                    ? "bg-ink text-paper"
                     : "bg-slate-100 text-ink-secondary"
                 }`}>
                   <Cloud className="h-5 w-5" />
@@ -330,7 +332,7 @@ export default function CompetitorsPage() {
         <div className="space-y-6">
           {/* Vendor Header */}
           <div className="rounded-2xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-500 px-8 py-5 flex items-center justify-between">
+            <div className="bg-ink px-8 py-5 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white text-lg font-bold">
                   {selectedVendor.icon}
@@ -423,7 +425,7 @@ export default function CompetitorsPage() {
           {/* Quick Comparison */}
           <div className="rounded-xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
             <div className="px-6 py-4 border-b border-slate-100">
-              <h4 className="font-bold text-sm text-ink">六大云厂商一览</h4>
+              <h4 className="font-bold text-sm text-ink">五大竞争云厂商一览</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -436,13 +438,12 @@ export default function CompetitorsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {vendors.map((v, i) => {
+                  {vendors.map((v) => {
                     const advantage: Record<string, string> = {
                       aws: "全球基础设施最广，AI/ML 服务成熟度最高",
                       azure: "OpenAI 独占整合，企业办公生态绑定",
                       aliyun: "国内份额第一，开源生态成熟",
                       volcano: "价格最低，抖音电商生态",
-                      huawei: "全栈自主可控，政企市场深耕",
                       tencent: "微信 13 亿用户生态，游戏场景领先",
                     };
                     return (

@@ -1,6 +1,10 @@
 (function(){
-  var API="http://94.74.90.21:8000";
-  var open=false, msgs=[];
+  var API=window.__CHAT_API_URL__;
+  if(!API){
+    console.error("InsightPro chat API is not configured. Set window.__CHAT_API_URL__ from layout.");
+    return;
+  }
+  var msgs=[];
   var botSvg='<svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M12 8V4H8"/></svg>';
   var userSvg='<svg width="14" height="14" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>';
 
@@ -17,7 +21,7 @@
 
   var header=document.createElement("div");
   header.style.cssText="background:#111827;padding:14px 20px;display:flex;align-items:center;justify-content:space-between";
-  header.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center">'+botSvg.replace(/14/g,'16')+'</div><div><div style="color:#fff;font-size:14px;font-weight:600">InsightPro 智能助手</div><div style="color:rgba(255,255,255,0.5);font-size:10px">DeepSeek · 流式回答</div></div></div>';
+  header.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center">'+botSvg.replace(/14/g,'16')+'</div><div><div style="color:#fff;font-size:14px;font-weight:600">InsightPro 智能助手</div><div style="color:rgba(255,255,255,0.5);font-size:10px">AI · 站点问答</div></div></div>';
   var closeBtn=document.createElement("button");
   closeBtn.style.cssText="background:rgba(255,255,255,0.1);border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center";
   closeBtn.innerHTML='<svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -37,7 +41,7 @@
   var quickBox=document.createElement("div");
   quickBox.style.cssText="padding-left:38px;display:flex;flex-direction:column;gap:6px";
   quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
-  ["平台有哪些核心功能？","友商洞察包含哪些场景？","如何订阅每日邮件？","行业案例库有哪些内容？"].forEach(function(q){
+  ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","行业洞察包含哪些内容？","政策法规怎么看？"].forEach(function(q){
     var b=document.createElement("button");
     b.textContent=q;
     b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:#6366f1;background:#eef2ff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer";
@@ -65,14 +69,14 @@
   inputArea.appendChild(inputRow);
   var hint=document.createElement("p");
   hint.style.cssText="margin:6px 0 0;font-size:9px;color:#94a3b8;text-align:center";
-  hint.textContent="DeepSeek-V3 · 流式回答 · 站点知识库";
+  hint.textContent="AI 助手 · 站点知识库";
   inputArea.appendChild(hint);
   panel.appendChild(inputArea);
 
   document.body.appendChild(panel);
 
-  function showPanel(){open=true;panel.style.display="flex";btn.style.display="none";input.focus()}
-  function hidePanel(){open=false;panel.style.display="none";btn.style.display="flex"}
+  function showPanel(){panel.style.display="flex";btn.style.display="none";input.focus()}
+  function hidePanel(){panel.style.display="none";btn.style.display="flex"}
 
   function addMsg(role,content){
     var isUser=role==="user";
@@ -91,34 +95,20 @@
     msgs.push({role:"user",content:text.trim()});
     addMsg("user",text.trim());
     input.value="";
-    var replyP=addMsg("assistant","");
-    var fullReply="";
-    fetch(API+"/api/chat/stream",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text.trim(),history:msgs.slice(-6)})})
+    var replyP=addMsg("assistant","思考中...");
+    fetch(API+"/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({message:text.trim(),history:msgs.slice(-6)})})
     .then(function(response){
-      var reader=response.body.getReader();
-      var decoder=new TextDecoder();
-      function read(){
-        return reader.read().then(function(result){
-          if(result.done){msgs.push({role:"assistant",content:fullReply});return}
-          var chunk=decoder.decode(result.value,{stream:true});
-          var lines=chunk.split("\n");
-          for(var i=0;i<lines.length;i++){
-            var line=lines[i];
-            if(line.indexOf("data: ")===0){
-              var data=line.slice(6);
-              if(data==="[DONE]")continue;
-              try{
-                var parsed=JSON.parse(data);
-                var delta=parsed.choices&&parsed.choices[0]&&parsed.choices[0].delta&&parsed.choices[0].delta.content;
-                if(delta){fullReply+=delta;replyP.textContent=fullReply;msgBox.scrollTop=msgBox.scrollHeight}
-              }catch(e){}
-            }
-          }
-          return read();
-        });
-      }
-      return read();
+      return response.json().then(function(data){
+        if(!response.ok)throw new Error(data.detail||"请求失败");
+        return data;
+      });
     })
-    .catch(function(){if(!fullReply)replyP.textContent="网络异常，请检查后端服务"});
+    .then(function(data){
+      var reply=data.reply||"暂无回答";
+      replyP.textContent=reply;
+      msgs.push({role:"assistant",content:reply});
+      msgBox.scrollTop=msgBox.scrollHeight;
+    })
+    .catch(function(error){replyP.textContent=error.message||"网络异常，请检查后端服务"});
   }
 })();

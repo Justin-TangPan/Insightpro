@@ -1,0 +1,71 @@
+services:
+  backend:
+    container_name: insight-backend
+    image: insight-web-backend:0.0.20
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    environment:
+      TZ: Asia/Shanghai
+      STARTUP_CATCHUP_ENABLED: "true"
+    ports:
+      - "0.0.0.0:8000:8000"
+    volumes:
+      - insight-qdrant:/app/deep_searcher_qdrant
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/system/health/live', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - insight-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    container_name: insight-frontend
+    image: insight-web-frontend:0.0.20
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        API_PROXY_TARGET: http://backend:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+    environment:
+      TZ: Asia/Shanghai
+      API_PROXY_TARGET: http://backend:8000
+    ports:
+      - "0.0.0.0:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/system/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - insight-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  insight-network:
+    name: insight-network
+
+volumes:
+  insight-qdrant:
+    name: insight-qdrant

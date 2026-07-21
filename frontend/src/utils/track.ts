@@ -1,4 +1,4 @@
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API } from "@/lib/api";
 
 // 生成或读取访客 ID（基于浏览器指纹）
 function getVisitorId(): string {

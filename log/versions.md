@@ -1,5 +1,382 @@
 # 版本日志
 
+## [0.0.30] - 2026-07-17
+
+### 调整
+- 邮件日报将“今日技术洞察”和“AI 业务价值评估”置顶，友商动态等内容后置。
+- 邮件新增当日 AI 价值评估、推荐建议和分析理由，并按综合评分排序展示。
+- 邮件整体改为清新的绿色系视觉，容器、卡片、标签和按钮统一增加圆角。
+
+### 验证
+- Python 语法编译和真实数据邮件渲染通过，栏目顺序及 HTML 表格标签校验通过。
+
+## [0.0.29] - 2026-07-16
+
+### 修复
+- 技术热点页切换历史日期时，同步展示该日已入库的 AI 业务价值评估、四维评分和分级汇总，不再隐藏历史评估面板。
+
+### 验证
+- Supabase 历史接口已返回按日保存的评估，前端 ESLint、Next.js 生产构建和 Docker 健康检查通过。
+
+## [0.0.28] - 2026-07-16
+
+### 新增
+- 在 Supabase Auth 创建 `admin` 管理员账号，登录页支持用户名或邮箱登录。
+
+### 安全
+- 订阅者查看、删除、测试邮件和立即发送改为仅 `admin` 角色可用，普通用户返回 403。
+
+### 验证
+- 管理员登录、权限校验、订阅者列表和 Docker 端到端健康检查通过。
+
+## [0.0.27] - 2026-07-16
+
+### 修复
+- InsightPro 智能助手改用已验证的非流式聊天接口，避免 ModelArts 推理片段和 SSE 跨数据块导致的空白回复。
+- 前端现在显示后端返回的真实错误，并移除与实际模型不符的 DeepSeek 标识。
+
+### 验证
+- ModelArts 普通聊天接口返回正常，前端构建与 Docker 端到端健康检查通过。
+
+## [0.0.26] - 2026-07-16
+
+### 修复
+- 行业洞察的云厂商竞争格局中，将误合并的 AWS / Azure 拆分为两家独立厂商，分别展示定位、优势和重点行业。
+
+### 验证
+- 前端 ESLint、Next.js 生产构建和 Docker 健康检查通过。
+
+## [0.0.25] - 2026-07-16
+
+### 调整
+- 行业洞察、案例库和云厂商调研页不再展示华为云案例与动态，聚焦 AWS、Azure、阿里云、腾讯云和火山云。
+- 每日云厂商采集移除华为云源，新增 Microsoft Azure 官方客户案例与博客源。
+- 设置页订阅者加载失败时不再误报“暂无订阅者”，未登录时明确引导登录，避免公开邮箱名单。
+
+### 验证
+- 后端测试、前端 ESLint、Next.js 生产构建和 Docker 端到端健康检查通过。
+
+## [0.0.24] - 2026-07-16
+
+### 调整
+- 历史日报同时展示每日 GitHub Trending 快照和已入库的业务价值分析。
+- 行业洞察新增近 30 天云厂商客户/生态合作动态，并将华为云伙伴案例、客户案例和新闻页纳入每日采集。
+- 行业洞察、案例库和历史页的卡片与控件统一增大圆角。
+
+### 验证
+- 后端 21 项测试通过，Python 语法编译通过。
+- 前端 ESLint 和 Next.js 生产构建通过。
+
+### 已知限制
+- 微信公众号正文存在登录、反爬与授权限制，本版优先采集云厂商官方新闻、客户案例和伙伴案例页。
+
+## [0.0.23] - 2026-07-16
+
+### 修复
+- 系统设置页的 Supabase 状态改为读取后端就绪接口，不再硬编码显示“未配置”。
+
+### 验证
+- 前端 ESLint 和 Next.js 生产构建通过。
+
+## [0.0.22] - 2026-07-15
+
+### 修复
+- **邮件 HTML 模板彻底重写**：修复了 `build_daily_digest_html()` 中所有表格结构问题。
+    - 所有 `茶/愿/俨` 标签正确包裹在 `伻` 内，9 对 `茶`/40 对 `伻`/60 对 `愿` 完全平衡。
+    - 每个 `愿` 都正确嵌套在 `伻` 内，每个 `伻` 都正确嵌套在 `茶` 内。
+    - 新增 `@media` 响应式 CSS，移动端自动堆叠统计卡片。
+    - 新增 Outlook `[if mso]` 条件注释，确保 Word 渲染引擎正确识别固定宽度。
+    - 新增 `mso-table-lspace:0`/`mso-table-rspace:0` 消除 Outlook 额外单元格间距。
+    - 去除所有「侃」乱码占位符和缺失标签导致的错位问题。
+    - 同时修复了 Python 源码中缺失的 `import`、`=`、`for`、`if`、`def`、`with` 等关键语法结构（`send_email` 和 `send_daily_digest` 函数）。
+
+### 验证
+- Python 语法编译通过，`build_daily_digest_html()` 正常运行。
+- 生成 HTML 所有表格标签完全平衡：9`茶`/9`茶`、40`伻`/40`伻`、60`愿`/60`愿`。
+- 无乱码字符，含完整的 `@media` 响应式 CSS 和 Outlook 条件注释。
+- 邮件同时兼容 Gmail / QQ邮箱 / Outlook 等主流客户端。
+
+## [0.0.21] - 2026-07-14
+
+### 新增
+- 新增 `insight-docker-compose.service` systemd unit，在 Docker daemon 启动后自动执行 `docker-compose up --detach`，解决 Docker Engine 18.09 重启后无法通过 `restart: unless-stopped` 自行恢复容器的问题。
+- 服务依赖 `network-online.target` 和 `docker.service`，确保网络和 Docker 就绪后才启动容器。
+
+### 调整
+- 开机自启主方案从 `restart: unless-stopped`（Docker Engine 18.09 下不可靠）切换为 systemd compose 服务 + 健康守护定时器双保险。
+- 旧 `insight-web.target` 和旧应用级 systemd 服务已禁用，避免端口冲突。
+- 健康守护脚本 `scripts/docker-health-guard.sh` 修复：恢复流程现在先执行 `down --remove-orphans` 清理过期网络，再重新 `up`，解决 daemon 重启后 `network not found` 的容器退出问题。
+- 重写 `README.md`：更新项目结构、部署方式、页面列表、API 接口、运维要点，反映 Docker 生产部署现状和最新导航结构。
+- 重写 `doc/运维手册.md`：更新开机自启原理、自启链路图、常用命令、自动修复逻辑、发布流程和数据补跑章节，移除过时的 systemd 原生部署描述。
+
+### 开机自启链路（完整）
+```
+systemd (PID 1)
+ ├─ docker.service                         (enabled)  ← Docker daemon
+ ├─ insight-docker-compose.service         (enabled)  ← 开机启动容器
+ └─ insight-docker-health-guard.timer     (enabled)  ← 每10分钟巡检 + 自动修复
+```
+
+### 验证
+- `insight-docker-compose.service` enabled，依赖链正确（docker.service → network-online.target）。
+- 健康守护定时器 enabled/active。
+- 健康守护脚本已更新 `down --remove-orphans` 前置清理逻辑。
+- 当前两个容器均 healthy，前后端 HTTP 200。
+
+### 已知遗留
+- Docker Engine 18.09 仍为最薄弱环节；建议单独维护窗口升级至 20.10+。
+- HTTPS 反向代理和完整浏览器 E2E 监测仍需后续加固。
+
+## [0.0.20] - 2026-07-13
+
+### 调整
+- 收紧左侧栏 `InsightPro` 与 `Business Intelligence` 的品牌标题行高，两行改为 `leading-none` 并显式设置 3px 间距，不影响全局正文排版。
+
+### 验证
+- 前端 lint、Next.js 生产构建、Docker 镜像替换和端到端健康检查通过。
+
+### 字体现状
+- 主界面英文和数字使用 Next.js `next/font` 自托管的 Inter 400/500/600/700/800；中文字形由当前操作系统的 sans-serif 字体回退提供。
+- 当前 `font-serif`、标题工具类也被统一映射到 Inter，项目没有在主界面混用真正的衬线字体；聊天组件使用系统 UI 无衬线字体栈。
+
+## [0.0.19] - 2026-07-13
+
+### 新增
+- 新增前后端多阶段 Dockerfile 和 `compose.yaml`：前端使用 Next.js standalone，后端使用 Python 3.11 slim，两个容器均以 UID/GID 10001 非 root 用户运行。
+- 新增 `scripts/deploy-docker.sh`，在测试、lint、镜像构建通过后从 systemd 平滑切换到 Docker，新栈验收失败时自动回退。
+- 新增 Docker 专用端到端巡检定时器，可重新创建/启动容器并在后端容器内执行数据补跑。
+- 新增官方 Docker Compose 二进制安装与 SHA-256 校验脚本。
+
+### 调整
+- 生产开机自启主方案从应用级 systemd 切换为“Docker daemon + `restart: unless-stopped`”；旧 `insight-web.target` 和旧巡检已禁用，但保留作为发布失败回退。
+- 容器内前端 API 代理目标固定为 Compose DNS `http://backend:8000`，不依赖宿主机 IP 或对浏览器开放 8000。
+
+### 验证
+- Compose 5.3.1 已通过官方 SHA-256 校验安装，并以 API 1.39 兼容当前 Docker Engine 18.09。
+- 容器镜像构建通过；独立 13000/18000 预演通过，容器同源代理返回 healthy、GitHub 17 条、技术评估 10 条。
+- 正式容器在 `0.0.0.0:3000/8000` 启动，后端与前端容器均通过 Docker healthcheck，端到端健康检查通过。
+- 手动停止前端容器后，Docker 健康守护在约 4 秒内自动恢复完整数据链路。
+- `docker.service` 与 `insight-docker-health-guard.timer` 均 enabled/active，两个容器均配置 `unless-stopped`。
+
+### 已知遗留
+- 当前 Docker Engine 18.09 较旧，Compose 需显式使用 API 1.39；已在项目脚本内兼容，但建议在单独维护窗口升级 Engine/Buildx，不与业务发布同时进行。
+- 镜像目前仅保存在本机；如要在新服务器使用 `docker pull`，还需提供企业镜像仓库地址与凭据后执行 tag/push。
+- HTTPS 反向代理、真实告警 Webhook 和完整浏览器 E2E 监测仍需后续加固。
+
+## [0.0.18] - 2026-07-13
+
+### 新增
+- 新增存活与就绪探针：就绪检查同时验证 PostgreSQL、九类数据新鲜度、当日 GitHub 日榜和技术评估非空，解决“端口正常但页面空白”无法被发现的问题。
+- 新增 `insight-health-guard.timer` 每 10 分钟端到端巡检；进程/代理故障自动重启，数据故障自动执行幂等启动补跑，并以一小时冷却避免重试风暴。
+- 新增可选 `INSIGHT_ALERT_WEBHOOK` 持续故障通知和 `doc/运维手册.md`。
+
+### 调整
+- 部署验收从前后端首页 HTTP 200 升级为 8000 直连、3000 同源代理、数据就绪和技术评估 JSON 契约的完整检查。
+- 新增运维 CLI `backend/maintenance.py repair-freshness`，供 Web 进程外的 systemd 巡检调用。
+
+### 验证
+- 后端测试通过：21 passed；新增新鲜但空评估、有数据但过期的负向就绪测试。
+- Shell 脚本语法、Python 编译、前端 lint/build、systemd unit 校验、定时器实际执行和故障恢复演练通过。
+- 完整健康检查通过：当日 GitHub 日榜 17 条、技术评估 10 条，九类数据状态为 fresh。
+
+### 已知遗留
+- 当前自动化验收到 API/JSON 契约层，尚未引入真实浏览器对 React 卡片渲染的 E2E 监测。
+- 实际告警通道需配置 Webhook；未配置时持续故障仅记录在 journald。
+- 36氪、一财、财联社的稳定替代源、专用非 root 用户和 HTTPS 入口仍需后续加固。
+
+## [0.0.17] - 2026-07-13
+
+### 修复
+- 数据库核查确认当日 GitHub 日/周/月榜共 59 条、技术评估 10 条均完整，技术热点空白与数据库无关。
+- 前端改为同源 `/api` 请求，由 Next.js rewrite 在服务端转发到 `127.0.0.1:8000`，浏览器不再直连局域网或公网 8000 端口。
+- 移除客户端 `localhost:8000` 回退和构建时固化的 `192.168.0.191:8000`；全局助手运行时使用当前页面 origin。
+
+### 验证
+- Supabase PostgreSQL 直查确认：当日日榜 17、周榜 21、月榜 21，技术评估 10 条；项目名、链接和评分关键字段无空值。
+- `npm run lint` 与 `npm run build` 通过。
+- 通过前端 3000 端口访问同源代理验证：热点接口返回 17 条、技术评估返回 10 条、首页聚合返回 8 个模块，均为 HTTP 200。
+- 局域网 `http://192.168.0.191:3000/api/...` 同源请求验证通过；全局助手配置为 `window.location.origin`。
+
+### 已知遗留
+- 正式公网使用仍建议增加 Nginx/Caddy 和 HTTPS，但技术热点不再依赖 8000 端口对浏览器开放。
+
+## [0.0.16] - 2026-07-13
+
+### 修复
+- 修复局域网前端访问技术热点时被浏览器 CORS 拦截的问题：后端允许来源新增 `http://192.168.0.191:3000`，并改为通过 `CORS_ORIGINS` 环境变量集中配置。
+- 移除 `main.py` 中散落的硬编码来源列表，避免前端 API 地址与后端 CORS 白名单再次漂移。
+
+### 验证
+- 服务端技术热点实时接口返回 17 条，技术评估返回 10 条，首页技术热点聚合返回 3 条。
+- 新增局域网 Origin 回归测试，验证响应包含 `access-control-allow-origin: http://192.168.0.191:3000`。
+- 后端完整测试、前端 lint/build 和重新部署结果见本轮验证记录。
+
+### 已知遗留
+- 当前前端 API 地址仍在构建时固化；后续引入 Nginx/Caddy 同源 `/api` 代理后应取消跨域部署模式。
+
+## [0.0.15] - 2026-07-13
+
+### 新增
+- 新增 systemd 前后端服务和 `insight-web.target`，服务绑定 `0.0.0.0:3000/8000`，支持开机启动和异常自动恢复。
+- 新增 `scripts/deploy.sh` 标准发布门禁、独立 `/opt/insight-web-venv` Python 环境及 `scripts/health-check.sh`。
+- 新增启动补跑服务：按 GitHub、热搜、新闻/政策/厂商、友商、招标、需求、技术评估依赖顺序补齐当天缺失数据，并通过 PostgreSQL advisory lock 防止重复执行。
+- 新增 `/api/data/freshness`，集中报告九个核心数据集的最新日期和新鲜度状态。
+- 为刷新采集、技术评估、招标/需求分析、研报、爬虫控制、邮件管理和访问统计接口增加 Supabase Bearer 鉴权；前端管理请求统一自动携带当前会话令牌。
+
+### 修复
+- 修复 `.env` 依赖当前工作目录的问题，改为从项目绝对路径加载且不覆盖进程环境变量。
+- 修复技术评估“数据库查询成功但当天为 0 条”时直接返回空结果的问题；当前先即时生成可展示评估，再由 AI 结果升级并持久化。
+- 新闻、政策、厂商数据入库前增加空标题、乱码和不可追溯链接过滤；招标链接改为绝对地址，并保存真实来源、公告日期和状态。
+- 商业快讯页改为读取最近两天真实 API 数据；首页实时模块为空时明确展示无新数据，不再回退五月/六月静态卡片。
+
+### 验证
+- 独立虚拟环境后端测试通过：18 passed（包含 8 个敏感接口匿名访问返回 401 的回归用例）；Python 语法编译通过。
+- `npm run lint` 和 `npm run build` 通过，20 个静态页面生成成功。
+- systemd target、前端和后端均为 active；强制终止前后端主进程后分别自动恢复为新 PID，健康检查继续通过。
+- `/api/data/freshness` 返回整体 `fresh`；九个核心数据集最新日期均为 2026-07-13。
+- 技术评估返回 10 条当日结果；首页、热点、快讯和核心数据 API 烟测均返回 200。
+
+### 已知遗留
+- DeepSearcher 依赖仍未安装，RAG 继续使用降级路径，启动日志的成功文案仍需修正。
+- 36氪和一财当前解析结果为 0，财联社旧接口返回 404；已通过质量门禁阻止坏数据入库，但需要接入稳定官方接口或替代源。
+- systemd 当前仍以 root 运行；后续应迁移到专用用户和 `/opt/insight-web`，并增加 Nginx/Caddy HTTPS 入口。
+- 细粒度 RBAC、聊天接口限流、repository 分层和大型前端页面拆分尚未完成，继续按 Phase 2-5 推进。
+
+## [0.0.14] - 2026-07-13
+
+### 调整
+- 将 Linux systemd 开机自启、统一服务 target、标准发布脚本和失败回滚要求加入整改计划 Phase 0。
+- 新增数据源与洞察时效治理 Phase 6，记录技术洞察为空、定时任务漏跑、静态内容冒充实时数据等根因。
+- 补充 2026-07-12/13 数据新鲜度审计基线、各数据域 SLA、启动补跑、幂等、质量门禁和源级告警验收标准。
+
+### 验证
+- 当前前端继续监听 `0.0.0.0:3000`，后端继续监听 `0.0.0.0:8000`，健康检查均返回 200。
+- GitHub Trending 现场抓取正常：日榜 17、周榜 21、月榜 21；当天快照已写入数据库。
+- 数据库只读审计确认：技术评估最新为 2026-07-09，其他主要数据域多数停留在 2026-06-30 至 2026-07-03。
+- 数据源现场检查确认：国务院、雷锋网、部分云厂商和中央采购可返回数据；36氪、一财为空，财联社旧 API 返回 404 且 HTML 降级结果存在乱码，地方采购源返回 502。
+
+### 已知遗留
+- 本轮只完成部署方案和数据源诊断入计划，尚未创建 systemd unit，也未修改技术评估空结果逻辑和采集器。
+- 商业快讯、政策雷达、增长机会等页面仍包含静态内容，不能视为实时洞察。
+- 当前 APScheduler 仍嵌在 Web 进程，服务错过固定执行时间后不会自动补跑。
+
+## [0.0.13] - 2026-07-09
+
+### 调整
+- 重构左侧导航：取消所有折叠分组，仅保留 5 个固定一级入口：首页洞察、热点追踪、行业洞察、政策法规、系统设置。
+- 重构 `/insights/industry` 为统一行业洞察页，融合原行业全景、云厂商竞争格局和标杆案例库内容。
+- 修复智能助手配置：前端助手脚本不再回退到 `localhost`，快捷问题同步为新导航结构。
+- 更新智能助手知识库和 DeepSearcher 内置平台知识，移除旧的友商洞察/案例库/数据大屏/研报等导航描述。
+- 在项目规则中加入智能助手全局挂载、禁止生产 localhost 回退、导航变更必须同步助手知识库的要求。
+
+### 验证
+- `npm run lint` 通过。
+- `npm run build` 通过。
+- `python -m py_compile backend/routers/chat.py backend/deep_searcher_integration.py` 通过。
+- `pytest -q backend/tests` 通过：6 passed。
+
+### 已知遗留
+- 旧路由 `/insights/competitors` 和 `/insights/industry/cases` 暂未删除，当前仅从主导航移除；后续可按需要改成重定向。
+- `DeepSearcher` 依赖仍未安装，相关知识检索继续走降级路径。
+
+## [0.0.12] - 2026-07-09
+
+### 修复
+- 修复 `/api/demand/trends` 在 `demand_tags` 为空时返回 500 的问题。
+- 修复 `/api/market/overview` 和 `/api/market/industry-analysis` 在 DeepSearcher 降级模式下错误 `await` 同步检索结果的问题。
+- 为需求报告增加兜底摘要：AI 或检索不可用时仍基于 `demand_signals` 返回可展示报告，并补齐报告历史首屏数据。
+- 为深度研报列表增加系统基线报告：`insight_tasks` 没有完成报告时自动创建一份基于当前技术热点和需求信号的完成报告。
+- 首页统计和每日洞察的商机模块增加“近期为空则取最新/总量”兜底，避免招标数据存在但首页显示 0 或空白。
+
+### 验证
+- `python -m py_compile backend/crawlers.py backend/routers/insights.py backend/routers/demand.py backend/routers/reports.py backend/services/demand_service.py` 通过。
+- `pytest -q backend/tests` 通过：6 passed。
+- 全量核心 API 巡检通过：GitHub、AI 评估、行业、竞品、招标、需求、政策、研报、搜索、邮件订阅均返回 200 且有可展示数据。
+
+### 已知遗留
+- `DeepSearcher` 依赖仍未安装，当前 RAG 能力处于降级模式；市场总览和行业分析依赖结构化数据库与 AI 兜底输出。
+- 部分示例招标数据日期停留在 2026-06，首页已做“最新数据”兜底，但后续应恢复定时采集保证日期连续性。
+
+## [0.0.11] - 2026-07-09
+
+### 修复
+- 修复部署后前端仍使用 `localhost:8000` 作为浏览器侧 API 地址的问题，改为当前服务器局域网后端地址 `http://192.168.0.191:8000`。
+- 修复 GitHub Trending 接口在 Supabase allow list 拒绝数据库连接时返回 500 的问题：实时抓取成功后，即使数据库写入失败也会返回实时项目。
+- 修复“技术热点 / AI 业务价值评估”在数据库不可用时完全空白的问题：增加实时 GitHub 项目评估路径，并在 AI 不可用时提供启发式临时评估。
+- GitHub 历史记录和手动刷新接口增加数据库不可用降级，避免影响核心热点展示。
+
+### 验证
+- `python -m py_compile backend/routers/hotspots.py` 通过。
+- `npm run lint` 通过。
+- `npm run build` 通过。
+- `pytest -q backend/tests` 通过：6 passed。
+
+### 已知遗留
+- Supabase 当前仍拒绝本机公网 IP 访问，历史数据持久化和数据库评估结果存储需放通 allow list 后恢复。
+- 当前 AI 业务价值评估在数据库/AI 不可用时会使用启发式临时评分，需在真实 AI 配置可用时复核评分质量。
+
+## [0.0.10] - 2026-07-09
+
+### 调整
+- 进入 Phase 2 数据契约整改：新增 `doc/database-schema.md`，记录后端当前使用的 public 表结构、字段、索引、唯一约束和后续待办。
+- 重写 `frontend/prisma/schema.prisma`，使 Prisma 模型与后端 SQL / `backend/reconcile_schema.py` 的当前数据契约一致。
+- 明确 Supabase Auth 用户不在 public Prisma schema 中建模，避免继续保留旧的 `User` / `Report` / `DataSource` 抽象误导维护。
+
+### 验证
+- `npx prisma validate` 通过。
+- `npm run lint` 通过。
+- `npm run build` 通过。
+- `pytest -q backend/tests` 通过：6 passed。
+- 后端语法编译通过。
+
+### 已知遗留
+- 当前执行环境 IP 不在 Supabase allow list，无法在线 introspection；待放通后需用真实数据库结构复核 `doc/database-schema.md` 和 Prisma schema。
+- 后端 SQL 仍分散在 router/service/crawler 中，下一步应引入 `backend/repositories/*`。
+- 关键写接口和管理接口仍需接入认证/权限保护。
+
+## [0.0.9] - 2026-07-09
+
+### 调整
+- 更新项目提示词：在根目录 `CLAUDE.md` 和 `frontend/AGENTS.md` 中加入“每次可验证整改必须更新 `log/versions.md`”的项目规则。
+- 重写 `doc/整改方案.md`，将旧的待审批方案更新为当前执行中的可维护性整改路线图，覆盖质量门禁、数据契约、认证边界、legacy 清理、前端拆分等阶段。
+- 清理前端 ESLint warnings：
+    - 删除未使用 imports、变量和参数。
+    - 用 `useCallback` 补齐数据加载函数的 hook 依赖。
+    - 修正 Supabase middleware 中创建 client 但未刷新用户会话的问题。
+    - 对保留原生 `<img>` 的现有视觉背景做局部 lint 例外，避免在未配置远程图片域名时引入构建/布局回归。
+
+### 验证
+- `npm run lint` 通过：0 errors，0 warnings。
+- `npm run build` 通过。
+- `pytest -q backend/tests` 通过：6 passed。
+- 后端语法编译通过。
+
+### 已知遗留
+- 数据库 schema、后端 SQL 与 Prisma schema 仍需专项统一。
+- 关键写接口和管理接口仍需接入认证/权限保护。
+- `npm audit` 漏洞仍需逐项评估处理。
+
+## [0.0.8] - 2026-07-09
+
+### 修复
+- 修复后端启动阻断问题：邮件日报模板 f-string 语法错误、热点历史接口缺失 `timedelta`、GitHub 业务评估缺失 `httpx` 导入。
+- 将 DeepSearcher 调整为可选增强能力；未安装时基础 API 可正常导入和运行，RAG 检索降级为空上下文。
+- 修正后端依赖文件中不可安装的版本号，并新增 `backend/requirements-dev.txt` 记录测试依赖。
+- 修复 Python 3.9 下爬虫模块类型注解兼容问题。
+- 修复前端依赖缺失导致的生产构建失败。
+- 清理前端 ESLint 阻断错误：替换显式 `any`、规避 React effect 同步 setState 规则、修正 JSX 未转义双引号、排除 Node 配置脚本误扫。
+
+### 验证
+- 后端语法编译通过。
+- `pytest -q backend/tests` 通过：6 passed。
+- `npm run lint` 通过：0 errors，仍有 unused/import、hooks deps、img 优化等 warnings 待后续清理。
+- `npm run build` 通过。
+
+### 已知遗留
+- 前端仍有 lint warnings，需要下一轮清理。
+- `npm audit` 仍有 7 个漏洞提示，其中 1 个 high、6 个 moderate。
+- 数据库 schema、后端 SQL、认证边界仍需专项整改。
+
 ## [0.0.7] - 2026-05-30
 
 ### 新增

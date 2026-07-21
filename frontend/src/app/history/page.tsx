@@ -1,12 +1,12 @@
 "use client";
 
 import { SectionHeader } from "@/components/section-header";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { API } from "@/lib/api";
 import {
-  CalendarDays, FileText, TrendingUp, Activity, Search, ArrowLeft,
-  ExternalLink, Star, GitFork, RefreshCw
+  CalendarDays, FileText, Activity, Search,
+  ExternalLink, Star, RefreshCw
 } from "lucide-react";
-import Link from "next/link";
 
 interface TrendingItem {
   repo_name: string;
@@ -22,9 +22,16 @@ interface TrendingItem {
 interface HistoryEntry {
   date: string;
   items: TrendingItem[];
+  evaluations: EvaluationItem[];
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+interface EvaluationItem {
+  repo_name: string;
+  total: number;
+  level: string;
+  recommendation: string;
+  reasoning: string;
+}
 
 export default function HistoryPage() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -32,10 +39,11 @@ export default function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [category, setCategory] = useState<"daily" | "weekly" | "monthly">("daily");
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API}/api/github-trending/history?days=30&category=${category}`);
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setHistory(data.history || []);
     } catch (err) {
@@ -43,11 +51,11 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [category]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [category]);
+    void Promise.resolve().then(fetchHistory);
+  }, [fetchHistory]);
 
   const filtered = history.filter((entry) => {
     if (!searchQuery) return true;
@@ -67,7 +75,7 @@ export default function HistoryPage() {
       <SectionHeader
         badge="Archive"
         title="历史日报存档"
-        subtitle="按日期查阅 GitHub Trending 历史快照，追溯技术趋势变化轨迹"
+        subtitle="按日期查阅每天采集的技术热点与业务价值分析，追溯技术趋势变化轨迹"
         action={
           <div className="flex items-center gap-2 text-xs text-ink-muted">
             <FileText className="h-4 w-4" />
@@ -78,7 +86,7 @@ export default function HistoryPage() {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2 bg-white border border-slate-200/80 px-3.5 py-2 rounded-lg flex-1">
+        <div className="flex items-center gap-2 bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl flex-1">
           <Search className="h-3.5 w-3.5 text-ink-muted" />
           <input
             type="text"
@@ -93,7 +101,7 @@ export default function HistoryPage() {
             <button
               key={c}
               onClick={() => setCategory(c)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                 category === c
                   ? "bg-slate-900 text-white"
                   : "bg-white border border-slate-200 text-ink-secondary hover:border-slate-300"
@@ -105,7 +113,7 @@ export default function HistoryPage() {
         </div>
         <button
           onClick={fetchHistory}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-ink-secondary hover:border-slate-300 transition-all"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-ink-secondary hover:border-slate-300 transition-all"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           刷新
@@ -116,7 +124,7 @@ export default function HistoryPage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-lg bg-white border border-slate-200/80 p-5 animate-shimmer">
+            <div key={i} className="rounded-xl bg-white border border-slate-200/80 p-5 animate-shimmer">
               <div className="h-5 w-32 bg-slate-100 rounded mb-3" />
               <div className="h-4 w-full bg-slate-100 rounded mb-2" />
               <div className="h-4 w-3/4 bg-slate-100 rounded" />
@@ -133,7 +141,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-5">
           {filtered.map((entry) => (
-            <div key={entry.date} className="rounded-lg bg-white border border-slate-200/80 overflow-hidden shadow-sm">
+            <div key={entry.date} className="rounded-2xl bg-white border border-slate-200/80 overflow-hidden shadow-sm">
               {/* Date Header */}
               <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
                 <div className="flex items-center gap-3">
@@ -195,6 +203,28 @@ export default function HistoryPage() {
                     </a>
                   ))}
                 </div>
+                {entry.evaluations?.length > 0 && (
+                  <div className="mt-5 border-t border-slate-100 pt-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-ink">当日业务价值分析</h3>
+                      <span className="text-xs text-ink-muted">{entry.evaluations.length} 个项目</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {entry.evaluations.map((item) => (
+                        <div key={item.repo_name} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="truncate text-xs font-semibold text-ink">{item.repo_name}</p>
+                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-primary">
+                              {item.total} · {item.level}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{item.recommendation}</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">{item.reasoning}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           ))}

@@ -1,0 +1,13 @@
+[Unit]
+Description=InsightPro end-to-end health guard
+After=network-online.target insight-web.target
+Wants=network-online.target insight-web.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/AIProject/insight-web
+EnvironmentFile=-/root/AIProject/insight-web/.env
+Environment=INSIGHT_PYTHON=/opt/insight-web-venv/bin/python
+ExecStart=/root/AIProject/insight-web/scripts/health-guard.sh
+TimeoutStartSec=900

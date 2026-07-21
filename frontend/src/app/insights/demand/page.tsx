@@ -1,14 +1,14 @@
 "use client";
 
 import { SectionHeader } from "@/components/section-header";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { API } from "@/lib/api";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { industryIcons, industryColors } from "@/lib/industry-config";
 import {
-  Target, TrendingUp, FileText, Building2, Stethoscope,
-  ShoppingCart, Landmark, Factory, RefreshCw, ExternalLink,
-  BarChart3, Zap, Shield, Globe, ChevronRight, Loader2
+  FileText, RefreshCw, ExternalLink,
+  Globe, Loader2
 } from "lucide-react";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface DemandSignal {
   id: number;
@@ -29,20 +29,6 @@ interface DemandTrends {
   hot_tags: { tag: string; count: number }[];
 }
 
-const industryIcons: Record<string, React.ElementType> = {
-  "制造": Factory, "医疗": Stethoscope, "零售": ShoppingCart,
-  "金融": Landmark, "政务": Building2, "通用": Globe,
-};
-
-const industryColors: Record<string, string> = {
-  "制造": "from-blue-500 to-cyan-500",
-  "医疗": "from-rose-500 to-pink-500",
-  "零售": "from-amber-500 to-orange-500",
-  "金融": "from-emerald-500 to-teal-500",
-  "政务": "from-violet-500 to-purple-500",
-  "通用": "from-slate-500 to-gray-500",
-};
-
 const sourceTypeMap: Record<string, { label: string; color: string }> = {
   "policy": { label: "政策文件", color: "bg-blue-50 text-blue-700 border-blue-200" },
   "bidding": { label: "招标信息", color: "bg-rose-50 text-rose-700 border-rose-200" },
@@ -59,13 +45,15 @@ export default function DemandPage() {
   const [activeIndustry, setActiveIndustry] = useState<string | null>(null);
   const [activeType, setActiveType] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     try {
       const [sigRes, trendRes] = await Promise.all([
         fetch(`${API}/api/demand/signals?days=30${activeIndustry ? `&industry=${activeIndustry}` : ""}${activeType ? `&source_type=${activeType}` : ""}`),
         fetch(`${API}/api/demand/trends`),
       ]);
+      if (!sigRes.ok) { throw new Error(`API error: ${sigRes.status}`); }
+      if (!trendRes.ok) { throw new Error(`API error: ${trendRes.status}`); }
       const sigData = await sigRes.json();
       const trendData = await trendRes.json();
       setSignals(sigData.signals || []);
@@ -75,12 +63,12 @@ export default function DemandPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeIndustry, activeType]);
 
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      await fetch(`${API}/api/demand/refresh`, { method: "POST" });
+      await authenticatedFetch(`${API}/api/demand/refresh`, { method: "POST" });
       await fetchData();
     } catch (err) {
       console.error("Failed to refresh:", err);
@@ -90,17 +78,20 @@ export default function DemandPage() {
   const handleGenerateReport = async () => {
     setReportLoading(true);
     try {
-      const res = await fetch(`${API}/api/demand/report${activeIndustry ? `?industry=${activeIndustry}` : ""}`);
+      const res = await authenticatedFetch(`${API}/api/demand/report${activeIndustry ? `?industry=${activeIndustry}` : ""}`);
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setReport(data.report || "报告生成失败");
-    } catch (err) {
+    } catch {
       setReport("报告生成失败，请检查后端服务");
     } finally {
       setReportLoading(false);
     }
   };
 
-  useEffect(() => { fetchData(); }, [activeIndustry, activeType]);
+  useEffect(() => {
+    void Promise.resolve().then(fetchData);
+  }, [fetchData]);
 
   const industries = Object.keys(trends?.by_industry || {});
 
@@ -190,7 +181,7 @@ export default function DemandPage() {
         </div>
       ) : signals.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-ink-muted">暂无需求信号，点击"采集信号"获取数据</p>
+          <p className="text-ink-muted">暂无需求信号，点击&quot;采集信号&quot;获取数据</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -200,7 +191,7 @@ export default function DemandPage() {
             return (
               <div key={sig.id} className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm hover:shadow-md transition-all">
                 <div className="flex items-start gap-4">
-                  <div className={`h-10 w-10 rounded-lg bg-gradient-to-br ${industryColors[sig.industry] || "from-slate-500 to-gray-500"} flex items-center justify-center shrink-0`}>
+                  <div className={`h-10 w-10 rounded-lg ${industryColors[sig.industry] || "bg-ink"} flex items-center justify-center shrink-0`}>
                     <IndIcon className="h-5 w-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">

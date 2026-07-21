@@ -5,20 +5,18 @@ interface InsightCardProps {
   children: ReactNode;
   className?: string;
   href?: string;
-  gradient?: boolean;
   glass?: boolean;
 }
 
-export function InsightCard({ children, className = "", href, gradient = false, glass = false }: InsightCardProps) {
+export function InsightCard({ children, className = "", href, glass = false }: InsightCardProps) {
+  // 瑞士式：锐角、发丝线、无浮起，hover 加深边框
   const base = glass
-    ? `glass rounded-2xl p-6 ${className}`
-    : gradient
-    ? `rounded-2xl bg-white border border-slate-200/60 p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 ${className}`
-    : `rounded-2xl bg-white border border-slate-200/60 p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 ${className}`;
+    ? `glass p-6 ${className}`
+    : `bg-white border border-grid p-6 transition-colors duration-200 hover:border-ink/30 ${className}`;
 
   if (href) {
     return (
-      <Link href={href} className={`${base} block hover:-translate-y-0.5`}>
+      <Link href={href} className={`${base} block`}>
         {children}
       </Link>
     );
@@ -28,7 +26,7 @@ export function InsightCard({ children, className = "", href, gradient = false, 
 
 export function InsightCardHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-6 pb-5 border-b border-slate-100">
+    <div className="flex items-center justify-between mb-6 pb-5 border-b border-grid">
       <h3 className="text-2xl serif-heading text-ink">{title}</h3>
       {action}
     </div>
@@ -50,28 +48,29 @@ export function StatCard({
   href?: string;
   color?: string;
 }) {
-  const colorMap: Record<string, string> = {
-    primary: "from-indigo-500 to-purple-500",
-    cyan: "from-cyan-500 to-blue-500",
-    emerald: "from-emerald-500 to-teal-500",
-    amber: "from-amber-500 to-orange-500",
-    rose: "from-rose-500 to-pink-500",
+  // 瑞士式：纯色 tile（去渐变），黑/柠檬/绿/橙轮换
+  const tileMap: Record<string, string> = {
+    primary: "bg-ink text-paper",
+    cyan: "bg-lime text-ink",
+    emerald: "bg-lime text-ink",
+    amber: "bg-signal text-paper",
+    rose: "bg-signal text-paper",
   };
 
   const content = (
-    <div className="group rounded-2xl bg-white border border-slate-200/60 p-6 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 hover:-translate-y-0.5">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${colorMap[color] || colorMap.primary} flex items-center justify-center`}>
-          <Icon className="h-5 w-5 text-white" />
+    <div className="group bg-white border border-grid p-6 transition-colors duration-200 hover:border-ink/30">
+      <div className="flex items-center justify-between mb-4">
+        <div className={`h-10 w-10 flex items-center justify-center ${tileMap[color] || tileMap.primary}`}>
+          <Icon className="h-5 w-5" />
         </div>
         {trend && (
-          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-semibold text-ink bg-lemon px-2 py-0.5">
             {trend}
           </span>
         )}
       </div>
-      <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-1">{label}</p>
-      <h3 className="text-3xl serif-stat text-ink">{value}</h3>
+      <p className="swiss-kicker text-ink-muted mb-2">{label}</p>
+      <h3 className="text-4xl serif-stat text-ink">{value}</h3>
     </div>
   );
 
@@ -82,8 +81,9 @@ export function StatCard({
 }
 
 export function GradientBadge({ children }: { children: ReactNode }) {
+  // 瑞士式锐角标签：黑底白字 uppercase tracking
   return (
-    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold text-white gradient-primary">
+    <span className="inline-flex items-center px-3 py-1 bg-ink text-paper swiss-kicker">
       {children}
     </span>
   );
@@ -91,15 +91,15 @@ export function GradientBadge({ children }: { children: ReactNode }) {
 
 export function StatusDot({ status }: { status: "online" | "warning" | "error" | "offline" }) {
   const colors = {
-    online: "bg-emerald-500",
-    warning: "bg-amber-500",
-    error: "bg-rose-500",
-    offline: "bg-slate-400",
+    online: "bg-lime",
+    warning: "bg-signal",
+    error: "bg-signal",
+    offline: "bg-ink-muted",
   };
   return (
     <span className={`flex h-2 w-2 rounded-full ${colors[status]}`}>
       {status === "online" && (
-        <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-emerald-400 opacity-75" />
+        <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-lime opacity-75" />
       )}
     </span>
   );

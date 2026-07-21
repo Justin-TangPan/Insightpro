@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-const API = typeof window !== "undefined" ? (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000") : "";
+import { API } from "@/lib/api";
 
 export function ChatAssistant() {
   const [open, setOpen] = useState(false);
@@ -92,7 +92,7 @@ export function ChatAssistant() {
                 </div>
                 <div style={{ paddingLeft: 38, display: "flex", flexDirection: "column", gap: 6 }}>
                   <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>快速提问</p>
-                  {["平台有哪些核心功能？", "友商洞察包含哪些场景？", "如何订阅每日邮件？", "行业案例库有哪些内容？"].map((q, i) => (
+                  {["首页洞察有哪些数据？", "热点追踪如何分析 GitHub 项目？", "行业洞察包含哪些内容？", "政策法规怎么看？"].map((q, i) => (
                     <button key={i} onClick={() => { setInput(""); setMessages([{ role: "user", content: q }]); setLoading(true); fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, history: [] }) }).then(r => r.json()).then(d => setMessages([{ role: "user", content: q }, { role: "assistant", content: d.reply || "暂无法回答" }])).catch(() => setMessages([{ role: "user", content: q }, { role: "assistant", content: "网络异常" }])).finally(() => setLoading(false)); }}
                       style={{ display: "block", width: "100%", textAlign: "left", fontSize: 12, color: "#6366f1", background: "#eef2ff", border: "none", padding: "8px 12px", borderRadius: 8, cursor: "pointer" }}>
                       {q}

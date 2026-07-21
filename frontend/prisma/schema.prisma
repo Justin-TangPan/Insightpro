@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,73 +6,235 @@ datasource db {
   provider = "postgresql"
 }
 
-// 用户表
-model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  name          String?
-  tasks         InsightTask[]
-  reports       Report[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+// This schema documents the public tables used by the FastAPI backend.
+// Supabase Auth users live outside this public application schema.
+
+model GithubTrending {
+  id          Int      @id @default(autoincrement())
+  scrapeDate  String   @map("scrape_date")
+  scrapeTime  String   @map("scrape_time")
+  repoName    String   @map("repo_name")
+  repoUrl     String?  @map("repo_url")
+  description String?
+  language    String?
+  stars       String?
+  forks       String?
+  todayStars  String?  @map("today_stars")
+  tags        String?
+  category    String   @default("daily")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([scrapeDate, category, repoName])
+  @@index([scrapeDate])
+  @@index([category])
+  @@map("github_trending")
 }
 
-// 洞察任务表
+model BaiduHotsearch {
+  id         Int      @id @default(autoincrement())
+  scrapeDate String   @map("scrape_date")
+  scrapeTime String   @map("scrape_time")
+  rank       Int?
+  title      String
+  hot        String?
+  link       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([scrapeDate, title])
+  @@index([scrapeDate])
+  @@map("baidu_hotsearch")
+}
+
+model ScrapeLog {
+  id         Int      @id @default(autoincrement())
+  scrapeDate String   @map("scrape_date")
+  scrapeTime String   @map("scrape_time")
+  status     String
+  itemsCount Int?     @map("items_count")
+  errorMsg   String?  @map("error_msg")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("scrape_log")
+}
+
+model PageVisit {
+  id        Int      @id @default(autoincrement())
+  pagePath  String   @map("page_path")
+  visitorId String   @map("visitor_id")
+  userAgent String?  @map("user_agent")
+  referrer  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([pagePath])
+  @@index([createdAt])
+  @@index([visitorId])
+  @@map("page_visits")
+}
+
+model EmailSubscriber {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  name      String?
+  active    Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("email_subscribers")
+}
+
+model CompetitorNews {
+  id         Int      @id @default(autoincrement())
+  scrapeDate String   @map("scrape_date")
+  vendor     String
+  title      String
+  link       String?
+  summary    String?
+  category   String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([scrapeDate, vendor, title])
+  @@index([scrapeDate])
+  @@index([vendor])
+  @@map("competitor_news")
+}
+
+model CloudVendorNews {
+  id        Int      @id @default(autoincrement())
+  crawlDate String   @map("crawl_date")
+  vendor    String
+  title     String
+  summary   String?
+  url       String?
+  category  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([crawlDate, vendor, title])
+  @@index([crawlDate])
+  @@map("cloud_vendor_news")
+}
+
+model IndustryNews {
+  id        Int      @id @default(autoincrement())
+  crawlDate String   @map("crawl_date")
+  source    String
+  title     String
+  summary   String?
+  url       String?
+  category  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([crawlDate, source, title])
+  @@index([crawlDate])
+  @@map("industry_news")
+}
+
+model PolicyUpdate {
+  id        Int      @id @default(autoincrement())
+  crawlDate String   @map("crawl_date")
+  source    String
+  title     String
+  summary   String?
+  url       String?
+  category  String?
+  severity  String   @default("medium")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([crawlDate, source, title])
+  @@index([crawlDate])
+  @@map("policy_updates")
+}
+
+model BiddingOpportunity {
+  id               Int      @id @default(autoincrement())
+  bidDate          String   @map("bid_date")
+  industry         String?
+  title            String
+  procuringEntity  String?  @map("procuring_entity")
+  budget           String?
+  budgetAmount     Int?     @map("budget_amount")
+  deadline         String?
+  summary          String?
+  requirements     String?
+  qualification    String?
+  contact          String?
+  url              String?
+  source           String?
+  region           String?
+  status           String?
+  relevanceScore   Float    @default(0.5) @map("relevance_score")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([bidDate, title])
+  @@index([bidDate])
+  @@index([industry])
+  @@index([status])
+  @@index([budgetAmount])
+  @@map("bidding_opportunities")
+}
+
+model DemandSignal {
+  id             Int      @id @default(autoincrement())
+  signalDate     String   @map("signal_date")
+  sourceType     String?  @map("source_type")
+  industry       String?
+  title          String
+  summary        String?
+  url            String?
+  relevanceScore Float    @default(0.5) @map("relevance_score")
+  demandTags     String?  @map("demand_tags")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([signalDate])
+  @@index([industry])
+  @@index([sourceType])
+  @@map("demand_signals")
+}
+
+model DemandReport {
+  id         Int      @id @default(autoincrement())
+  reportDate String?  @map("report_date")
+  industry   String?
+  title      String?
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([reportDate])
+  @@map("demand_reports")
+}
+
+model TrendingBusinessEval {
+  id             Int      @id @default(autoincrement())
+  scrapeDate     String   @map("scrape_date")
+  repoName       String   @map("repo_name")
+  repoUrl        String?  @map("repo_url")
+  language       String?
+  stars          String?
+  d1             Float?
+  d2             Float?
+  d3             Float?
+  d4             Float?
+  total          Float?
+  level          String?
+  recommendation String?
+  reasoning      String?
+  evalTime       String?  @map("eval_time")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([scrapeDate, repoName])
+  @@index([scrapeDate])
+  @@map("trending_business_eval")
+}
+
 model InsightTask {
-  id            String    @id @default(cuid())
-  title         String    // 任务标题，例如 "新能源汽车行业调研"
-  status        TaskStatus @default(PENDING)
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  dataSources   DataSource[]
-  report        Report?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
+  id          String   @id
+  title       String
+  status      String   @default("pending")
+  dataSources Json?    @map("data_sources")
+  result      Json?
+  error       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
 
-// 数据源表
-model DataSource {
-  id            String    @id @default(cuid())
-  type          SourceType
-  content       String?   // 如果是关键词
-  fileUrl       String?   // 如果是上传的 PDF/Markdown
-  taskId        String
-  task          InsightTask @relation(fields: [taskId], references: [id])
-  createdAt     DateTime  @default(now())
-}
-
-// 洞察报告表
-model Report {
-  id            String    @id @default(cuid())
-  content       String    @db.Text // 存储 Markdown 格式的报告
-  summary       String?   @db.Text // AI 生成的简要总结
-  taskId        String    @unique
-  task          InsightTask @relation(fields: [taskId], references: [id])
-  userId        String
-  user          User      @relation(fields: [userId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-// 每日洞察报告
-model DailyInsight {
-  id            String    @id @default(cuid())
-  date          DateTime  @default(now()) @unique
-  industry      Json      // 行业洞察（生物医疗、交通等）
-  hotspots      Json      // 热点洞察（GitHub, CSDN等）
-  news          Json      // 商业新闻热搜
-  opportunities Json      // 商业机会分析
-  createdAt     DateTime  @default(now())
-}
-
-enum TaskStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
-enum SourceType {
-  KEYWORD
-  FILE
+  @@index([status])
+  @@index([createdAt])
+  @@map("insight_tasks")
 }

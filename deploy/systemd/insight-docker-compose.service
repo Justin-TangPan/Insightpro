@@ -1,0 +1,22 @@
+[Unit]
+Description=InsightPro Docker Compose (backend + frontend)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+User=root
+WorkingDirectory=/root/AIProject/insight-web
+EnvironmentFile=-/root/AIProject/insight-web/.env
+Environment=DOCKER_API_VERSION=1.39
+ExecStartPre=/bin/bash -c "docker-compose --project-name insight-web -f /root/AIProject/insight-web/compose.yaml down --remove-orphans 2>/dev/null || true"
+ExecStart=/bin/bash -c "docker-compose --project-name insight-web -f /root/AIProject/insight-web/compose.yaml up --detach --remove-orphans"
+ExecStop=/bin/bash -c "docker-compose --project-name insight-web -f /root/AIProject/insight-web/compose.yaml down"
+ExecReload=/bin/bash -c "docker-compose --project-name insight-web -f /root/AIProject/insight-web/compose.yaml restart"
+TimeoutStartSec=180
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

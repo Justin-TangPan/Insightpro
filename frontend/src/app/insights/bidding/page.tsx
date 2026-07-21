@@ -1,17 +1,14 @@
 "use client";
 
 import { SectionHeader } from "@/components/section-header";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { API } from "@/lib/api";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { industryIcons, industryColors } from "@/lib/industry-config";
 import {
-  Gavel, RefreshCw, FileText, ExternalLink, Building2,
-  Factory, Stethoscope, Landmark, ShoppingCart, Globe,
-  GraduationCap, Truck, Zap, Leaf, Loader2, Calendar,
-  TrendingUp, Target, Clock, DollarSign, ChevronRight,
-  AlertTriangle, CheckCircle2, Lightbulb, ChevronLeft
+  Gavel, RefreshCw, ExternalLink, Globe,
+  Loader2, ChevronRight, Lightbulb, ChevronLeft
 } from "lucide-react";
-import Link from "next/link";
-
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface BiddingItem {
   id: number;
@@ -37,20 +34,6 @@ interface BiddingStats {
   total_budget: string;
 }
 
-const industryIcons: Record<string, React.ElementType> = {
-  "政务": Building2, "制造": Factory, "医疗": Stethoscope,
-  "金融": Landmark, "零售": ShoppingCart, "教育": GraduationCap,
-  "交通": Truck, "能源": Zap, "农业": Leaf,
-};
-
-const industryColors: Record<string, string> = {
-  "政务": "from-violet-500 to-purple-500", "制造": "from-blue-500 to-cyan-500",
-  "医疗": "from-rose-500 to-pink-500", "金融": "from-emerald-500 to-teal-500",
-  "零售": "from-amber-500 to-orange-500", "教育": "from-sky-500 to-indigo-500",
-  "交通": "from-orange-500 to-red-500", "能源": "from-yellow-500 to-amber-500",
-  "农业": "from-green-500 to-emerald-500",
-};
-
 export default function BiddingPage() {
   const [items, setItems] = useState<BiddingItem[]>([]);
   const [stats, setStats] = useState<BiddingStats | null>(null);
@@ -63,18 +46,20 @@ export default function BiddingPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  const [now] = useState(() => Date.now());
   const pageSize = 10;
 
   const industries = stats ? stats.by_industry.map(i => i.industry) : [];
 
-  const fetchData = async (p?: number) => {
-    const currentPage = p ?? page;
+  const fetchData = useCallback(async (currentPage: number) => {
     setLoading(true);
     try {
       const [listRes, statsRes] = await Promise.all([
         fetch(`${API}/api/bidding/list?days=30&page=${currentPage}&page_size=${pageSize}${activeIndustry ? `&industry=${activeIndustry}` : ""}`),
         fetch(`${API}/api/bidding/stats`),
       ]);
+      if (!listRes.ok) { throw new Error(`API error: ${listRes.status}`); }
+      if (!statsRes.ok) { throw new Error(`API error: ${statsRes.status}`); }
       const listData = await listRes.json();
       const statsData = await statsRes.json();
       setItems(listData.items || []);
@@ -86,12 +71,12 @@ export default function BiddingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeIndustry]);
 
   const handleRefresh = async () => {
     setLoading(true);
     try {
-      await fetch(`${API}/api/bidding/refresh`, { method: "POST" });
+      await authenticatedFetch(`${API}/api/bidding/refresh`, { method: "POST" });
       setPage(1);
       await fetchData(1);
     } catch (err) {
@@ -103,7 +88,8 @@ export default function BiddingPage() {
     setAnalysisLoading(true);
     setShowAnalysis(true);
     try {
-      const res = await fetch(`${API}/api/bidding/analyze`, { method: "POST" });
+      const res = await authenticatedFetch(`${API}/api/bidding/analyze`, { method: "POST" });
+      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setAnalysis(data.analysis || "分析生成失败");
     } catch {
@@ -113,10 +99,15 @@ export default function BiddingPage() {
     }
   };
 
-  useEffect(() => { setPage(1); fetchData(1); }, [activeIndustry]);
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      setPage(1);
+      void fetchData(1);
+    });
+  }, [activeIndustry, fetchData]);
 
   const urgencyInfo = (deadline: string) => {
-    const days = Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000);
+    const days = Math.ceil((new Date(deadline).getTime() - now) / 86400000);
     if (days < 0) return { label: `已截止`, color: "bg-slate-100 text-slate-500 border-slate-200" };
     if (days < 30) return { label: `紧急 ${days}天`, color: "bg-rose-50 text-rose-700 border-rose-200" };
     if (days < 60) return { label: `适中 ${days}天`, color: "bg-amber-50 text-amber-700 border-amber-200" };
@@ -196,7 +187,7 @@ export default function BiddingPage() {
       ) : items.length === 0 ? (
         <div className="text-center py-16">
           <Gavel className="h-12 w-12 text-ink-muted mx-auto mb-3" />
-          <p className="text-ink-muted">暂无招标信息，点击"刷新数据"获取</p>
+          <p className="text-ink-muted">暂无招标信息，点击&quot;刷新数据&quot;获取</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -209,7 +200,7 @@ export default function BiddingPage() {
                 <div className="flex items-start justify-between p-5 cursor-pointer"
                   onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
                   <div className="flex items-start gap-4 flex-1 min-w-0">
-                    <div className={`h-10 w-10 rounded-lg bg-gradient-to-br ${industryColors[item.industry] || "from-slate-500 to-gray-500"} flex items-center justify-center shrink-0`}>
+                    <div className={`h-10 w-10 rounded-lg ${industryColors[item.industry] || "bg-ink"} flex items-center justify-center shrink-0`}>
                       <Icon className="h-5 w-5 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">

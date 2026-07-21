@@ -13,7 +13,6 @@ Architecture:
 
 import os
 import sys
-import sqlite3
 import json
 import logging
 from typing import List, Optional, Tuple
@@ -47,24 +46,42 @@ if _firecrawl_spec is not None:
 # ──────────────────────────────────────────────
 # DeepSearcher Imports
 # ──────────────────────────────────────────────
-from deepsearcher.configuration import Configuration, init_config
-from deepsearcher.online_query import query as ds_query, retrieve as ds_retrieve
-from deepsearcher.offline_loading import load_from_local_files
-from deepsearcher.embedding.sentence_transformer_embedding import SentenceTransformerEmbedding
-from deepsearcher.loader.splitter import Chunk, split_docs_to_chunks
-from deepsearcher.vector_db.base import RetrievalResult
-from langchain_core.documents import Document
-from deepsearcher.utils import log as ds_log
+try:
+    from deepsearcher.configuration import Configuration, init_config
+    from deepsearcher.online_query import query as ds_query, retrieve as ds_retrieve
+    from deepsearcher.offline_loading import load_from_local_files
+    from deepsearcher.embedding.sentence_transformer_embedding import SentenceTransformerEmbedding
+    from deepsearcher.loader.splitter import Chunk, split_docs_to_chunks
+    from deepsearcher.vector_db.base import RetrievalResult
+    from langchain_core.documents import Document
+    from deepsearcher.utils import log as ds_log
 
-# Disable deepsearcher's extremely verbose dev logger
-ds_log.dev_logger.disabled = True
+    # Disable deepsearcher's extremely verbose dev logger
+    ds_log.dev_logger.disabled = True
+    DEEPSEARCHER_AVAILABLE = True
+except ImportError as exc:
+    Configuration = None
+    init_config = None
+    ds_query = None
+    ds_retrieve = None
+    load_from_local_files = None
+    SentenceTransformerEmbedding = None
+    Chunk = object
+    RetrievalResult = object
+    Document = object
+    split_docs_to_chunks = None
+    DEEPSEARCHER_AVAILABLE = False
+    DEEPSEARCHER_IMPORT_ERROR = exc
+else:
+    DEEPSEARCHER_IMPORT_ERROR = None
 
 # ──────────────────────────────────────────────
 # Configuration
 # ──────────────────────────────────────────────
-DB_PATH = os.path.join(os.path.dirname(__file__), "trending.db")
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
-DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com")
+# AI 统一使用机器人配置（ModelArts）。DeepSeek 已下线。
+CHAT_API_KEY = os.getenv("CHAT_API_KEY", "")
+CHAT_API_URL = os.getenv("CHAT_API_URL", "https://api.modelarts-maas.com/v2/chat/completions")
+CHAT_MODEL = os.getenv("CHAT_MODEL", "glm-5.2")
 # Using Qdrant in-memory mode (no server needed, persists to disk)
 QDRANT_PATH = os.path.join(os.path.dirname(__file__), "deep_searcher_qdrant")
 
@@ -94,6 +111,10 @@ def init_deep_searcher(force_reload: bool = False):
     """
     global _is_initialized
 
+    if not DEEPSEARCHER_AVAILABLE:
+        logger.warning(f"DeepSearcher is unavailable: {DEEPSEARCHER_IMPORT_ERROR}")
+        return
+
     if _is_initialized and not force_reload:
         logger.info("DeepSearcher already initialized, skipping")
         return
@@ -103,11 +124,11 @@ def init_deep_searcher(force_reload: bool = False):
     # Create configuration
     config = Configuration()
 
-    # Set LLM → DeepSeek
+    # Set LLM → 统一机器人配置（ModelArts，OpenAI 兼容）
     config.set_provider_config("llm", "DeepSeek", {
-        "model": "deepseek-chat",
-        "api_key": DEEPSEEK_API_KEY,
-        "base_url": DEEPSEEK_API_BASE,
+        "model": CHAT_MODEL,
+        "api_key": CHAT_API_KEY,
+        "base_url": CHAT_API_URL,
     })
 
     # Set Embedding → SentenceTransformer (local, multilingual)
@@ -217,17 +238,11 @@ def _load_platform_knowledge(vector_db, embedding_model):
 InsightPro 是面向云服务商业市场（中长尾、腰部行业客户）业务领导的 AI 驱动商业洞察平台，帮助用户快速获取行业动态、竞争分析、政策法规和市场机会。
 
 ## 核心功能模块
-1. **今日洞察**（首页）：每日商业简报入口，展示 6 大板块摘要
-2. **行业全景**（/insights/industry）：覆盖生物医疗、交通、基础设施、互联网、零售、制造 6 大行业，每个行业含具体客户案例和厂商方案
-3. **案例库**（/insights/industry/cases）：5 大行业深度案例（三一重工、省级医疗集团、省会城市交通、农商行信创、连锁便利店），含友商对比和数据来源
-4. **技术热点**（/insights/hotspots）：GitHub Trending 实时监控，支持日/周/月维度，历史数据追溯
-5. **友商洞察**（/insights/competitors）：6 大场景分析（出海、AI平台、开发者、SaaS、性价比、数字化），对比 AWS/Azure/阿里云/腾讯云/火山云
-6. **政策法规**（/insights/policy）：等保 2.0、信创替代、数据出境、OPC、数字化补贴、SOC 6 项政策追踪
-7. **商业快讯**（/insights/news）：Reuters/Bloomberg/财新网/Wired 实时新闻
-8. **增长机会**（/insights/opportunities）：综合分析页，聚合所有子版块数据形成 6 大机会点
-9. **数据大屏**（/dashboard）：KPI 看板 + Recharts 趋势图 + 实时监测
-10. **深度研报**（/reports）：AI 生成的结构化商业研报
-11. **历史日报**（/history）：GitHub Trending 历史快照，支持搜索
+1. **首页洞察**（/）：每日商业简报、关键统计和模块预览
+2. **热点追踪**（/insights/hotspots）：GitHub Trending 实时监控、历史追溯和 AI 业务价值评估
+3. **行业洞察**（/insights/industry）：融合行业全景、云厂商竞争格局和标杆案例库
+4. **政策法规**（/insights/policy）：等保 2.0、信创替代、数据出境、OPC、数字化补贴、SOC 6 项政策追踪
+5. **系统设置**（/settings）：账号、订阅和系统配置
 
 ## 技术栈
 - 前端：Next.js 14+ / React / TypeScript / Tailwind CSS / Recharts
@@ -256,16 +271,14 @@ def _load_demand_signals(vector_db, embedding_model):
     from deepsearcher import configuration as ds_config
     dim = embedding_model.dimension
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-
     try:
-        c.execute("SELECT * FROM demand_signals ORDER BY signal_date DESC LIMIT 100")
-        rows = c.fetchall()
+        from db import get_db
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM demand_signals ORDER BY signal_date DESC LIMIT 100")
+            rows = c.fetchall()
     except Exception:
         rows = []
-    conn.close()
 
     if not rows:
         logger.info("No demand signals found in DB, initializing from inline data")
@@ -320,16 +333,14 @@ def _load_competitor_news(vector_db, embedding_model):
     from deepsearcher import configuration as ds_config
     dim = embedding_model.dimension
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-
     try:
-        c.execute("SELECT * FROM competitor_news ORDER BY scrape_date DESC LIMIT 30")
-        rows = c.fetchall()
+        from db import get_db
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM competitor_news ORDER BY scrape_date DESC LIMIT 30")
+            rows = c.fetchall()
     except Exception:
         rows = []
-    conn.close()
 
     if not rows:
         logger.info("No competitor news found in DB")
@@ -359,16 +370,14 @@ def _load_github_trending(vector_db, embedding_model):
     from deepsearcher import configuration as ds_config
     dim = embedding_model.dimension
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-
     try:
-        c.execute("SELECT * FROM github_trending ORDER BY scrape_date DESC, stars DESC LIMIT 50")
-        rows = c.fetchall()
+        from db import get_db
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM github_trending ORDER BY scrape_date DESC, stars DESC LIMIT 50")
+            rows = c.fetchall()
     except Exception:
         rows = []
-    conn.close()
 
     if not rows:
         logger.info("No GitHub trending found in DB")
@@ -439,6 +448,13 @@ def deep_research(query_text: str, max_iter: int = 3) -> dict:
     Returns:
         dict with keys: answer (str), sources (list), tokens (int)
     """
+    if not DEEPSEARCHER_AVAILABLE:
+        return {
+            "answer": "DeepSearcher 未安装，深度研究能力暂不可用。",
+            "sources": [],
+            "tokens": 0,
+        }
+
     if not _is_initialized:
         init_deep_searcher()
 
@@ -470,6 +486,9 @@ def retrieve_context(query_text: str, top_k: int = 10) -> List[dict]:
     Returns:
         List of dicts with text, score, metadata, collection
     """
+    if not DEEPSEARCHER_AVAILABLE:
+        return []
+
     if not _is_initialized:
         init_deep_searcher()
 

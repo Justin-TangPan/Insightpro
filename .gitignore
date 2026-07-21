@@ -45,8 +45,11 @@ backend/deep_searcher.db/
 backend/deep_searcher_qdrant/
 
 # Runtime logs
-backend/stdout.log
-backend/stderr.log
+backend/*.log
+backend/*.err
 frontend/stdout.log
 frontend/stderr.log
+frontend/-w
 scripts/*.log
+demo/business-insight-daily/err.log
+demo/business-insight-daily/test_out/

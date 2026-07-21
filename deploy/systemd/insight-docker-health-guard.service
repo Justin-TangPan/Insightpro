@@ -1,0 +1,14 @@
+[Unit]
+Description=InsightPro Docker end-to-end health guard
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/AIProject/insight-web
+EnvironmentFile=-/root/AIProject/insight-web/.env
+ExecStart=/root/AIProject/insight-web/scripts/docker-health-guard.sh
+TimeoutStartSec=900
+
