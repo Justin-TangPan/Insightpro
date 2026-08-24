@@ -1,51 +1,6 @@
 # InsightPro 商业洞察平台
 
-**正式版本：v0.3.0** · 基于 `v0.2.0` 演进 · 内部迭代记录至 `0.0.36`
-
 InsightPro 是面向云服务商业市场的 AI 商业情报工作台。它把行业动态、技术趋势、政策、友商、招投标和客户需求集中采集，通过 AI 生成结构化判断，并以看板、历史日报和邮件简报交付给业务团队。
-
-## v0.3.0 重点更新
-
-- 技术热点从 GitHub Trending 采集扩展到 AI 业务价值评估和项目用途速读，覆盖最多 25 个项目。
-- 新增解决方案洞察，每天 09:00 检查阿里云技术解决方案，生成 20–30 字简介并将变化内容置顶。
-- 新增 Supabase Auth 登录、注册和管理员权限边界，并修复已连接环境被误报为“未连接”的状态展示。
-- 邮件订阅支持按订阅者配置星期与时间、单人立即发送，预览与正式发送复用同一模板。
-- 新增数据新鲜度、存活/就绪探针、启动补跑和 Docker 健康守护。
-- 前端升级到 Next.js 16 / React 19，后端拆分为 FastAPI 路由与服务模块。
-- 生产数据统一使用 Supabase PostgreSQL，Prisma schema 与运行时结构校准保持一致。
-
-## 能力概览
-
-| 领域 | 能力 |
-|---|---|
-| 情报采集 | GitHub Trending、阿里云解决方案、百度热搜、行业新闻、政策、云厂商动态、招投标和需求信号 |
-| AI 分析 | 技术业务价值评估、项目用途总结、行业判断、商机建议和深度研报 |
-| 业务交付 | 首页看板、专题页面、全局搜索、历史日报、智能助手和邮件简报 |
-| 权限管理 | Supabase Auth；订阅者、测试邮件、立即发送和分析数据仅管理员可操作 |
-| 数据可靠性 | PostgreSQL 持久化、启动补跑、数据新鲜度检测、运行时 schema 校准 |
-| 生产运维 | Docker Compose、非 root 容器、同源 API 代理、healthcheck 和 systemd 守护 |
-
-## 架构
-
-```text
-浏览器
-  └─ Next.js 16 / React 19 :3000
-       ├─ 页面、认证、图表、全局助手
-       └─ /api/* 同源代理
-            └─ FastAPI :8000
-                 ├─ routers/  API 与权限边界
-                 ├─ services/ 业务、AI、邮件与健康检查
-                 ├─ crawlers.py / APScheduler 采集与定时任务
-                 └─ Supabase PostgreSQL + 可选 DeepSearcher/Qdrant
-```
-
-| 层 | 技术 |
-|---|---|
-| 前端 | Next.js 16、React 19、TypeScript、Tailwind CSS 4、Recharts、Prisma 7 |
-| 后端 | Python 3.11、FastAPI、Uvicorn、Pydantic 2、APScheduler、httpx |
-| AI | OpenAI 兼容聊天接口；DeepSearcher / Qdrant 为可选增强 |
-| 数据 | Supabase PostgreSQL；SQLite 仅保留历史迁移工具 |
-| 部署 | Docker Compose、Node.js 22、systemd、Docker healthcheck |
 
 ## 快速开始
 
@@ -204,6 +159,51 @@ cd frontend && npm run lint && npm run build
 ./scripts/health-check.sh full
 ```
 
+## 能力概览
+
+| 领域 | 能力 |
+|---|---|
+| 情报采集 | GitHub Trending、阿里云解决方案、百度热搜、行业新闻、政策、云厂商动态、招投标和需求信号 |
+| AI 分析 | 技术业务价值评估、项目用途总结、行业判断、商机建议和深度研报 |
+| 业务交付 | 首页看板、专题页面、全局搜索、历史日报、智能助手和邮件简报 |
+| 权限管理 | Supabase Auth；订阅者、测试邮件、立即发送和分析数据仅管理员可操作 |
+| 数据可靠性 | PostgreSQL 持久化、启动补跑、数据新鲜度检测、运行时 schema 校准 |
+| 生产运维 | Docker Compose、非 root 容器、同源 API 代理、healthcheck 和 systemd 守护 |
+
+## 架构
+
+```text
+浏览器
+  └─ Next.js 16 / React 19 :3000
+       ├─ 页面、认证、图表、全局助手
+       └─ /api/* 同源代理
+            └─ FastAPI :8000
+                 ├─ routers/  API 与权限边界
+                 ├─ services/ 业务、AI、邮件与健康检查
+                 ├─ crawlers.py / APScheduler 采集与定时任务
+                 └─ Supabase PostgreSQL + 可选 DeepSearcher/Qdrant
+```
+
+| 层 | 技术 |
+|---|---|
+| 前端 | Next.js 16、React 19、TypeScript、Tailwind CSS 4、Recharts、Prisma 7 |
+| 后端 | Python 3.11、FastAPI、Uvicorn、Pydantic 2、APScheduler、httpx |
+| AI | OpenAI 兼容聊天接口；DeepSearcher / Qdrant 为可选增强 |
+| 数据 | Supabase PostgreSQL；SQLite 仅保留历史迁移工具 |
+| 部署 | Docker Compose、Node.js 22、systemd、Docker healthcheck |
+
+
+## v0.3.0 重点更新
+
+- 技术热点从 GitHub Trending 采集扩展到 AI 业务价值评估和项目用途速读，覆盖最多 25 个项目。
+- 新增解决方案洞察，每天 09:00 检查阿里云技术解决方案，生成 20–30 字简介并将变化内容置顶。
+- 新增 Supabase Auth 登录、注册和管理员权限边界，并修复已连接环境被误报为“未连接”的状态展示。
+- 邮件订阅支持按订阅者配置星期与时间、单人立即发送，预览与正式发送复用同一模板。
+- 新增数据新鲜度、存活/就绪探针、启动补跑和 Docker 健康守护。
+- 前端升级到 Next.js 16 / React 19，后端拆分为 FastAPI 路由与服务模块。
+- 生产数据统一使用 Supabase PostgreSQL，Prisma schema 与运行时结构校准保持一致。
+
+
 | 操作 | 命令 |
 |---|---|
 | 查看容器 | `docker-compose -p insight-web -f compose.yaml ps` |
@@ -219,4 +219,3 @@ cd frontend && npm run lint && npm run build
 - [`doc/database-schema.md`](doc/database-schema.md)：数据库结构。
 - [`doc/InsightPro-技术与商业报告.md`](doc/InsightPro-技术与商业报告.md)：技术与商业能力说明。
 
-正式版本从 `v0.2.0` 演进到 `v0.3.0`；`0.0.x` 保留为正式版本间的内部增量记录。创建 Git 标签前应先完成后端测试、前端 lint/build 和端到端健康检查。
