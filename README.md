@@ -8,7 +8,7 @@ InsightPro 是面向云服务商业市场的 AI 商业情报工作台。它把�
 
 - 技术热点从 GitHub Trending 采集扩展到 AI 业务价值评估和项目用途速读，覆盖最多 25 个项目。
 - 新增解决方案洞察，每天 09:00 检查阿里云技术解决方案，生成 20–30 字简介并将变化内容置顶。
-- 新增 Supabase Auth 登录、注册和管理员权限边界，敏感操作不再公开。
+- 新增 Supabase Auth 登录、注册和管理员权限边界，并修复已连接环境被误报为“未连接”的状态展示。
 - 邮件订阅支持按订阅者配置星期与时间、单人立即发送，预览与正式发送复用同一模板。
 - 新增数据新鲜度、存活/就绪探针、启动补跑和 Docker 健康守护。
 - 前端升级到 Next.js 16 / React 19，后端拆分为 FastAPI 路由与服务模块。
@@ -169,6 +169,10 @@ JINA_API_TOKEN=your-jina-token
 | GET | `/api/search` | 跨模块搜索 |
 | POST | `/api/chat` | 智能助手对话 |
 | POST | `/api/tasks/analyze` | 创建 AI 分析任务 |
+| GET | `/api/email/subscribers` | 管理员查看订阅者及其投递计划 |
+| POST | `/api/email/subscribe` | 管理员添加订阅者并配置星期、时间 |
+| PUT | `/api/email/subscribers/{id}` | 管理员更新单个订阅者的投递计划 |
+| POST | `/api/email/subscribers/{id}/send` | 管理员向单个订阅者立即发送 |
 | GET | `/api/email/preview` | 管理员邮件预览 |
 | POST | `/api/email/send-now` | 管理员立即发送日报 |
 
@@ -186,6 +190,8 @@ insight-web/
 ```
 
 ## 验证与运维
+
+`v0.3.0` 发布前已通过 28 项后端测试、前端 ESLint 与生产构建、Docker 双容器健康检查及端到端数据检查。
 
 ```bash
 # 后端
