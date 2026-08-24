@@ -35,6 +35,7 @@ def _technical_snapshot() -> dict:
 def evaluate_readiness(freshness: dict, technical: dict) -> dict:
     """Evaluate readiness separately so the policy remains unit-testable."""
     checks = {
+        "database": True,
         "freshness": freshness.get("status") == "fresh",
         "github_trending_nonempty": technical.get("trending_count", 0) > 0,
         "technical_evaluation_nonempty": technical.get("evaluation_count", 0) > 0,

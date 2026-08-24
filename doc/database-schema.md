@@ -65,7 +65,8 @@ GitHub Trending 抓取结果。
 
 邮件订阅者。
 
-字段：`id`、`email`、`name`、`active`、`created_at`。  
+字段：`id`、`email`、`name`、`active`、`weekdays`、`send_time`、`last_sent_at`、`created_at`。
+调度：`weekdays` 使用 `0`–`6` 表示周一至周日，`send_time` 使用 `HH:MM`，`last_sent_at` 防止当日重复投递。
 约束：`unique(email)`。
 
 ### `competitor_news`
@@ -142,7 +143,7 @@ GitHub Trending 抓取结果。
 
 GitHub Trending 业务价值评估。
 
-字段：`id`、`scrape_date`、`repo_name`、`repo_url`、`language`、`stars`、`d1`、`d2`、`d3`、`d4`、`total`、`level`、`recommendation`、`reasoning`、`eval_time`、`created_at`。  
+字段：`id`、`scrape_date`、`repo_name`、`repo_url`、`language`、`stars`、`summary`（AI 生成的项目用途速读）、`d1`、`d2`、`d3`、`d4`、`total`、`level`、`recommendation`、`reasoning`、`eval_time`、`created_at`。
 约束：`unique(scrape_date, repo_name)`。
 
 ### `insight_tasks`

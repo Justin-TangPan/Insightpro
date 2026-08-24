@@ -44,7 +44,7 @@ class Settings:
             "CORS_ORIGINS",
             "http://localhost:3000,http://localhost:3001,"
             "http://127.0.0.1:3000,http://192.168.0.191:3000,"
-            "http://94.74.90.21:3000",
+            "http://159.138.89.233:3000",
         ).split(",")
         if origin.strip()
     ]

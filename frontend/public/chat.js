@@ -41,7 +41,7 @@
   var quickBox=document.createElement("div");
   quickBox.style.cssText="padding-left:38px;display:flex;flex-direction:column;gap:6px";
   quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
-  ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","行业洞察包含哪些内容？","政策法规怎么看？"].forEach(function(q){
+  ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","阿里云解决方案最近有更新吗？","行业洞察包含哪些内容？"].forEach(function(q){
     var b=document.createElement("button");
     b.textContent=q;
     b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:#6366f1;background:#eef2ff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer";

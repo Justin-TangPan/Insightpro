@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Radio,
+  Layers3,
   Building2,
   BookOpen,
   Settings,
@@ -25,6 +26,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { href: "/", icon: BarChart3, label: "首页洞察", description: "今日简报" },
   { href: "/insights/hotspots", icon: Radio, label: "热点追踪", description: "GitHub 项目" },
+  { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "阿里云方案更新" },
   { href: "/insights/industry", icon: Building2, label: "行业洞察", description: "行业/友商/案例" },
   { href: "/insights/policy", icon: BookOpen, label: "政策法规", description: "政策雷达" },
   { href: "/settings", icon: Settings, label: "系统设置", description: "账号与配置" },

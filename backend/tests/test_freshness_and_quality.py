@@ -1,6 +1,7 @@
 from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
+from services.aliyun_solution_service import _fallback_summary, _parse_menu_tree
 from services.system_health_service import evaluate_readiness
 
 
@@ -11,6 +12,31 @@ def test_quality_gate_rejects_mojibake_and_relative_links():
 
 def test_quality_gate_accepts_traceable_news():
     assert _is_quality_item({"title": "国务院发布最新数字经济行动方案", "url": "https://www.gov.cn/example"})
+
+
+def test_aliyun_solution_parser_and_summary_contract():
+    payload = {"data": [{
+        "title": "AI", "visible": True, "children": [{
+            "title": "模型服务", "visible": True, "children": [{
+                "id": 1, "parentId": 2, "title": "示例解决方案", "visible": True,
+                "type": "SOLUTION_DETAIL", "abcId": 123,
+                "url": "https://www.aliyun.com/solution/tech-solution/example",
+            }],
+        }],
+    }]}
+    items = _parse_menu_tree(payload)
+    assert items == [{
+        "title": "示例解决方案",
+        "url": "https://cn.aliyun.com/solution/tech-solution/example",
+        "category": "AI / 模型服务",
+        "source_type": "SOLUTION_DETAIL",
+        "node_id": 123,
+        "source_description": "",
+        "menu_data": {"id": 1, "parentId": 2, "type": "SOLUTION_DETAIL", "tags": []},
+    }]
+    summary = _fallback_summary("示例解决方案", "帮助企业快速部署智能体并自动完成复杂业务任务与流程协作。")
+    assert 20 <= len(summary) <= 30
+    assert 20 <= len(_fallback_summary("数据合规", "")) <= 30
 
 
 def test_heuristic_technical_evaluation_is_displayable():
@@ -44,6 +70,7 @@ def test_readiness_requires_fresh_nonempty_technical_data():
         {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10},
     )
     assert healthy["status"] == "healthy"
+    assert healthy["checks"]["database"] is True
     assert healthy["failed_checks"] == []
 
     empty_evaluation = evaluate_readiness(

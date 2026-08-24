@@ -38,6 +38,7 @@ interface EvalItem {
   repo_url: string | null;
   language: string | null;
   stars: string | null;
+  summary: string | null;
   d1: number; d2: number; d3: number; d4: number;
   total: number;
   level: string;
@@ -176,7 +177,7 @@ export default function HotspotsPage() {
   const handleEvalRefresh = async () => {
     setEvalRefreshing(true);
     try {
-      const res = await authenticatedFetch(`${API}/api/github-trending/business-eval/refresh?limit=10`, { method: "POST" });
+      const res = await authenticatedFetch(`${API}/api/github-trending/business-eval/refresh?limit=25`, { method: "POST" });
       if (res.ok) {
         const json: EvalResponse = await res.json();
         if (json.items) {
@@ -340,7 +341,9 @@ export default function HotspotsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {displayData.map((item, i) => (
+          {displayData.map((item, i) => {
+            const summary = displayEvaluations.find((ev) => ev.repo_name === item.repo_name)?.summary;
+            return (
             <a
               key={item.repo_url || i}
               href={item.repo_url}
@@ -361,6 +364,12 @@ export default function HotspotsPage() {
                   <p className="text-xs text-ink-secondary leading-relaxed line-clamp-2 ml-8 min-h-[2rem]">
                     {item.description || "暂无描述"}
                   </p>
+                  {summary && (
+                    <div className="ml-8 mt-3 border-l-2 border-primary/40 pl-3">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-primary">AI 项目速读</span>
+                      <p className="mt-1 text-xs leading-relaxed text-ink">{summary}</p>
+                    </div>
+                  )}
                 </div>
                 <ExternalLink className="h-4 w-4 text-ink-muted group-hover:text-primary shrink-0 ml-3 transition-colors" />
               </div>
@@ -384,7 +393,8 @@ export default function HotspotsPage() {
                 )}
               </div>
             </a>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -398,7 +408,7 @@ export default function HotspotsPage() {
                 AI 业务价值评估
               </h3>
               <p className="text-xs text-ink-muted mt-0.5">
-                {historyDate ? ` ${historyDate} 历史评估` : "基于四维模型评估当日 Top 10 的解决方案实践价值"}
+                {historyDate ? ` ${historyDate} 历史评估` : "为当日项目生成用途速读，并评估解决方案实践价值"}
               </p>
             </div>
             {!historyDate && (

@@ -68,6 +68,7 @@ def _heuristic_score_project(item: dict) -> dict:
         "repo_url": item.get("repo_url"),
         "language": item.get("language"),
         "stars": item.get("stars"),
+        "summary": f"{item.get('repo_name', '该项目')} 是一个围绕 {item.get('description') or '开源技术能力'} 的项目，可用于快速验证和搭建相关应用。",
         "d1": round(d1, 1),
         "d2": round(d2, 1),
         "d3": round(d3, 1),
@@ -81,7 +82,7 @@ def _heuristic_score_project(item: dict) -> dict:
     }
 
 
-async def _evaluate_live_items(items: list[dict], limit: int = 10) -> list[dict]:
+async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]:
     from services.ai_service import chat_complete
 
     selected = items[:limit]
@@ -100,7 +101,7 @@ async def _evaluate_live_items(items: list[dict], limit: int = 10) -> list[dict]
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.2,
-            max_tokens=4096,
+            max_tokens=8192,
             timeout=120,
         )
         parsed = _parse_eval_json(raw)
@@ -120,6 +121,7 @@ async def _evaluate_live_items(items: list[dict], limit: int = 10) -> list[dict]
             "repo_url": match.get("repo_url") if match else None,
             "language": match.get("language") if match else None,
             "stars": match.get("stars") if match else None,
+            "summary": item.get("summary") or "",
             "d1": item.get("d1"),
             "d2": item.get("d2"),
             "d3": item.get("d3"),
@@ -143,13 +145,14 @@ def _store_live_evaluations(date_str: str, items: list[dict]) -> None:
             c.execute(
                 """
                 INSERT INTO trending_business_eval
-                (scrape_date, repo_name, repo_url, language, stars, d1, d2, d3, d4,
+                (scrape_date, repo_name, repo_url, language, stars, summary, d1, d2, d3, d4,
                  total, level, recommendation, reasoning, eval_time)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (scrape_date, repo_name) DO UPDATE SET
                   repo_url = EXCLUDED.repo_url,
                   language = EXCLUDED.language,
                   stars = EXCLUDED.stars,
+                  summary = EXCLUDED.summary,
                   d1 = EXCLUDED.d1,
                   d2 = EXCLUDED.d2,
                   d3 = EXCLUDED.d3,
@@ -162,7 +165,7 @@ def _store_live_evaluations(date_str: str, items: list[dict]) -> None:
                 """,
                 (
                     date_str, item.get("repo_name"), item.get("repo_url"), item.get("language"),
-                    item.get("stars"), item.get("d1"), item.get("d2"), item.get("d3"),
+                    item.get("stars"), item.get("summary"), item.get("d1"), item.get("d2"), item.get("d3"),
                     item.get("d4"), item.get("total"), item.get("level"),
                     item.get("recommendation"), item.get("reasoning"), item.get("eval_time"),
                 ),
@@ -241,7 +244,7 @@ async def get_github_trending_history(
                 """, (d, category))
                 rows = c.fetchall()
                 c.execute("""
-                    SELECT repo_name, repo_url, language, stars, d1, d2, d3, d4,
+                    SELECT repo_name, repo_url, language, stars, summary, d1, d2, d3, d4,
                            total, level, recommendation, reasoning, eval_time
                     FROM trending_business_eval
                     WHERE scrape_date = %s
@@ -280,7 +283,7 @@ async def get_business_eval(date: Optional[str] = None):
         with get_db() as conn:
             c = conn.cursor()
             c.execute("""
-                SELECT repo_name, repo_url, language, stars,
+                SELECT repo_name, repo_url, language, stars, summary,
                        d1, d2, d3, d4, total, level, recommendation, reasoning, eval_time
                 FROM trending_business_eval
                 WHERE scrape_date = %s
@@ -299,7 +302,7 @@ async def get_business_eval(date: Optional[str] = None):
     live_items = await asyncio.to_thread(scrape_github_trending, since="daily")
     # The read path must remain fast and non-empty even when the AI provider is slow.
     # Manual refresh and the startup worker can upgrade these heuristic rows later.
-    items = [_heuristic_score_project(item) for item in live_items[:10]]
+    items = [_heuristic_score_project(item) for item in live_items[:25]]
     if items:
         try:
             await asyncio.to_thread(_store_live_evaluations, target_date, items)
@@ -309,7 +312,7 @@ async def get_business_eval(date: Optional[str] = None):
 
 
 @router.post("/github-trending/business-eval/refresh")
-async def refresh_business_eval(limit: int = Query(10, ge=1, le=25), _=Depends(require_auth)):
+async def refresh_business_eval(limit: int = Query(25, ge=1, le=25), _=Depends(require_auth)):
     """手动触发 GitHub Trending 业务价值评估"""
     try:
         result = await asyncio.to_thread(evaluate_trending_business, limit)
@@ -324,7 +327,7 @@ async def refresh_business_eval(limit: int = Query(10, ge=1, le=25), _=Depends(r
             with get_db() as conn:
                 c = conn.cursor()
                 c.execute("""
-                    SELECT repo_name, repo_url, language, stars,
+                    SELECT repo_name, repo_url, language, stars, summary,
                            d1, d2, d3, d4, total, level, recommendation, reasoning, eval_time
                     FROM trending_business_eval
                     WHERE scrape_date = %s

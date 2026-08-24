@@ -7,6 +7,7 @@ from db import get_db
 DATASETS = {
     "github_trending": ("github_trending", "scrape_date", 0),
     "technical_evaluation": ("trending_business_eval", "scrape_date", 0),
+    "aliyun_solutions": ("aliyun_solutions", "last_seen_date", 0),
     "baidu_hotsearch": ("baidu_hotsearch", "scrape_date", 0),
     "industry_news": ("industry_news", "crawl_date", 1),
     "policy_updates": ("policy_updates", "crawl_date", 1),

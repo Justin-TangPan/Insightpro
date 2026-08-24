@@ -28,19 +28,21 @@ def schedule_jobs(scheduler: BackgroundScheduler):
     from crawlers import run_daily_crawl
     from services.bidding_service import collect_bidding_data
     from services.demand_service import collect_demand_signals
-    from services.email_service import send_daily_digest
+    from services.email_service import send_scheduled_digests
+    from services.aliyun_solution_service import refresh_aliyun_solutions
     from main_legacy import (
         refresh_and_store, refresh_competitor_news,
-        evaluate_trending_business, cleanup_old_data,
+        evaluate_trending_business, generate_project_summaries, cleanup_old_data,
     )
     jobs = [
         (collect_demand_signals, 8, 0, "demand_daily"),
         (collect_bidding_data, 8, 30, "bidding_daily"),
         (refresh_and_store, 9, 0, "github_daily"),
+        (refresh_aliyun_solutions, 9, 0, "aliyun_solutions_daily"),
         (run_daily_crawl, 9, 0, "daily_crawl"),
         (refresh_competitor_news, 9, 2, "competitor_daily"),
         (evaluate_trending_business, 9, 3, "trending_business_eval_daily"),
-        (send_daily_digest, 9, 5, "daily_email"),
+        (generate_project_summaries, 9, 4, "project_summaries_daily"),
         (cleanup_old_data, 3, 0, "cleanup"),
     ]
     for fn, h, m, jid in jobs:
@@ -53,10 +55,22 @@ def schedule_jobs(scheduler: BackgroundScheduler):
             misfire_grace_time=6 * 60 * 60,
             replace_existing=True,
         )
+    # ponytail: one scheduler matches the current single-API deployment; add a DB lease before running replicas.
+    scheduler.add_job(
+        send_scheduled_digests,
+        CronTrigger(minute="*", second=0, timezone=tz("Asia/Shanghai")),
+        id="scheduled_email",
+        coalesce=True,
+        max_instances=1,
+        replace_existing=True,
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from services.startup_service import ensure_runtime_schema
+
+    ensure_runtime_schema()
     scheduler = BackgroundScheduler(timezone=tz("Asia/Shanghai"))
     schedule_jobs(scheduler)
     scheduler.start()
@@ -79,7 +93,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="InsightPro API", lifespan=lifespan)
+app = FastAPI(title="InsightPro API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -106,7 +120,7 @@ app.include_router(email.router, prefix="/api", tags=["Email"])
 
 @app.get("/")
 async def root():
-    return {"message": "InsightPro API is running", "version": "2.0"}
+    return {"message": "InsightPro API is running", "version": "0.3.0"}
 
 
 @app.get("/api/system/health/live")

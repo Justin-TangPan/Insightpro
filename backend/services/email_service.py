@@ -2,31 +2,83 @@
 邮件服务
 封装邮件发送、订阅管理、每日摘要构建功能。
 """
-import os
 import smtplib
+from html import escape
 from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from datetime import datetime
+from typing import Optional
+from pytz import timezone
 from db import get_db
 from settings import settings
+
+SHANGHAI_TZ = timezone("Asia/Shanghai")
 
 
 def get_subscribers() -> list:
     with get_db() as conn:
         c = conn.cursor()
-        c.execute("SELECT * FROM email_subscribers WHERE active = 1")
+        c.execute("SELECT * FROM email_subscribers WHERE active = 1 ORDER BY id")
         rows = c.fetchall()
         return [dict(r) for r in rows]
 
 
-def add_subscriber(email: str, name: str = "") -> bool:
+def get_subscriber(subscriber_id: int) -> Optional[dict]:
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM email_subscribers WHERE id = %s AND active = 1", (subscriber_id,))
+        row = c.fetchone()
+        return dict(row) if row else None
+
+
+def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = None, send_time: str = "09:05") -> bool:
     try:
         with get_db() as conn:
             c = conn.cursor()
-            c.execute("INSERT INTO email_subscribers (email, name) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING", (email, name))
+            c.execute(
+                """
+                INSERT INTO email_subscribers (email, name, weekdays, send_time)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (email) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  weekdays = EXCLUDED.weekdays,
+                  send_time = EXCLUDED.send_time,
+                  active = 1
+                """,
+                (email, name, weekdays or list(range(7)), send_time),
+            )
         return True
     except Exception:
         return False
+
+
+def update_subscriber(subscriber_id: int, weekdays: list[int], send_time: str) -> Optional[dict]:
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute(
+            """
+            UPDATE email_subscribers
+            SET weekdays = %s, send_time = %s
+            WHERE id = %s AND active = 1
+            RETURNING *
+            """,
+            (weekdays, send_time, subscriber_id),
+        )
+        row = c.fetchone()
+        return dict(row) if row else None
+
+
+def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
+    """One small, testable rule used by the minute scheduler."""
+    if now.weekday() not in (subscriber.get("weekdays") or []):
+        return False
+    if (subscriber.get("send_time") or "")[:5] != now.strftime("%H:%M"):
+        return False
+    last_sent = subscriber.get("last_sent_at")
+    if not last_sent:
+        return True
+    if last_sent.tzinfo is None:
+        last_sent = SHANGHAI_TZ.localize(last_sent)
+    return last_sent.astimezone(SHANGHAI_TZ).date() < now.date()
 
 
 def build_daily_digest_html() -> str:
@@ -107,8 +159,11 @@ def build_daily_digest_html() -> str:
 
     # ── GitHub 趋势榜 ──
     github_cards = ""
+    eval_by_repo = {item.get("repo_name"): item for item in eval_items}
     for i, item in enumerate(github_items[:8]):
         bg = INK if i < 3 else MUTED
+        summary = (eval_by_repo.get(item.get("repo_name")) or {}).get("summary")
+        summary_html = f'<p style="margin:8px 0 0;padding:8px 10px;border-left:2px solid {PRIMARY};background:{PAPER};font-size:11px;color:{SECONDARY};line-height:1.55;"><strong style="color:{PRIMARY};">AI 项目速读：</strong>{escape(str(summary))}</p>' if summary else ""
         lang_badge = f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:600;letter-spacing:0.06em;background:{PAPER};color:{SECONDARY};border:1px solid {GRID};">{item.get("language","")}</span>' if item.get("language") and item.get("language") != "N/A" else ""
         today_stars = f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:700;background:#DFF3E7;color:{PRIMARY};">{item.get("today_stars","")}</span>' if item.get("today_stars") else ""
         github_cards += f"""\
@@ -119,6 +174,7 @@ def build_daily_digest_html() -> str:
             <td style="padding:12px 14px;border-bottom:1px solid {GRID};">
               <a href="{item.get('repo_url','#')}" style="color:{INK};text-decoration:none;font-size:13px;font-weight:600;">{item.get('repo_name','')}</a>
               <p style="margin:4px 0 0;font-size:11px;color:{MUTED};line-height:1.45;">{item.get('description','')[:90]}</p>
+              {summary_html}
               <div style="margin-top:5px;">{lang_badge} {today_stars}</div>
             </td>
             <td style="padding:12px 14px;border-bottom:1px solid {GRID};text-align:right;vertical-align:top;width:64px;">
@@ -156,9 +212,10 @@ def build_daily_digest_html() -> str:
 <html lang="zh">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style type="text/css">
-  body{{margin:0;padding:0;background:{PAPER};font-family:{SANS};color:{INK};-webkit-font-smoothing:antialiased;}}
+  body{{margin:0;padding:0;background:{PAPER};font-family:{SANS};color:{INK};-webkit-font-smoothing:antialiased;-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%;}}
   table{{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}}
   td,a{{word-break:break-word;}}
+  img{{border:0;outline:none;}}
   @media only screen and (max-width:480px){{
     .email-wrap{{width:100% !important;}}
     .email-pad{{padding-left:16px !important;padding-right:16px !important;}}
@@ -181,7 +238,7 @@ def build_daily_digest_html() -> str:
           <td style="background:{INK};padding:36px 40px;" class="email-pad">
             <p style="margin:0 0 8px;font-size:10px;font-weight:600;color:#A9E5C4;letter-spacing:0.22em;text-transform:uppercase;">Daily Business Intelligence</p>
             <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">InsightPro · 每日洞察简报</h1>
-            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.55);">{today_cn} {weekday}</p>
+            <p style="margin:0;font-size:12px;color:#A0B5AA;">{today_cn} {weekday}</p>
           </td>
         </tr>
 
@@ -269,7 +326,7 @@ def build_daily_digest_html() -> str:
         <!-- ════ Footer ════ -->
         <tr>
           <td style="padding:16px 40px;background:{PAPER};border-top:1px solid {GRID};" class="email-pad">
-            <p style="margin:0;font-size:10px;color:{MUTED};">InsightPro 自动发送 · 每天 09:00</p>
+            <p style="margin:0;font-size:10px;color:{MUTED};">InsightPro 自动发送 · 投递时间由订阅计划设定</p>
           </td>
         </tr>
 
@@ -289,11 +346,11 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
         print("邮件未配置：请在 .env 中设置 SMTP_PASSWORD（QQ 邮箱授权码）")
         return False
     try:
-        msg = MIMEMultipart("alternative")
+        msg = MIMEText(html_content, "html", "utf-8")
         msg["Subject"] = subject
         msg["From"] = f"InsightPro <{settings.EMAIL_FROM}>"
         msg["To"] = to_addr
-        msg.attach(MIMEText(html_content, "html", "utf-8"))
+        msg["X-Mailer"] = "InsightPro"
         with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.EMAIL_FROM, [to_addr], msg.as_string())
@@ -305,7 +362,7 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
 
 
 def send_daily_digest():
-    """每日定时发送洞察日报"""
+    """立即向全部有效订阅者发送洞察日报。"""
     subscribers = get_subscribers()
     if not subscribers:
         if settings.EMAIL_TO:
@@ -322,3 +379,28 @@ def send_daily_digest():
         if send_email(sub["email"], subject, html):
             success += 1
     print(f"每日邮件发送完成: {success}/{len(subscribers)} 成功")
+    return {"sent": success, "total": len(subscribers)}
+
+
+def send_scheduled_digests(now: Optional[datetime] = None):
+    """每分钟扫描一次，仅向当前到期且今日未发送的订阅者投递。"""
+    now = now or datetime.now(SHANGHAI_TZ)
+    due = [subscriber for subscriber in get_subscribers() if subscriber_is_due(subscriber, now)]
+    if not due:
+        return {"sent": 0, "total": 0}
+
+    html = build_daily_digest_html()
+    subject = f"InsightPro · 每日商业洞察 ({now:%Y-%m-%d})"
+    success = 0
+    for subscriber in due:
+        if not send_email(subscriber["email"], subject, html):
+            continue
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute(
+                "UPDATE email_subscribers SET last_sent_at = CURRENT_TIMESTAMP WHERE id = %s",
+                (subscriber["id"],),
+            )
+        success += 1
+    print(f"订阅邮件发送完成: {success}/{len(due)} 成功")
+    return {"sent": success, "total": len(due)}

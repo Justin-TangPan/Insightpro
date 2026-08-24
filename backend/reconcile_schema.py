@@ -90,9 +90,12 @@ def run():
     add_col(c, "demand_reports", "title", "TEXT")
     c.execute("CREATE INDEX IF NOT EXISTS idx_report_date ON demand_reports(report_date)")
 
-    # ── email_subscribers: add active ──
+    # ── email_subscribers ──
     print("[email_subscribers]")
     add_col(c, "email_subscribers", "active", "INTEGER DEFAULT 1")
+    add_col(c, "email_subscribers", "weekdays", "INTEGER[] NOT NULL DEFAULT ARRAY[0,1,2,3,4,5,6]")
+    add_col(c, "email_subscribers", "send_time", "TEXT NOT NULL DEFAULT '09:05'")
+    add_col(c, "email_subscribers", "last_sent_at", "TIMESTAMPTZ")
 
     # ── github_trending: unique + indexes (match SQLite schema) ──
     print("[github_trending]")
@@ -115,6 +118,7 @@ def run():
             repo_url TEXT,
             language TEXT,
             stars TEXT,
+            summary TEXT,
             d1 REAL, d2 REAL, d3 REAL, d4 REAL,
             total REAL,
             level TEXT,
@@ -124,6 +128,7 @@ def run():
             created_at TIMESTAMP DEFAULT NOW()
         )
     """)
+    c.execute("ALTER TABLE trending_business_eval ADD COLUMN IF NOT EXISTS summary TEXT")
     c.execute("CREATE INDEX IF NOT EXISTS idx_tbe_date ON trending_business_eval(scrape_date)")
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tbe_unique ON trending_business_eval(scrape_date, repo_name)")
 
@@ -192,6 +197,27 @@ def run():
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_task_status ON insight_tasks(status)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_task_created ON insight_tasks(created_at)")
+
+    print("[aliyun_solutions]")
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS aliyun_solutions (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            category TEXT NOT NULL,
+            source_description TEXT,
+            summary TEXT NOT NULL,
+            content_hash TEXT NOT NULL,
+            first_seen_date TEXT NOT NULL,
+            last_seen_date TEXT NOT NULL,
+            last_changed_date TEXT NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_seen ON aliyun_solutions(last_seen_date)")
+    c.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_changed ON aliyun_solutions(last_changed_date DESC)")
 
     conn.close()
     print("\nSchema reconciliation complete.")

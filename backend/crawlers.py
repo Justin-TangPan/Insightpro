@@ -907,7 +907,27 @@ def get_homepage_modules() -> list[dict]:
         except Exception:
             modules.append({"id": "hotspots", "label": "技术热点", "href": "/insights/hotspots", "items": []})
 
-        # 4. 友商洞察 - 从 competitor_news / cloud_vendor_news 取
+        # 4. 解决方案洞察 - 阿里云技术解决方案
+        try:
+            c.execute("""
+                SELECT title, category, first_seen_date, last_changed_date
+                FROM aliyun_solutions WHERE is_active=TRUE
+                ORDER BY last_changed_date DESC, id DESC LIMIT 3
+            """)
+            rows = c.fetchall()
+            modules.append({
+                "id": "solutions",
+                "label": "解决方案洞察",
+                "href": "/insights/solutions",
+                "items": [{
+                    "title": r["title"],
+                    "tag": "NEW" if r["first_seen_date"] == today else r["category"],
+                } for r in rows] if rows else [],
+            })
+        except Exception:
+            modules.append({"id": "solutions", "label": "解决方案洞察", "href": "/insights/solutions", "items": []})
+
+        # 5. 友商洞察 - 从 competitor_news / cloud_vendor_news 取
         try:
             c.execute("SELECT title, vendor, category FROM cloud_vendor_news WHERE crawl_date >= %s ORDER BY id DESC LIMIT 3", (week_ago,))
             rows = c.fetchall()

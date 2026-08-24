@@ -8,6 +8,7 @@ import re
 import httpx
 import requests
 from bs4 import BeautifulSoup
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from db import get_db
 from settings import settings
@@ -85,7 +86,7 @@ def refresh_and_store():
 
 
 # ─── Business Evaluation ───
-BUSINESS_EVAL_SYSTEM_PROMPT = """你是开源项目解决方案实践业务评估专家。采用四维评估模型对每个 GitHub 项目评分（每维 0-10 分，总分 = 0.25*(d1+d2+d3+d4)）：
+BUSINESS_EVAL_SYSTEM_PROMPT = """你是开源项目解决方案实践业务评估专家。采用四维评估模型评分（每维 0-10 分，总分 = 0.25*(d1+d2+d3+d4)）：
 【D1 服务端属性 25%】【D2 营销价值 25%】【D3 场景价值 25%】【D4 云上部署价值 25%】
 等级：8-10 强烈推荐 / 6-7.9 值得做 / 4-5.9 勉强可做 / 0-3.9 不建议。
 你必须只输出一个 JSON 数组。每个元素：{"repo_name":"owner/repo","d1":数字,"d2":数字,"d3":数字,"d4":数字,"total":数字,"level":"...","recommendation":"...","reasoning":"..."}"""
@@ -112,7 +113,92 @@ def _parse_eval_json(raw: str) -> list:
         return []
 
 
-def evaluate_trending_business(limit: int = 10) -> dict:
+def _fetch_github_readme(repo_name: str, fallback: str = "") -> str:
+    try:
+        response = requests.get(
+            f"https://api.github.com/repos/{repo_name}/readme",
+            headers={
+                "Accept": "application/vnd.github.raw+json",
+                "User-Agent": "InsightPro",
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        return response.text[:6000]
+    except Exception as e:
+        print(f"[business-eval] README 获取失败 {repo_name}: {e}")
+        return fallback
+
+
+def generate_project_summaries(limit: int = 25) -> dict:
+    """从 README 分批生成至少 100 字的项目用途总结。"""
+    from services.ai_service import chat_complete
+
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT g.repo_name, g.description
+            FROM github_trending g
+            JOIN trending_business_eval e
+              ON e.scrape_date = g.scrape_date AND e.repo_name = g.repo_name
+            WHERE g.scrape_date = %s AND g.category = 'daily'
+              AND CHAR_LENGTH(COALESCE(e.summary, '')) < 100
+            ORDER BY g.id LIMIT %s
+            """,
+            (date_str, limit),
+        )
+        rows = cursor.fetchall()
+    if not rows:
+        return {"status": "skipped", "count": 0}
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        readmes = list(executor.map(
+            lambda row: _fetch_github_readme(row["repo_name"], row["description"] or ""),
+            rows,
+        ))
+
+    generated = {}
+    for start in range(0, len(rows), 4):
+        batch = list(zip(rows[start:start + 4], readmes[start:start + 4]))
+        prompt = "主要依据以下 README，为每个项目写 150 至 200 个中文字符的项目速读。说明项目背景、核心能力、解决的问题、适用场景及具体用途，不得编造。只输出 JSON 数组，每项格式为 {\"repo_name\":\"owner/repo\",\"summary\":\"...\"}：\n\n" + "\n\n".join(
+            f"## {row['repo_name']}\nREADME:\n{readme}"
+            for row, readme in batch
+        )
+        try:
+            parsed = _parse_eval_json(chat_complete(
+                system_prompt="你是开源项目技术编辑。每条总结必须忠于 README，且至少 100 个中文字符。",
+                user_prompt=prompt,
+                temperature=0.2,
+                max_tokens=2048,
+                timeout=120,
+            ))
+        except Exception as e:
+            print(f"[project-summary] AI 批次生成失败: {e}")
+            continue
+        for item in parsed:
+            summary = (item.get("summary") or "").strip()
+            if len(summary) >= 100:
+                generated[item.get("repo_name")] = summary
+
+    if generated:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            for repo_name, summary in generated.items():
+                cursor.execute(
+                    "UPDATE trending_business_eval SET summary = %s WHERE scrape_date = %s AND repo_name = %s",
+                    (summary, date_str, repo_name),
+                )
+    print(f"[project-summary] 完成 {len(generated)}/{len(rows)} 项")
+    return {
+        "status": "success" if len(generated) == len(rows) else "partial_success",
+        "count": len(generated),
+        "requested": len(rows),
+    }
+
+
+def evaluate_trending_business(limit: int = 25) -> dict:
     if not settings.CHAT_API_KEY:
         return {"status": "skipped", "count": 0}
     date_str = datetime.now().strftime("%Y-%m-%d")
@@ -131,7 +217,7 @@ def evaluate_trending_business(limit: int = 10) -> dict:
             json={"model": settings.CHAT_MODEL, "messages": [
                 {"role": "system", "content": BUSINESS_EVAL_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
-            ], "temperature": 0.2, "max_tokens": 4096}, timeout=120)
+            ], "temperature": 0.2, "max_tokens": 8192}, timeout=120)
         resp.raise_for_status()
         raw = resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
@@ -148,9 +234,10 @@ def evaluate_trending_business(limit: int = 10) -> dict:
             if not rn:
                 continue
             match = next((r for r in rows if r["repo_name"] == rn), None)
-            c.execute("INSERT INTO trending_business_eval (scrape_date, repo_name, repo_url, language, stars, d1, d2, d3, d4, total, level, recommendation, reasoning, eval_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+            c.execute("INSERT INTO trending_business_eval (scrape_date, repo_name, repo_url, language, stars, summary, d1, d2, d3, d4, total, level, recommendation, reasoning, eval_time) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                 (date_str, rn, match["repo_url"] if match else None, match["language"] if match else None, match["stars"] if match else None,
-                 item.get("d1"), item.get("d2"), item.get("d3"), item.get("d4"), item.get("total"), item.get("level"), item.get("recommendation"), item.get("reasoning"), time_str))
+                 None, item.get("d1"), item.get("d2"), item.get("d3"), item.get("d4"), item.get("total"), item.get("level"), item.get("recommendation"), item.get("reasoning"), time_str))
+    generate_project_summaries(limit)
     print(f"[business-eval] 完成，共 {len(results)} 项")
     return {"status": "success", "count": len(results), "date": date_str}
 

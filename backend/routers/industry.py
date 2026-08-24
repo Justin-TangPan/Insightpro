@@ -1,7 +1,10 @@
-"""行业新闻路由"""
-from fastapi import APIRouter, Query
+"""行业新闻与解决方案洞察路由。"""
+import asyncio
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from crawlers import get_cloud_vendor_news, get_industry_news
+from routers.auth import require_auth
+from services.aliyun_solution_service import get_aliyun_solutions, refresh_aliyun_solutions
 
 router = APIRouter()
 
@@ -28,3 +31,15 @@ async def industry_partnerships(days: int = Query(30, ge=1, le=90), limit: int =
         )
     ][:limit]
     return {"items": items, "count": len(items)}
+
+
+@router.get("/solutions/aliyun")
+async def aliyun_solutions():
+    """获取阿里云技术解决方案，最近新增或变更项优先。"""
+    return await asyncio.to_thread(get_aliyun_solutions)
+
+
+@router.post("/solutions/aliyun/refresh")
+async def refresh_solutions(_=Depends(require_auth)):
+    """手动检查阿里云解决方案更新。"""
+    return await asyncio.to_thread(refresh_aliyun_solutions)

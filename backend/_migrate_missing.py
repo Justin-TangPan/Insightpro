@@ -44,7 +44,7 @@ print("迁移 4 张缺失表 SQLite → Supabase：")
 copy_table("industry_news", ["crawl_date", "source", "title", "summary", "url", "category", "created_at"])
 copy_table("policy_updates", ["crawl_date", "source", "title", "summary", "url", "category", "severity", "created_at"])
 copy_table("cloud_vendor_news", ["crawl_date", "vendor", "title", "summary", "url", "category", "created_at"])
-copy_table("trending_business_eval", ["scrape_date", "repo_name", "repo_url", "language", "stars", "d1", "d2", "d3", "d4", "total", "level", "recommendation", "reasoning", "eval_time", "created_at"])
+copy_table("trending_business_eval", ["scrape_date", "repo_name", "repo_url", "language", "stars", "summary", "d1", "d2", "d3", "d4", "total", "level", "recommendation", "reasoning", "eval_time", "created_at"])
 
 # Backfill budget_amount on bidding_opportunities from SQLite (which has the parsed values)
 print("回填 bidding_opportunities.budget_amount：")

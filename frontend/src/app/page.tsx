@@ -4,7 +4,7 @@ import {
   TrendingUp, ArrowUpRight, Activity,
   Globe, History, Building2, Radio,
   BarChart3, ChevronRight, Lightbulb, ShieldCheck, BookOpen,
-  Clock, Gavel
+  Clock, Gavel, Layers3
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -79,6 +79,10 @@ const subModules: SubModule[] = [
     ]
   },
   {
+    id: "solutions", label: "解决方案洞察", icon: Layers3, href: "/insights/solutions", accent: "signal",
+    items: [],
+  },
+  {
     id: "competitors", label: "友商洞察", icon: ShieldCheck, href: "/insights/competitors", accent: "signal",
     items: [
       { title: "AWS 综合评分 92 · 全球基础设施最广", tag: "对比分析" },
@@ -122,11 +126,11 @@ const subModules: SubModule[] = [
 
 // Map API module data to subModules
 const moduleIconMap: Record<string, LucideIcon> = {
-  market: Building2, industry: Building2, hotspots: Radio, competitors: ShieldCheck,
+  market: Building2, industry: Building2, hotspots: Radio, solutions: Layers3, competitors: ShieldCheck,
   policy: BookOpen, opportunities: Lightbulb, news: Globe, bidding: TrendingUp,
 };
 const moduleAccentMap: Record<string, Accent> = {
-  market: "lemon", industry: "lemon", hotspots: "lime", competitors: "signal",
+  market: "lemon", industry: "lemon", hotspots: "lime", solutions: "signal", competitors: "signal",
   policy: "lemon", opportunities: "lime", news: "signal", bidding: "ink",
 };
 

@@ -12,6 +12,7 @@ class TestAPIEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
+        assert resp.json()["version"] == "0.3.0"
 
     def test_lan_frontend_origin_is_allowed(self):
         resp = client.get(
@@ -24,11 +25,16 @@ class TestAPIEndpoints:
     @pytest.mark.parametrize("method,path", [
         ("POST", "/api/github-trending/refresh"),
         ("POST", "/api/github-trending/business-eval/refresh"),
+        ("POST", "/api/solutions/aliyun/refresh"),
         ("POST", "/api/bidding/refresh"),
         ("POST", "/api/demand/refresh"),
         ("POST", "/api/crawl/trigger"),
         ("DELETE", "/api/reports/missing"),
         ("GET", "/api/email/subscribers"),
+        ("POST", "/api/email/subscribe"),
+        ("PUT", "/api/email/subscribers/1"),
+        ("POST", "/api/email/subscribers/1/send"),
+        ("GET", "/api/email/preview"),
         ("GET", "/api/analytics"),
     ])
     def test_sensitive_endpoints_require_auth(self, method, path):

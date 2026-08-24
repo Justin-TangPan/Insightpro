@@ -1,262 +1,216 @@
-# 商业洞察平台 (InsightPro · Business Intelligence Platform)
+# InsightPro 商业洞察平台
 
-当前版本：**0.0.21**
+**正式版本：v0.3.0** · 基于 `v0.2.0` 演进 · 内部迭代记录至 `0.0.36`
 
-一个面向商业市场与云服务竞争分析场景的 AI 商业洞察平台。项目采用前后端分离架构，Docker Compose 生产部署，围绕"首页洞察、热点追踪、行业洞察、政策法规"提供可持续扩展的商业情报工作台。
+InsightPro 是面向云服务商业市场的 AI 商业情报工作台。它把行业动态、技术趋势、政策、友商、招投标和客户需求集中采集，通过 AI 生成结构化判断，并以看板、历史日报和邮件简报交付给业务团队。
 
----
+## v0.3.0 重点更新
 
-## 目录
+- 技术热点从 GitHub Trending 采集扩展到 AI 业务价值评估和项目用途速读，覆盖最多 25 个项目。
+- 新增解决方案洞察，每天 09:00 检查阿里云技术解决方案，生成 20–30 字简介并将变化内容置顶。
+- 新增 Supabase Auth 登录、注册和管理员权限边界，敏感操作不再公开。
+- 邮件订阅支持按订阅者配置星期与时间、单人立即发送，预览与正式发送复用同一模板。
+- 新增数据新鲜度、存活/就绪探针、启动补跑和 Docker 健康守护。
+- 前端升级到 Next.js 16 / React 19，后端拆分为 FastAPI 路由与服务模块。
+- 生产数据统一使用 Supabase PostgreSQL，Prisma schema 与运行时结构校准保持一致。
 
-- [项目目标](#项目目标)
-- [当前能力](#当前能力)
-- [技术栈](#技术栈)
-- [快速开始（Docker 生产部署）](#快速开始docker-生产部署)
-- [开发环境启动](#开发环境启动)
-- [项目结构](#项目结构)
-- [主要页面](#主要页面)
-- [后端接口](#后端接口)
-- [环境变量](#环境变量)
-- [运维要点](#运维要点)
-- [版本记录](#版本记录)
+## 能力概览
 
----
+| 领域 | 能力 |
+|---|---|
+| 情报采集 | GitHub Trending、阿里云解决方案、百度热搜、行业新闻、政策、云厂商动态、招投标和需求信号 |
+| AI 分析 | 技术业务价值评估、项目用途总结、行业判断、商机建议和深度研报 |
+| 业务交付 | 首页看板、专题页面、全局搜索、历史日报、智能助手和邮件简报 |
+| 权限管理 | Supabase Auth；订阅者、测试邮件、立即发送和分析数据仅管理员可操作 |
+| 数据可靠性 | PostgreSQL 持久化、启动补跑、数据新鲜度检测、运行时 schema 校准 |
+| 生产运维 | Docker Compose、非 root 容器、同源 API 代理、healthcheck 和 systemd 守护 |
 
-## 项目目标
+## 架构
 
-- 聚合最新行业、热点、新闻、政策、商机信息
-- 对 AWS、微软 Azure、阿里云、腾讯云、火山云等友商做对比分析
-- 面向华为云输出竞争力判断与机会点建议
-- 通过 AI 生成结构化商业洞察和深度研报
-- 通过首页看板完成可视化展示
-
-## 当前能力
-
-### 前端能力
-
-- 首页"今日商业洞察"总览
-- 行业全景、热点追踪、商业快讯、政策法规、商机机会
-- 招标信息、需求挖掘、友商洞察
-- 数据大屏、深度研报、历史日报、系统设置
-- 响应式侧边栏与移动导航
-- 智能聊天助手（全局挂载）
-
-### 后端能力
-
-- FastAPI 服务 + Uvicorn
-- GitHub Trending 实时抓取、历史记录查询、手动刷新
-- 百度热搜实时抓取与降级读取
-- 多项采集器：新闻、政策、厂商、招标、需求信号
-- 技术业务价值 AI 评估（DeepSeek API）
-- APScheduler 定时任务
-- Supabase PostgreSQL 持久化 + 缓存降级
-- 同源 API 代理（前端通过 Next.js rewrite 转发，不直连后端端口）
-- 启动补跑（按依赖顺序补齐当天缺失数据，PostgreSQL advisory lock 防重复）
-- Docker healthcheck + systemd 健康守护
-
-## 技术栈
-
-| 层 | 技术 |
-|---|------|
-| **前端** | Next.js 16 (App Router)、React 19、TypeScript、Tailwind CSS、Lucide React、Recharts |
-| **后端** | FastAPI、Uvicorn、Pydantic v2、httpx、BeautifulSoup4、APScheduler |
-| **AI** | DeepSeek API（OpenAI SDK 兼容）、DeepSearcher（可选增强） |
-| **数据库** | Supabase PostgreSQL + Prisma（生产）；SQLite（开发/降级） |
-| **部署** | Docker Compose（多阶段构建）、systemd（开机自启）、Docker healthcheck |
-
-## 快速开始（Docker 生产部署）
-
-### 前置条件
-
-- Docker Engine 18.09+（本项目兼容 18.09，生产建议 20.10+）
-- `docker-compose` v2+（参见 `scripts/install-docker-compose.sh`）
-- 根目录 `.env` 文件已配置（参见[环境变量](#环境变量)）
-
-### 首次部署
-
-```bash
-# 1. 安装 Docker Compose（如尚未安装）
-sudo ./scripts/install-docker-compose.sh
-
-# 2. 测试 → 构建 → 切换 → 端到端验收（失败自动回退旧部署）
-sudo ./scripts/deploy-docker.sh
+```text
+浏览器
+  └─ Next.js 16 / React 19 :3000
+       ├─ 页面、认证、图表、全局助手
+       └─ /api/* 同源代理
+            └─ FastAPI :8000
+                 ├─ routers/  API 与权限边界
+                 ├─ services/ 业务、AI、邮件与健康检查
+                 ├─ crawlers.py / APScheduler 采集与定时任务
+                 └─ Supabase PostgreSQL + 可选 DeepSearcher/Qdrant
 ```
 
-### 日常运维
+| 层 | 技术 |
+|---|---|
+| 前端 | Next.js 16、React 19、TypeScript、Tailwind CSS 4、Recharts、Prisma 7 |
+| 后端 | Python 3.11、FastAPI、Uvicorn、Pydantic 2、APScheduler、httpx |
+| AI | OpenAI 兼容聊天接口；DeepSearcher / Qdrant 为可选增强 |
+| 数据 | Supabase PostgreSQL；SQLite 仅保留历史迁移工具 |
+| 部署 | Docker Compose、Node.js 22、systemd、Docker healthcheck |
+
+## 快速开始
+
+### Docker Compose
+
+前置条件：Docker、`docker-compose`，以及已配置的根目录 `.env`。
 
 ```bash
-# 查看容器状态
-export DOCKER_API_VERSION=1.39
-docker-compose -p insight-web -f compose.yaml ps
+git clone https://github.com/Justin-TangPan/Insightpro.git
+cd Insightpro
 
-# 查看日志
-docker-compose -p insight-web -f compose.yaml logs --tail 100
-
-# 手动重启
-docker-compose -p insight-web -f compose.yaml restart
-
-# 完整健康验收
+# 按下方“环境变量”创建 .env 后启动
+docker-compose -p insight-web -f compose.yaml up --detach --build
 ./scripts/health-check.sh full
 ```
 
-### 开机自启（已配置）
+访问地址：
 
-系统重启后，Docker 平台服务自动拉起，无需人工干预：
+- Web：<http://localhost:3000>
+- API：<http://localhost:8000>
+- OpenAPI：<http://localhost:8000/docs>
 
-```
-systemd (PID 1)
- ├─ docker.service                         (enabled)  ← Docker daemon
- ├─ insight-docker-compose.service         (enabled)  ← 开机执行 docker-compose up
- └─ insight-docker-health-guard.timer     (enabled)  ← 每10分钟巡检 + 自动修复
-```
-
-> **注意**：当前 Docker Engine 18.09 的 `restart: unless-stopped` 在 daemon 重启后不可靠，因此使用 systemd 服务替代。健康守护定时器会在开机 2 分钟后首次巡检，之后每 10 分钟检查一次，发现异常自动清理旧状态并重建容器。
-
-详细运维说明见 [`doc/运维手册.md`](doc/运维手册.md)。
-
-## 开发环境启动
-
-### 1. 启动后端
+已有生产服务器可使用带测试、构建、切换和回滚门禁的发布脚本：
 
 ```bash
+sudo ./scripts/deploy-docker.sh
+```
+
+脚本依赖服务器已安装项目 Python 环境及 systemd unit；首次部署优先使用上面的 Compose 命令。旧 Docker Engine 18.09 环境需设置 `DOCKER_API_VERSION=1.39`，详见 [`doc/运维手册.md`](doc/运维手册.md)。
+
+### 本地开发
+
+需要 Python 3.11+ 和 Node.js 22+。
+
+```bash
+# 终端 1：后端
 cd backend
 python -m venv venv
-source venv/bin/activate      # Linux/Mac
-# venv\Scripts\activate       # Windows
-pip install -r requirements.txt
-python main.py
+source venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-默认地址：`http://localhost:8000`
-
-### 2. 启动前端
-
 ```bash
+# 终端 2：前端
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-默认地址：`http://localhost:3000`
+开发时前端默认通过同源 `/api` 转发到 `http://127.0.0.1:8000`；需要直连其他后端时设置 `NEXT_PUBLIC_API_URL`。
 
-> 开发模式下前端通过 `NEXT_PUBLIC_API_URL` 直连后端；生产 Docker 部署通过 Next.js rewrite 同源代理转发。
+## 环境变量
+
+根目录 `.env` 至少应提供数据库和认证配置；AI 与邮件能力按需启用。
+
+```env
+# Supabase / PostgreSQL
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+DATABASE_URL=postgresql://user:password@host:6543/postgres
+DIRECT_URL=postgresql://user:password@host:5432/postgres
+
+# OpenAI 兼容 AI 接口
+CHAT_API_URL=https://your-provider.example/v1/chat/completions
+CHAT_API_KEY=your-api-key
+CHAT_MODEL=your-model
+
+# 应用地址与跨域
+BASE_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+STARTUP_CATCHUP_ENABLED=true
+
+# 邮件，可选
+SMTP_HOST=smtp.qq.com
+SMTP_PORT=465
+SMTP_USER=sender@example.com
+SMTP_PASSWORD=your-smtp-authorization-code
+EMAIL_FROM=sender@example.com
+EMAIL_TO=recipient@example.com
+
+# DeepSearcher 网页读取，可选
+JINA_API_TOKEN=your-jina-token
+```
+
+不要提交 `.env`、服务端密钥或数据库口令。
+
+## 页面
+
+| 页面 | 路径 | 说明 |
+|---|---|---|
+| 今日洞察 | `/` | 汇总热点、行业、政策、商机与系统状态 |
+| 技术热点 | `/insights/hotspots` | GitHub 日/周/月榜、历史记录、AI 价值评估与项目速读 |
+| 解决方案洞察 | `/insights/solutions` | 阿里云技术解决方案全量目录、简要分析与更新置顶 |
+| 行业洞察 / 案例库 | `/insights/industry`、`/insights/industry/cases` | 行业动态、竞争格局和案例分析 |
+| 新闻 / 政策 | `/insights/news`、`/insights/policy` | 商业快讯与政策影响 |
+| 友商 / 商机 | `/insights/competitors`、`/insights/opportunities` | 云厂商动态、机会判断和行动建议 |
+| 需求 / 招投标 | `/insights/demand`、`/insights/bidding` | 客户需求信号和招投标情报 |
+| 数据大屏 | `/dashboard` | 运营指标和趋势图表 |
+| 深度研报 | `/reports` | AI 分析任务与报告归档 |
+| 搜索 / 历史日报 | `/search`、`/history` | 跨模块检索和历史数据回看 |
+| 系统设置 | `/settings` | 服务状态、邮件订阅、邮件预览和管理操作 |
+| 登录 / 注册 | `/auth/login`、`/auth/register` | Supabase 用户认证 |
+
+## 常用 API
+
+所有业务接口以 `/api` 为前缀。完整契约以 `/docs` 和 `backend/routers/` 为准。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/system/health/live` | 进程存活探针 |
+| GET | `/api/system/health/ready` | 数据库、数据新鲜度和热点数据就绪检查 |
+| GET | `/api/data/freshness` | 核心数据集新鲜度 |
+| GET | `/api/github-trending` | GitHub Trending 实时数据 |
+| GET | `/api/github-trending/history` | GitHub Trending 历史数据 |
+| GET | `/api/github-trending/business-eval` | 技术业务价值评估 |
+| GET | `/api/solutions/aliyun` | 阿里云解决方案及更新状态 |
+| POST | `/api/solutions/aliyun/refresh` | 登录用户手动检查解决方案更新 |
+| GET | `/api/daily-insight` | 今日洞察聚合 |
+| GET | `/api/search` | 跨模块搜索 |
+| POST | `/api/chat` | 智能助手对话 |
+| POST | `/api/tasks/analyze` | 创建 AI 分析任务 |
+| GET | `/api/email/preview` | 管理员邮件预览 |
+| POST | `/api/email/send-now` | 管理员立即发送日报 |
 
 ## 项目结构
 
 ```text
 insight-web/
-├── backend/                         # FastAPI 后端
-│   ├── main.py                      # 入口、爬虫调度、API 路由注册
-│   ├── crawlers.py                  # 各数据源采集器
-│   ├── deep_searcher_integration.py # RAG/知识检索集成（可选）
-│   ├── maintenance.py               # 运维 CLI（数据补跑等）
-│   ├── routers/                     # API 路由模块
-│   ├── services/                    # 业务逻辑层
-│   ├── tests/                       # 后端测试
-│   ├── Dockerfile                   # 多阶段构建
-│   └── requirements.txt             # Python 依赖
-├── frontend/                        # Next.js 前端
-│   ├── src/app/                     # 页面路由（App Router）
-│   ├── src/components/              # 复用组件
-│   ├── src/utils/                   # 工具函数与 Supabase 客户端
-│   ├── public/                      # 静态资源（含聊天助手 chat.js）
-│   ├── prisma/                      # Prisma schema
-│   ├── Dockerfile                   # 多阶段构建
-│   └── package.json                 # 前端依赖
-├── scripts/                         # 部署与运维脚本
-│   ├── deploy-docker.sh             # 标准发布门禁
-│   ├── deploy.sh                    # systemd 旧部署（回退用）
-│   ├── health-check.sh              # 健康检查
-│   ├── docker-health-guard.sh       # Docker 健康守护巡检
-│   └── install-docker-compose.sh    # Compose 安装脚本
-├── deploy/systemd/                  # systemd unit 文件
-├── doc/                             # 文档
-├── log/                             # 版本日志与变更记录
-├── compose.yaml                     # Docker Compose 编排
-├── CLAUDE.md                        # 项目规则（AI 助手使用）
-└── .env                             # 环境变量（不入库）
+├── backend/             # FastAPI、采集器、业务服务和测试
+├── frontend/            # Next.js 应用、Prisma schema 和静态资源
+├── scripts/             # 部署、健康检查和故障恢复脚本
+├── deploy/systemd/      # 生产守护 unit
+├── doc/                 # 产品、技术、数据库和运维文档
+├── log/versions.md      # 内部迭代与正式发布记录
+└── compose.yaml         # 生产容器编排
 ```
 
-## 主要页面
+## 验证与运维
 
-| 页面 | 路径 | 说明 |
-|------|------|------|
-| 首页洞察 | `/` | 今日商业洞察总览，聚合各板块摘要 |
-| 热点追踪 | `/insights/hotspots` | GitHub Trending 实时与历史追踪 |
-| 行业洞察 | `/insights/industry` | 六大行业动态（含案例库） |
-| 政策法规 | `/insights/policy` | 商业市场政策影响分析 |
-| 商业快讯 | `/insights/news` | 商业新闻卡片与外链 |
-| 友商洞察 | `/insights/competitors` | 华为云 vs AWS/Azure/阿里云/腾讯云/火山云 |
-| 商机机会 | `/insights/opportunities` | 客群机会与行动建议 |
-| 需求挖掘 | `/insights/demand` | 客户需求线索分析 |
-| 招标信息 | `/insights/bidding` | 招投标情报 |
-| 数据大屏 | `/dashboard` | 运营指标与趋势图表 |
-| 深度研报 | `/reports` | AI 结构化报告 |
-| 历史日报 | `/history` | 历史洞察归档 |
-| 系统设置 | `/settings` | 基础配置与状态管理 |
+```bash
+# 后端
+cd backend && STARTUP_CATCHUP_ENABLED=false python -m pytest -q
 
-## 后端接口
+# 前端
+cd frontend && npm run lint && npm run build
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/` | 服务健康检查 |
-| GET | `/api/system/health/live` | 存活探针 |
-| GET | `/api/system/health/ready` | 就绪探针（含数据新鲜度） |
-| GET | `/api/data/freshness` | 九类数据集新鲜度状态 |
-| GET | `/api/github-trending` | GitHub Trending 数据 |
-| GET | `/api/github-trending/business-eval` | 技术业务价值评估 |
-| GET | `/api/github-trending/history` | GitHub Trending 历史记录 |
-| POST | `/api/github-trending/refresh` | 手动刷新 GitHub Trending |
-| GET | `/api/baidu-hotsearch` | 百度实时热搜 |
-| GET | `/api/competitors` | 友商洞察数据 |
-| GET | `/api/dashboard/stats` | 数据大屏统计 |
-| GET | `/api/daily-insight` | 今日洞察聚合 |
-| GET | `/api/demand/trends` | 需求趋势分析 |
-| GET | `/api/industry/overview` | 行业全景数据 |
-| GET | `/api/reports` | 深度研报列表 |
-| POST | `/api/chat` | 智能助手对话 |
-| POST | `/api/chat/stream` | 智能助手流式对话 |
-| POST | `/api/tasks/analyze` | AI 洞察分析任务 |
-
-> 完整接口列表及鉴权要求见后端路由模块和测试用例。
-
-## 环境变量
-
-根目录 `.env` 配置示例：
-
-```env
-# AI
-DEEPSEEK_API_KEY=sk-your_key
-DEEPSEEK_API_BASE=https://api.deepseek.com
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
-
-# CORS（允许多个前端来源）
-CORS_ORIGINS=http://localhost:3000,http://192.168.0.191:3000
-
-# 告警 Webhook（可选）
-INSIGHT_ALERT_WEBHOOK=https://example.com/webhook
-
-# 技术评估（可选）
-AI_EVAL_MODEL=deepseek-chat
+# 已启动环境的端到端检查
+./scripts/health-check.sh full
 ```
-
-## 运维要点
 
 | 操作 | 命令 |
-|------|------|
-| 查看容器状态 | `docker-compose -p insight-web ps` |
-| 查看实时日志 | `docker-compose -p insight-web logs --tail 100 -f` |
-| 重启服务 | `docker-compose -p insight-web restart` |
-| 完整健康检查 | `./scripts/health-check.sh full` |
-| 查看守护日志 | `journalctl -u insight-docker-health-guard.service -n 50 --no-pager` |
-| 重新部署 | `sudo ./scripts/deploy-docker.sh` |
+|---|---|
+| 查看容器 | `docker-compose -p insight-web -f compose.yaml ps` |
+| 跟踪日志 | `docker-compose -p insight-web -f compose.yaml logs --tail 100 -f` |
+| 重启服务 | `docker-compose -p insight-web -f compose.yaml restart` |
+| 重新构建 | `docker-compose -p insight-web -f compose.yaml up --detach --build` |
+| 守护日志 | `journalctl -u insight-docker-health-guard.service -n 50 --no-pager` |
 
-详细运维指南见 [`doc/运维手册.md`](doc/运维手册.md)。
+## 文档与版本
 
-## 版本记录
+- [`log/versions.md`](log/versions.md)：完整内部迭代和发布记录。
+- [`doc/运维手册.md`](doc/运维手册.md)：生产部署、开机恢复、巡检与补跑。
+- [`doc/database-schema.md`](doc/database-schema.md)：数据库结构。
+- [`doc/InsightPro-技术与商业报告.md`](doc/InsightPro-技术与商业报告.md)：技术与商业能力说明。
 
-详细版本日志见 [`log/versions.md`](log/versions.md)。每次可验证整改后必须同步更新。
+正式版本从 `v0.2.0` 演进到 `v0.3.0`；`0.0.x` 保留为正式版本间的内部增量记录。创建 Git 标签前应先完成后端测试、前端 lint/build 和端到端健康检查。

@@ -72,11 +72,14 @@ model PageVisit {
 }
 
 model EmailSubscriber {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  name      String?
-  active    Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
+  id         Int       @id @default(autoincrement())
+  email      String    @unique
+  name       String?
+  active     Int       @default(1)
+  weekdays   Int[]     @default([0, 1, 2, 3, 4, 5, 6])
+  sendTime   String    @default("09:05") @map("send_time")
+  lastSentAt DateTime? @map("last_sent_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
 
   @@map("email_subscribers")
 }
@@ -208,6 +211,7 @@ model TrendingBusinessEval {
   repoUrl        String?  @map("repo_url")
   language       String?
   stars          String?
+  summary        String?
   d1             Float?
   d2             Float?
   d3             Float?
@@ -237,4 +241,24 @@ model InsightTask {
   @@index([status])
   @@index([createdAt])
   @@map("insight_tasks")
+}
+
+model AliyunSolution {
+  id                Int      @id @default(autoincrement())
+  title             String
+  url               String   @unique
+  category          String
+  sourceDescription String?  @map("source_description")
+  summary           String
+  contentHash       String   @map("content_hash")
+  firstSeenDate     String   @map("first_seen_date")
+  lastSeenDate      String   @map("last_seen_date")
+  lastChangedDate   String   @map("last_changed_date")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @default(now()) @map("updated_at")
+
+  @@index([lastSeenDate])
+  @@index([lastChangedDate])
+  @@map("aliyun_solutions")
 }
