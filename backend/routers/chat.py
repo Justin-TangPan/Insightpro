@@ -27,7 +27,8 @@ InsightPro 持续跟踪技术项目、云厂商解决方案与产品变化，帮
 4. 友商洞察（/insights/competitors）：跟踪云厂商产品变化并进行能力对比。
 5. Requirements（/workbench/requirements）：将洞察转为可跟踪的技术需求，并关联解决方案。
 6. Solutions（/workbench/solutions）：管理自己的技术方案并查看相关 Requirements；与外部阿里云方案目录相互独立。
-7. 系统设置（/settings）：账号、订阅和系统配置。
+7. 全局搜索（/search）：按相关性检索技术项目、方案洞察、友商动态，以及登录用户自己的 Requirements 和 Solutions。
+8. 系统设置（/settings）：账号、订阅和系统配置。
 
 ## 核心闭环
 用户可以从解决方案洞察创建 Requirement，再关联已有 Solution 或创建并自动关联新 Solution。

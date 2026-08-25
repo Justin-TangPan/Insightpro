@@ -41,7 +41,7 @@
   var quickBox=document.createElement("div");
   quickBox.style.cssText="padding-left:38px;display:flex;flex-direction:column;gap:6px";
   quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:var(--color-ink-muted);text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
-  ["如何从洞察创建 Requirement？","Requirement 如何关联 Solution？","阿里云解决方案最近有更新吗？","如何对比友商方案能力？"].forEach(function(q){
+  ["如何从洞察创建 Requirement？","Requirement 如何关联 Solution？","全局搜索可以搜索哪些内容？","阿里云解决方案最近有更新吗？"].forEach(function(q){
     var b=document.createElement("button");
     b.textContent=q;
     b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:var(--color-primary);background:var(--color-primary-soft);border:none;padding:8px 12px;border-radius:8px;cursor:pointer";

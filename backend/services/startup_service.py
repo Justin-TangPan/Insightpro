@@ -107,6 +107,27 @@ def ensure_runtime_schema() -> None:
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirement_solutions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_github_trending_search ON github_trending USING GIN
+            ((COALESCE(repo_name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(language,'')) gin_trgm_ops)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_search ON aliyun_solutions USING GIN
+            ((COALESCE(title,'') || ' ' || COALESCE(category,'') || ' ' || COALESCE(summary,'') || ' ' || COALESCE(source_description,'')) gin_trgm_ops)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_competitor_news_search ON competitor_news USING GIN
+            ((COALESCE(title,'') || ' ' || COALESCE(vendor,'') || ' ' || COALESCE(summary,'') || ' ' || COALESCE(category,'')) gin_trgm_ops)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_requirements_search ON requirements USING GIN
+            ((COALESCE(title,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(source_type,'')) gin_trgm_ops)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_solutions_search ON solutions USING GIN
+            ((COALESCE(name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(category,'') || ' ' || COALESCE(version,'')) gin_trgm_ops)
+        """)
 
 
 def _technical_summaries_missing() -> bool:

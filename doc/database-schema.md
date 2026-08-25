@@ -12,6 +12,7 @@
 - `frontend/prisma/schema.prisma` 用于记录 public 表契约；后端当前通过 `psycopg2` 直接访问数据库。
 - Supabase Auth 用户位于认证系统，不在 public schema 建模。
 - Workbench 三张表启用 RLS 且不开放 Supabase Data API policy；数据只经登录后的 FastAPI 访问，Repository 按 `user_id` 二次隔离。
+- 站内搜索使用 PostgreSQL `pg_trgm`，为技术项目、外部方案、友商动态、Requirements 和 Solutions 的组合搜索文本建立 GIN 索引。
 - 业务日期目前以 `TEXT` 保存 `YYYY-MM-DD`，时间计划以 `HH:MM` 保存。
 - 启动时 `ensure_runtime_schema()` 幂等补齐当前必要字段、表和索引。
 

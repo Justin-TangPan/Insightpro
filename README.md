@@ -10,7 +10,7 @@ InsightPro v0.4.0 面向解决方案架构师和技术决策团队，持续跟�
 | 解决方案 | 复刻阿里云官方一级/二级目录、每日差异识别、新增置顶、20–30 字价值摘要 |
 | 友商动态 | AWS、Azure、阿里云、腾讯云、火山云的产品动态与能力对照 |
 | 工作台 | `Insight → Requirement → Solution`，支持需求、方案及关联关系管理 |
-| 分析交付 | 首页洞察、数据大屏、全局搜索、智能助手、深度研报和邮件简报 |
+| 分析交付 | 首页洞察、跨五类对象的相关性搜索、智能助手、深度研报和邮件简报 |
 | 平台治理 | Supabase Auth、分级权限、数据新鲜度、启动补跑、健康检查和访问分析 |
 
 业务范围仅限技术项目、技术解决方案及云产品能力信息。详细边界、业务流程和技术组件见 [技术架构与业务架构清单](doc/技术架构与业务架构清单.md)。
@@ -104,7 +104,7 @@ EMAIL_TO=recipient@example.com
 | `/workbench/requirements` | Requirement 列表、筛选、详情与方案关联 | 登录 |
 | `/workbench/solutions` | 自有 Solution 列表、详情与相关需求 | 登录 |
 | `/dashboard` | 核心数据和服务状态 | 公开 |
-| `/search`、`/history` | 跨域检索与历史回看 | 公开 |
+| `/search`、`/history` | 跨域检索与历史回看；登录后搜索个人 Workbench | 公开/可选登录 |
 | `/reports` | AI 分析任务与报告归档 | 登录 |
 | `/settings` | 账号、服务状态和邮件管理 | 登录；邮件管理需管理员 |
 | `/auth/login`、`/auth/register` | Supabase 用户认证 | 公开 |
