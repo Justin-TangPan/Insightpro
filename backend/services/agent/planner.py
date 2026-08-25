@@ -7,14 +7,14 @@ PLANNER_PROMPT = """你是一位资深商业分析师。用户的商业分析问
 请分析这个问题，输出结构化的分析规划 JSON：
 
 {{
-  "analysis_type": "行业分析 / 竞品分析 / 商机识别 / 综合",
+  "analysis_type": "技术分析 / 方案分析 / 竞品分析 / 综合",
   "title": "分析报告标题",
   "research_steps": [
     {{
       "step_id": "step_1",
       "dimension": "分析维度",
       "data_needed": "需要什么数据",
-      "data_source": "数据来源类型（行业新闻/招标/政策/友商动态/需求信号）",
+      "data_source": "数据来源类型（技术热点/解决方案/友商动态）",
       "key_question": "这个维度要回答的核心问题",
       "reason": "为什么需要这个分析"
     }}
@@ -41,11 +41,11 @@ class Planner:
                 "analysis_type": "综合",
                 "title": f"{query[:30]}...",
                 "research_steps": [
-                    {"step_id": "step_1", "dimension": "行业概况", "data_needed": "行业新闻和趋势", "data_source": "行业新闻", "key_question": f"{query}的行业概况", "reason": "了解行业基本面和最新动态"},
-                    {"step_id": "step_2", "dimension": "政策环境", "data_needed": "相关政策法规", "data_source": "政策法规", "key_question": f"{query}的政策影响", "reason": "政策是行业变化的关键驱动因素"},
-                    {"step_id": "step_3", "dimension": "市场机会", "data_needed": "招标和需求信号", "data_source": "招标信息", "key_question": f"{query}的市场机会", "reason": "识别具体的商业机会"},
+                    {"step_id": "step_1", "dimension": "技术路径", "data_needed": "技术热点和项目能力", "data_source": "技术热点", "key_question": f"{query}有哪些可行技术路径", "reason": "明确实现方式和成熟度"},
+                    {"step_id": "step_2", "dimension": "方案能力", "data_needed": "解决方案目录和变化", "data_source": "解决方案", "key_question": f"{query}有哪些现成方案", "reason": "评估复用与集成成本"},
+                    {"step_id": "step_3", "dimension": "友商对比", "data_needed": "云厂商产品动态", "data_source": "友商动态", "key_question": f"{query}的厂商能力差异", "reason": "辅助技术选型"},
                 ],
-                "expected_outline": ["行业概况", "政策环境", "市场机会", "建议"],
+                "expected_outline": ["技术路径", "方案能力", "友商对比", "实施建议"],
                 "complexity": "中等",
                 "estimated_steps": 3,
             }

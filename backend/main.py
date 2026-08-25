@@ -17,8 +17,7 @@ from deep_searcher_integration import init_deep_searcher
 from crawlers import init_crawler_tables
 
 from routers import (
-    auth, insights, industry, hotspots, competitors,
-    bidding, demand, policy, reports, chat, crawling,
+    auth, hotspots, solutions, competitors, reports, chat, crawling,
     analytics, search, dashboard, email,
 )
 
@@ -26,8 +25,6 @@ from routers import (
 def schedule_jobs(scheduler: BackgroundScheduler):
     """注册所有定时任务"""
     from crawlers import run_daily_crawl
-    from services.bidding_service import collect_bidding_data
-    from services.demand_service import collect_demand_signals
     from services.email_service import send_scheduled_digests
     from services.aliyun_solution_service import refresh_aliyun_solutions
     from main_legacy import (
@@ -35,8 +32,6 @@ def schedule_jobs(scheduler: BackgroundScheduler):
         evaluate_trending_business, generate_project_summaries, cleanup_old_data,
     )
     jobs = [
-        (collect_demand_signals, 8, 0, "demand_daily"),
-        (collect_bidding_data, 8, 30, "bidding_daily"),
         (refresh_and_store, 9, 0, "github_daily"),
         (refresh_aliyun_solutions, 9, 0, "aliyun_solutions_daily"),
         (run_daily_crawl, 9, 0, "daily_crawl"),
@@ -77,9 +72,9 @@ async def lifespan(app: FastAPI):
     print("[OK] 定时任务调度器已启动")
     try:
         init_deep_searcher()
-        print("[OK] DeepSearcher initialized")
+        print("[OK] Context search initialized")
     except Exception as e:
-        print(f"[WARN] DeepSearcher init failed: {e}")
+        print(f"[WARN] Context search init failed: {e}")
     init_crawler_tables()
     if settings.STARTUP_CATCHUP_ENABLED:
         from services.startup_service import run_startup_catchup
@@ -102,13 +97,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
-app.include_router(insights.router, prefix="/api", tags=["Insights"])
-app.include_router(industry.router, prefix="/api", tags=["Industry"])
 app.include_router(hotspots.router, prefix="/api", tags=["Hotspots"])
+app.include_router(solutions.router, prefix="/api", tags=["Solutions"])
 app.include_router(competitors.router, prefix="/api", tags=["Competitors"])
-app.include_router(bidding.router, prefix="/api", tags=["Bidding"])
-app.include_router(demand.router, prefix="/api", tags=["Demand"])
-app.include_router(policy.router, prefix="/api", tags=["Policy"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(crawling.router, prefix="/api", tags=["Crawling"])

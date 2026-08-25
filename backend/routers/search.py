@@ -9,13 +9,12 @@ router = APIRouter()
 async def global_search(q: str = Query("", min_length=1, max_length=100)):
     if not q:
         return {"results": [], "total": 0}
-    safe_q = q.strip()[:100].replace("'", "''").replace('"', '""')
+    safe_q = q.strip()[:100]
     results = []
     queries = [
-        ("SELECT title, source, url, 'industry_news' AS type FROM industry_news WHERE title ILIKE %s ORDER BY id DESC LIMIT 5",),
-        ("SELECT title, industry AS source, url, 'bidding' AS type FROM bidding_opportunities WHERE title ILIKE %s ORDER BY relevance_score DESC LIMIT 5",),
-        ("SELECT title, industry AS source, url, 'demand' AS type FROM demand_signals WHERE title ILIKE %s ORDER BY relevance_score DESC LIMIT 5",),
-        ("SELECT title, source, url, 'policy' AS type FROM policy_updates WHERE title ILIKE %s ORDER BY id DESC LIMIT 5",),
+        ("SELECT repo_name AS title, language AS source, repo_url AS url, 'technical' AS type FROM github_trending WHERE repo_name ILIKE %s ORDER BY id DESC LIMIT 5",),
+        ("SELECT title, category AS source, url, 'solution' AS type FROM aliyun_solutions WHERE is_active=TRUE AND title ILIKE %s ORDER BY last_changed_date DESC LIMIT 5",),
+        ("SELECT title, vendor AS source, link AS url, 'competitor' AS type FROM competitor_news WHERE title ILIKE %s ORDER BY id DESC LIMIT 5",),
     ]
     with get_db() as conn:
         c = conn.cursor()

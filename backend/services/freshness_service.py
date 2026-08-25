@@ -9,12 +9,8 @@ DATASETS = {
     "technical_evaluation": ("trending_business_eval", "scrape_date", 0),
     "aliyun_solutions": ("aliyun_solutions", "last_seen_date", 0),
     "baidu_hotsearch": ("baidu_hotsearch", "scrape_date", 0),
-    "industry_news": ("industry_news", "crawl_date", 1),
-    "policy_updates": ("policy_updates", "crawl_date", 1),
     "cloud_vendor_news": ("cloud_vendor_news", "crawl_date", 1),
     "competitor_news": ("competitor_news", "scrape_date", 1),
-    "bidding_opportunities": ("bidding_opportunities", "bid_date", 1),
-    "demand_signals": ("demand_signals", "signal_date", 1),
 }
 
 

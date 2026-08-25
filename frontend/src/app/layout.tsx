@@ -16,8 +16,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "InsightPro | 商业洞察平台",
-  description: "AI 驱动的端到端商业洞察与分析平台",
+  title: "InsightPro | 技术解决方案洞察平台",
+  description: "持续跟踪技术项目、云厂商解决方案与产品变化",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

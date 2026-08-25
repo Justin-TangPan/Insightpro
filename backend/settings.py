@@ -54,13 +54,4 @@ class Settings:
     CRAWLER_RETRY: int = 3
     CRAWLER_RETRY_DELAY: float = 1.0
 
-    # ── Jina AI (for deep-searcher web crawling) ──
-    JINA_API_TOKEN: str = os.getenv("JINA_API_TOKEN", "")
-
-    # ── Qdrant ──
-    QDRANT_PATH: str = os.path.join(
-        os.path.dirname(__file__), "deep_searcher_qdrant"
-    )
-
-
 settings = Settings()

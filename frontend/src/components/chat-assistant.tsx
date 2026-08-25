@@ -87,12 +87,12 @@ export function ChatAssistant() {
                     <svg width="14" height="14" fill="none" stroke="#fff" strokeWidth="2" viewBox="0 0 24 24"><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2M20 14h2M12 8V4H8"/></svg>
                   </div>
                   <div style={{ background: "#f8fafc", borderRadius: "12px 12px 12px 4px", padding: "10px 14px", maxWidth: "85%" }}>
-                    <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>你好！我是 InsightPro 智能助手，可以回答关于平台功能、行业数据、友商分析等问题。</p>
+                    <p style={{ margin: 0, fontSize: 13, color: "#374151", lineHeight: 1.6 }}>你好！我是 InsightPro 智能助手，可以回答技术热点、解决方案和友商能力等问题。</p>
                   </div>
                 </div>
                 <div style={{ paddingLeft: 38, display: "flex", flexDirection: "column", gap: 6 }}>
                   <p style={{ margin: 0, fontSize: 10, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>快速提问</p>
-                  {["首页洞察有哪些数据？", "热点追踪如何分析 GitHub 项目？", "行业洞察包含哪些内容？", "政策法规怎么看？"].map((q, i) => (
+                  {["首页洞察有哪些数据？", "热点追踪如何分析 GitHub 项目？", "阿里云解决方案最近有更新吗？", "如何对比友商方案能力？"].map((q, i) => (
                     <button key={i} onClick={() => { setInput(""); setMessages([{ role: "user", content: q }]); setLoading(true); fetch(`${API}/api/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: q, history: [] }) }).then(r => r.json()).then(d => setMessages([{ role: "user", content: q }, { role: "assistant", content: d.reply || "暂无法回答" }])).catch(() => setMessages([{ role: "user", content: q }, { role: "assistant", content: "网络异常" }])).finally(() => setLoading(false)); }}
                       style={{ display: "block", width: "100%", textAlign: "left", fontSize: 12, color: "#6366f1", background: "#eef2ff", border: "none", padding: "8px 12px", borderRadius: 8, cursor: "pointer" }}>
                       {q}

@@ -12,6 +12,7 @@ _LOCK_ID = 2_026_071_300
 def ensure_runtime_schema() -> None:
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("DROP TABLE IF EXISTS demand_reports, demand_signals, bidding_opportunities, policy_updates, industry_news CASCADE")
         cursor.execute(
             "ALTER TABLE trending_business_eval ADD COLUMN IF NOT EXISTS summary TEXT"
         )
@@ -86,8 +87,6 @@ def run_startup_catchup() -> None:
         refresh_and_store,
         refresh_competitor_news,
     )
-    from services.bidding_service import collect_bidding_data
-    from services.demand_service import collect_demand_signals
     from services.aliyun_solution_service import refresh_aliyun_solutions
 
     def seed_and_upgrade_technical_evaluation():
@@ -112,12 +111,10 @@ def run_startup_catchup() -> None:
                 _run_if_missing("github_trending", "github refresh", refresh_and_store)
                 _run_if_missing("aliyun_solutions", "aliyun solutions refresh", refresh_aliyun_solutions)
                 _run_if_missing("baidu_hotsearch", "baidu hotsearch refresh", _fetch_baidu_hotsearch_sync)
-                if any(not has_rows_today(name) for name in ("industry_news", "policy_updates", "cloud_vendor_news")):
+                if not has_rows_today("cloud_vendor_news"):
                     logger.warning("startup catch-up run: daily crawl")
                     run_daily_crawl()
                 _run_if_missing("competitor_news", "competitor refresh", refresh_competitor_news)
-                _run_if_missing("bidding_opportunities", "bidding refresh", collect_bidding_data)
-                _run_if_missing("demand_signals", "demand derivation", collect_demand_signals)
                 _run_if_missing("technical_evaluation", "technical evaluation", seed_and_upgrade_technical_evaluation)
                 if _technical_summaries_missing():
                     logger.warning("startup catch-up run: project purpose summaries")

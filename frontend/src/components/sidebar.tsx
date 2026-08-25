@@ -6,8 +6,6 @@ import {
   BarChart3,
   Radio,
   Layers3,
-  Building2,
-  BookOpen,
   Settings,
   LogIn,
   LogOut,
@@ -24,11 +22,9 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/", icon: BarChart3, label: "首页洞察", description: "今日简报" },
-  { href: "/insights/hotspots", icon: Radio, label: "热点追踪", description: "GitHub 项目" },
-  { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "阿里云方案更新" },
-  { href: "/insights/industry", icon: Building2, label: "行业洞察", description: "行业/友商/案例" },
-  { href: "/insights/policy", icon: BookOpen, label: "政策法规", description: "政策雷达" },
+  { href: "/", icon: BarChart3, label: "首页洞察", description: "技术方案简报" },
+  { href: "/insights/hotspots", icon: Radio, label: "技术热点", description: "GitHub 项目" },
+  { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "方案目录与变化" },
   { href: "/settings", icon: Settings, label: "系统设置", description: "账号与配置" },
 ];
 
@@ -60,7 +56,7 @@ export function Sidebar() {
           </div>
           <div className="flex flex-col gap-[3px]">
             <span className="block text-lg font-bold leading-none tracking-tight text-ink">InsightPro</span>
-            <span className="swiss-kicker leading-none text-ink-muted">Business Intelligence</span>
+            <span className="swiss-kicker leading-none text-ink-muted">Solution Intelligence</span>
           </div>
         </Link>
       </div>

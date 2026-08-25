@@ -1,36 +1,42 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# InsightPro 前端
 
-## Getting Started
+这是 InsightPro 的 Next.js 16 / React 19 前端。项目采用 App Router、TypeScript、Tailwind CSS 4 和 Recharts，通过同源 `/api/*` 访问 FastAPI。
 
-First, run the development server:
+## 启动
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+本地地址为 <http://localhost:3000>。默认代理到 `http://127.0.0.1:8000`；容器环境通过 `API_PROXY_TARGET=http://backend:8000` 覆盖。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Supabase 登录和注册还需要在根目录 `.env` 配置：
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+```
 
-## Learn More
+## 目录约定
 
-To learn more about Next.js, take a look at the following resources:
+| 路径 | 内容 |
+|---|---|
+| `src/app/` | 页面、根布局和全局样式 |
+| `src/components/` | 侧边栏、搜索、聊天助手和通用 UI |
+| `src/lib/` | API、认证和 Supabase 客户端 |
+| `public/chat.js` | 全局聊天助手运行脚本与快捷问题 |
+| `prisma/schema.prisma` | 后端 public 表的数据契约镜像 |
+| `next.config.ts` | standalone 输出和 `/api` 同源代理 |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+全局聊天助手由 `src/app/layout.tsx` 挂载，生产环境地址来自 `window.__CHAT_API_URL__`。导航或核心能力变更时，应同步更新 `public/chat.js` 和后端 `routers/chat.py` 的知识说明。
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 质量门禁
 
-## Deploy on Vercel
+```bash
+npm run lint
+npx prisma validate
+npm run build
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+生产镜像使用 standalone 输出，正式部署统一从仓库根目录执行 `sudo ./scripts/deploy-docker.sh`。完整页面、接口和架构信息见根目录 [README](../README.md) 与 [架构清单](../doc/技术架构与业务架构清单.md)。

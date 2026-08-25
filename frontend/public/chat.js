@@ -35,13 +35,13 @@
 
   var welcome=document.createElement("div");
   welcome.style.cssText="display:flex;gap:10px";
-  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:#111827;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:#f8fafc;border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:#374151;line-height:1.6">你好！我是 InsightPro 智能助手，支持流式回答。可以问平台功能、行业数据、友商分析等问题。</p></div>';
+  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:#111827;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:#f8fafc;border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:#374151;line-height:1.6">你好！我是 InsightPro 智能助手，可以回答技术热点、解决方案和友商能力等问题。</p></div>';
   msgBox.appendChild(welcome);
 
   var quickBox=document.createElement("div");
   quickBox.style.cssText="padding-left:38px;display:flex;flex-direction:column;gap:6px";
   quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
-  ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","阿里云解决方案最近有更新吗？","行业洞察包含哪些内容？"].forEach(function(q){
+  ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","阿里云解决方案最近有更新吗？","如何对比友商方案能力？"].forEach(function(q){
     var b=document.createElement("button");
     b.textContent=q;
     b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:#6366f1;background:#eef2ff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer";

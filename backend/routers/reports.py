@@ -39,30 +39,31 @@ def _ensure_baseline_report() -> None:
         """)
         eval_rows = [dict(r) for r in c.fetchall()]
         c.execute("""
-            SELECT industry, source_type, title, demand_tags, relevance_score
-            FROM demand_signals
-            ORDER BY relevance_score DESC NULLS LAST
+            SELECT title, category, summary, last_changed_date
+            FROM aliyun_solutions
+            WHERE is_active=TRUE
+            ORDER BY last_changed_date DESC, id DESC
             LIMIT 8
         """)
-        demand_rows = [dict(r) for r in c.fetchall()]
+        solution_rows = [dict(r) for r in c.fetchall()]
 
         takeaways = []
         for r in eval_rows[:3]:
             takeaways.append(f"{r.get('repo_name')}：{r.get('level') or '待评估'}，建议：{r.get('recommendation') or '继续跟踪业务适配度'}")
-        for r in demand_rows[:3]:
-            takeaways.append(f"{r.get('industry') or '综合'}需求信号：{r.get('title')}")
+        for r in solution_rows[:3]:
+            takeaways.append(f"{r.get('category') or '技术方案'}：{r.get('title')}，{r.get('summary') or '待分析'}")
 
         result = {
             "summary_metrics": {
                 "技术热点数量": len(eval_rows),
-                "需求信号样本": len(demand_rows),
-                "数据状态": 100 if eval_rows or demand_rows else 60,
+                "解决方案样本": len(solution_rows),
+                "数据状态": 100 if eval_rows or solution_rows else 60,
             },
             "takeaways": takeaways or ["系统已完成基线巡检，暂无高置信度业务结论。"],
-            "detailed_report": "本报告由系统基于 GitHub 技术热点业务评估和近期需求信号自动生成，用于避免报告中心首屏空白。建议后续通过“新建分析”生成面向具体行业或竞品的深度研报。",
+            "detailed_report": "本报告由系统基于 GitHub 技术热点评估和近期解决方案变化自动生成。可通过“新建分析”针对具体技术、方案或友商生成深度研报。",
             "strategies": {
                 "短期": "优先跟进高分开源项目的企业部署场景和客户可演示方案。",
-                "中期": "将需求信号、招标信息和技术热点统一纳入可复用研报模板。",
+                "中期": "将技术热点、方案变化和友商能力统一纳入可复用选型模板。",
             },
         }
         task_id = "baseline_" + datetime.now().strftime("%Y%m%d")
@@ -87,13 +88,13 @@ async def run_analysis(task_id: str, title: str, content: str):
 
     try:
         system_prompt = """你是一位世界顶级的商业分析师，任职于麦肯锡或高盛研究部。
-你的任务是根据用户提供的关键词或数据，撰写一份极具专业深度、排版精美且具有实战指导意义的商业洞察日报。
+你的任务是根据用户提供的关键词或数据，撰写一份专业、可执行的技术解决方案洞察报告。
 
 输出要求：
-1. 必须包含四个维度：市场核心痛点、竞品优势分析、潜在机会点、核心风险提示。
-2. 必须包含三个市场指数（0-100）：行业热度、竞争烈度、政策支持。
-3. 必须包含详细的执行摘要和战略建议（短期与长期）。
-4. 语言风格：专业、客观、犀利，多用行业术语，避开空话。
+1. 必须包含四个维度：技术问题、方案能力、友商对比、落地风险。
+2. 必须包含三个方案指数（0-100）：技术成熟度、集成复杂度、落地适配度。
+3. 必须包含详细的执行摘要和实施建议（短期与长期）。
+4. 语言风格：专业、客观、直接，使用必要的技术术语，避开空话。
 5. 必须基于已有数据进行分析，如需引用外部数据须标注来源和时效性，不得编造未经验证的数据。
 6. 输出格式：JSON，包含字段：summary_metrics, takeaways, detailed_report, strategies."""
 

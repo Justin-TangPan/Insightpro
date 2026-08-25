@@ -1,17 +1,12 @@
-# 错误日志
+# 已关闭问题记录
 
-## [2026-05-30] - Build Error: Export Github doesn't exist
+本文件只保留仍有排障价值的已关闭问题；当前发布风险与验证结果统一记录在 `log/versions.md`。
 
-### 错误描述
-在运行 `npm run dev` 时，Next.js 报错：`Export Github doesn't exist in target module "lucide-react"`。
+## 2026-05-30：Lucide GitHub 图标导出错误
 
-### 原因分析
-`lucide-react` 库中，GitHub 的图标组件名称为 `GithubIcon` (或 `Github`)，在某些版本中导出名称可能存在差异。当前环境下应使用 `GithubIcon`。
+- 现象：前端开发构建提示 `Export Github doesn't exist in target module "lucide-react"`。
+- 原因：代码使用了与当时依赖版本不一致的图标导出名。
+- 处理：改用该版本实际提供的 GitHub 图标组件。
+- 状态：已关闭，当前前端 ESLint 和生产构建通过。
 
-### 解决方案
-修改 [page.tsx](file:///c:/Users/Administrator/Desktop/Project/traeproject/insight-web/frontend/src/app/page.tsx) 中的引用：
-- `import { Github }` -> `import { GithubIcon }`
-- 使用图标处 `icon: Github` -> `icon: GithubIcon`
-
-### 状态
-已修复。
+如问题再次出现，以当前 `frontend/package.json`、实际导出和构建日志为准，不复用历史本地路径。

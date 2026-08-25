@@ -16,8 +16,6 @@ RUN python -m pip install --upgrade pip \
     && chmod -R a+rX /usr/local/lib/python3.11/site-packages /usr/local/bin
 
 COPY --chown=insight:insight . .
-RUN mkdir -p /app/deep_searcher_qdrant \
-    && chown -R insight:insight /app/deep_searcher_qdrant
 
 USER insight
 

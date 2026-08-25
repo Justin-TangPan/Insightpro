@@ -358,9 +358,6 @@ def cleanup_old_data():
         c = conn.cursor()
         for table in ["github_trending", "trending_business_eval", "baidu_hotsearch", "scrape_log", "competitor_news"]:
             c.execute(f"DELETE FROM {table} WHERE scrape_date < %s", (cutoff_90,))
-        c.execute("DELETE FROM demand_signals WHERE signal_date < %s", (cutoff_90,))
-        c.execute("DELETE FROM bidding_opportunities WHERE bid_date < %s", (cutoff_90,))
-        c.execute("DELETE FROM demand_reports WHERE report_date < %s", (cutoff_90,))
         c.execute("DELETE FROM page_visits WHERE created_at < %s", (cutoff_180,))
 
 

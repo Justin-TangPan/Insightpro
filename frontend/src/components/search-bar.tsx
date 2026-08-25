@@ -8,7 +8,7 @@ export function SearchBar() {
       <Search className="h-3.5 w-3.5 text-ink-muted" />
       <input
         type="text"
-        placeholder="搜索行业、竞品或历史报告..."
+        placeholder="搜索技术项目、方案或友商..."
         className="bg-transparent border-none text-sm focus:outline-none w-full text-ink placeholder:text-ink-muted"
         onKeyDown={(e) => {
           if (e.key === "Enter") {

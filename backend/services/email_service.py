@@ -319,7 +319,7 @@ def build_daily_digest_html() -> str:
         <tr>
           <td style="padding:32px 40px;text-align:center;" class="email-pad">
             <a href="{BASE_URL}" style="display:inline-block;padding:13px 40px;border-radius:999px;background:{PRIMARY};color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.04em;text-decoration:none;">查看完整洞察报告 →</a>
-            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">行业全景 · 友商洞察 · 政策法规 · 增长机会</p>
+            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 友商洞察</p>
           </td>
         </tr>
 

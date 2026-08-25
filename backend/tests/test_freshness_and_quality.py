@@ -3,6 +3,7 @@ from routers.hotspots import _heuristic_score_project
 from services import startup_service
 from services.aliyun_solution_service import _fallback_summary, _parse_menu_tree
 from services.system_health_service import evaluate_readiness
+from deep_searcher_integration import context_to_str
 
 
 def test_quality_gate_rejects_mojibake_and_relative_links():
@@ -12,6 +13,12 @@ def test_quality_gate_rejects_mojibake_and_relative_links():
 
 def test_quality_gate_accepts_traceable_news():
     assert _is_quality_item({"title": "国务院发布最新数字经济行动方案", "url": "https://www.gov.cn/example"})
+
+
+def test_context_formatter_keeps_source_and_limit():
+    result = context_to_str([{"collection": "solutions", "text": "技术方案" * 10}], max_chars=12)
+    assert result.startswith("--- solution")
+    assert result.endswith("[内容已截断]")
 
 
 def test_aliyun_solution_parser_and_summary_contract():

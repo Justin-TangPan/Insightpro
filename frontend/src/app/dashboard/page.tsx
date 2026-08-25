@@ -30,13 +30,9 @@ const pageNameMap: Record<string, string> = {
   "/history": "历史日报",
   "/settings": "系统设置",
   "/reports": "深度研报",
-  "/insights/industry": "行业全景",
-  "/insights/industry/cases": "案例库",
   "/insights/hotspots": "技术热点",
+  "/insights/solutions": "解决方案洞察",
   "/insights/competitors": "友商洞察",
-  "/insights/policy": "政策法规",
-  "/insights/news": "商业快讯",
-  "/insights/opportunities": "增长机会",
 };
 
 const tooltipStyle = {

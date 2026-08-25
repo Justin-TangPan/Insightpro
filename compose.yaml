@@ -12,8 +12,6 @@ services:
       STARTUP_CATCHUP_ENABLED: "true"
     ports:
       - "0.0.0.0:8000:8000"
-    volumes:
-      - insight-qdrant:/app/deep_searcher_qdrant
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/system/health/live', timeout=3)"]
@@ -65,7 +63,3 @@ services:
 networks:
   insight-network:
     name: insight-network
-
-volumes:
-  insight-qdrant:
-    name: insight-qdrant

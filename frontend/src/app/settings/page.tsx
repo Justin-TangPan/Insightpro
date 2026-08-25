@@ -186,7 +186,7 @@ export default function SettingsPage() {
   const notifications = [
     { label: "每日洞察日报", desc: "按订阅者配置的星期和时间推送" },
     { label: "友商动态预警", desc: "友商有重大动态时实时推送" },
-    { label: "政策法规更新", desc: "等保、信创等政策变化时推送" },
+    { label: "解决方案更新", desc: "技术方案新增或发生变化时推送" },
     { label: "系统异常告警", desc: "API 或数据源异常时推送" },
   ];
 

@@ -14,9 +14,8 @@ conn = psycopg2.connect(dburl)
 c = conn.cursor()
 TABLES = [
     "github_trending", "baidu_hotsearch", "scrape_log", "page_visits",
-    "email_subscribers", "competitor_news", "bidding_opportunities",
-    "demand_signals", "demand_reports", "trending_business_eval",
-    "industry_news", "policy_updates", "cloud_vendor_news",
+    "email_subscribers", "competitor_news", "trending_business_eval",
+    "cloud_vendor_news", "aliyun_solutions", "insight_tasks",
 ]
 for t in TABLES:
     c.execute(

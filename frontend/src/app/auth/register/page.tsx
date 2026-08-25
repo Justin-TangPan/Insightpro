@@ -53,7 +53,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-serif text-[#1a1a2e] mb-2">InsightPro</h1>
-          <p className="text-sm text-slate-500">AI 驱动的商业洞察平台</p>
+          <p className="text-sm text-slate-500">AI 驱动的技术解决方案洞察平台</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-8">

@@ -143,25 +143,6 @@ def main():
         "summary": "summary", "scrape_date": "date", "created_at": "created_at",
     })
 
-    # 7. Bidding Opportunities
-    total_migrated += migrate_table("bidding_opportunities", "bidding_opportunities", {
-        "title": "title", "industry": "industry", "budget": "budget",
-        "deadline": "deadline", "source": "source", "url": "link",
-        "status": "status", "bid_date": "date", "created_at": "created_at",
-    })
-
-    # 8. Demand Signals
-    total_migrated += migrate_table("demand_signals", "demand_signals", {
-        "title": "title", "industry": "industry", "source_type": "source_type",
-        "url": "source", "summary": "summary", "signal_date": "date",
-        "created_at": "created_at",
-    })
-
-    # 9. Demand Reports
-    total_migrated += migrate_table("demand_reports", "demand_reports", {
-        "industry": "industry", "content": "content", "created_at": "created_at",
-    })
-
     print("=" * 60)
     print(f"迁移完成！总计迁移 {total_migrated} 条记录")
     print("=" * 60)

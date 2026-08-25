@@ -26,8 +26,6 @@ class TestAPIEndpoints:
         ("POST", "/api/github-trending/refresh"),
         ("POST", "/api/github-trending/business-eval/refresh"),
         ("POST", "/api/solutions/aliyun/refresh"),
-        ("POST", "/api/bidding/refresh"),
-        ("POST", "/api/demand/refresh"),
         ("POST", "/api/crawl/trigger"),
         ("DELETE", "/api/reports/missing"),
         ("GET", "/api/email/subscribers"),
@@ -40,3 +38,12 @@ class TestAPIEndpoints:
     def test_sensitive_endpoints_require_auth(self, method, path):
         response = client.request(method, path)
         assert response.status_code == 401
+
+    @pytest.mark.parametrize("path", [
+        "/api/industry-news",
+        "/api/policy/list",
+        "/api/bidding/list",
+        "/api/demand/signals",
+    ])
+    def test_removed_insight_endpoints_are_gone(self, path):
+        assert client.get(path).status_code == 404

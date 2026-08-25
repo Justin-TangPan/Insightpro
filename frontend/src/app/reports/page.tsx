@@ -280,7 +280,7 @@ export default function ReportsPage() {
             <textarea
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
-              placeholder="输入关键词、行业、竞品名称等，AI 将基于平台数据生成深度分析报告"
+              placeholder="输入技术、解决方案或友商名称，AI 将基于平台数据生成深度分析报告"
               rows={4}
               className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors resize-none"
             />

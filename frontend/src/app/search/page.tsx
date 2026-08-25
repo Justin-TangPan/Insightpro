@@ -4,7 +4,7 @@ import { SectionHeader } from "@/components/section-header";
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { API } from "@/lib/api";
-import { Search, FileText, Gavel, Lightbulb, BookOpen, Loader2 } from "lucide-react";
+import { Search, Radio, Layers3, ShieldCheck, Loader2 } from "lucide-react";
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
@@ -16,10 +16,9 @@ interface SearchResult {
 }
 
 const typeConfig: Record<string, { label: string; icon: LucideIcon; color: string }> = {
-  industry_news: { label: "行业新闻", icon: FileText, color: "text-blue-600" },
-  bidding: { label: "招标信息", icon: Gavel, color: "text-amber-600" },
-  demand: { label: "需求信号", icon: Lightbulb, color: "text-emerald-600" },
-  policy: { label: "政策法规", icon: BookOpen, color: "text-purple-600" },
+  technical: { label: "技术项目", icon: Radio, color: "text-lime" },
+  solution: { label: "解决方案", icon: Layers3, color: "text-signal" },
+  competitor: { label: "友商动态", icon: ShieldCheck, color: "text-ink" },
 };
 
 function SearchContent() {
@@ -55,7 +54,7 @@ function SearchContent() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader badge="Search" title="全局搜索" subtitle="搜索行业新闻、招标信息、需求信号、政策法规" />
+      <SectionHeader badge="Search" title="全局搜索" subtitle="搜索技术项目、解决方案与友商动态" />
 
       {/* Search Input */}
       <div className="flex gap-3">
@@ -95,7 +94,7 @@ function SearchContent() {
       ) : (
         <div className="space-y-2">
           {results.map((r, i) => {
-            const config = typeConfig[r.type] || typeConfig.industry_news;
+            const config = typeConfig[r.type] || typeConfig.technical;
             const Icon = config.icon;
             return (
               <Link
