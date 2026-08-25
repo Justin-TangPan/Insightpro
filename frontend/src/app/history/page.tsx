@@ -71,7 +71,7 @@ export default function HistoryPage() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="page-stack">
       <SectionHeader
         badge="Archive"
         title="历史日报存档"
@@ -86,7 +86,7 @@ export default function HistoryPage() {
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex items-center gap-2 bg-white border border-slate-200/80 px-3.5 py-2 rounded-xl flex-1">
+        <div className="ui-input flex flex-1 items-center gap-2 px-3.5 py-2">
           <Search className="h-3.5 w-3.5 text-ink-muted" />
           <input
             type="text"
@@ -101,10 +101,10 @@ export default function HistoryPage() {
             <button
               key={c}
               onClick={() => setCategory(c)}
-              className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`ui-button-secondary ${
                 category === c
-                  ? "bg-slate-900 text-white"
-                  : "bg-white border border-slate-200 text-ink-secondary hover:border-slate-300"
+                  ? "!bg-primary !text-white"
+                  : ""
               }`}
             >
               {c === "daily" ? "日榜" : c === "weekly" ? "周榜" : "月榜"}
@@ -113,7 +113,7 @@ export default function HistoryPage() {
         </div>
         <button
           onClick={fetchHistory}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-ink-secondary hover:border-slate-300 transition-all"
+          className="ui-button-secondary"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
           刷新
@@ -124,10 +124,10 @@ export default function HistoryPage() {
       {loading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl bg-white border border-slate-200/80 p-5 animate-shimmer">
-              <div className="h-5 w-32 bg-slate-100 rounded mb-3" />
-              <div className="h-4 w-full bg-slate-100 rounded mb-2" />
-              <div className="h-4 w-3/4 bg-slate-100 rounded" />
+            <div key={i} className="ui-card animate-shimmer">
+              <div className="h-5 w-32 bg-surface-subtle rounded mb-3" />
+              <div className="h-4 w-full bg-surface-subtle rounded mb-2" />
+              <div className="h-4 w-3/4 bg-surface-subtle rounded" />
             </div>
           ))}
         </div>
@@ -141,11 +141,11 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-5">
           {filtered.map((entry) => (
-            <div key={entry.date} className="rounded-2xl bg-white border border-slate-200/80 overflow-hidden shadow-sm">
+            <div key={entry.date} className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
               {/* Date Header */}
-              <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+              <div className="flex items-center justify-between px-5 py-3 bg-surface-subtle border-b border-grid/60">
                 <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-lg bg-slate-900 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center text-white text-xs font-bold">
                     {entry.date.slice(8)}
                   </div>
                   <div>
@@ -175,9 +175,9 @@ export default function HistoryPage() {
                       href={item.repo_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="group flex items-start gap-3 p-3 rounded-lg border border-slate-100 hover:border-slate-200 hover:bg-slate-50/50 transition-all"
+                      className="group flex items-start gap-3 rounded-lg bg-surface-subtle/60 p-3 transition-colors hover:bg-primary-soft/70"
                     >
-                      <span className="flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[9px] font-bold text-ink-muted shrink-0 mt-0.5">
+                      <span className="flex h-5 w-5 items-center justify-center rounded bg-surface-subtle text-[9px] font-bold text-ink-muted shrink-0 mt-0.5">
                         {j + 1}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -195,7 +195,7 @@ export default function HistoryPage() {
                             <Star className="h-2.5 w-2.5" /> {item.stars}
                           </span>
                           {item.today_stars && (
-                            <span className="text-[10px] font-semibold text-emerald-600">{item.today_stars}</span>
+                            <span className="text-[10px] font-semibold text-primary">{item.today_stars}</span>
                           )}
                         </div>
                       </div>
@@ -204,17 +204,17 @@ export default function HistoryPage() {
                   ))}
                 </div>
                 {entry.evaluations?.length > 0 && (
-                  <div className="mt-5 border-t border-slate-100 pt-5">
+                  <div className="mt-5 border-t border-grid/60 pt-5">
                     <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-ink">当日业务价值分析</h3>
+                      <h3 className="type-h3 text-ink">当日业务价值分析</h3>
                       <span className="text-xs text-ink-muted">{entry.evaluations.length} 个项目</span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {entry.evaluations.map((item) => (
-                        <div key={item.repo_name} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                        <div key={item.repo_name} className="rounded-xl bg-surface-subtle p-4">
                           <div className="flex items-center justify-between gap-3">
                             <p className="truncate text-xs font-semibold text-ink">{item.repo_name}</p>
-                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            <span className="ui-tag shrink-0">
                               {item.total} · {item.level}
                             </span>
                           </div>

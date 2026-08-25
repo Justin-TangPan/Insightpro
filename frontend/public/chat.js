@@ -11,16 +11,16 @@
   var btn=document.createElement("button");
   btn.id="chatBtn";
   btn.innerHTML='<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
-  btn.style.cssText="position:fixed;bottom:24px;right:24px;z-index:99999;width:56px;height:56px;border-radius:50%;background:#111827;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.2)";
+  btn.style.cssText="position:fixed;bottom:24px;right:24px;z-index:99999;width:56px;height:56px;border-radius:50%;background:var(--color-primary-dark);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 16px rgba(0,0,0,0.2)";
   btn.onclick=function(){showPanel()};
   document.body.appendChild(btn);
 
   var panel=document.createElement("div");
   panel.id="chatPanel";
-  panel.style.cssText="position:fixed;bottom:24px;right:24px;z-index:99999;width:380px;height:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.15);border:1px solid #e2e8f0;display:none;flex-direction:column;font-family:-apple-system,sans-serif";
+  panel.style.cssText="position:fixed;bottom:24px;right:24px;z-index:99999;width:380px;height:520px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,0.15);border:1px solid var(--color-grid);display:none;flex-direction:column;font-family:-apple-system,sans-serif";
 
   var header=document.createElement("div");
-  header.style.cssText="background:#111827;padding:14px 20px;display:flex;align-items:center;justify-content:space-between";
+  header.style.cssText="background:var(--color-primary-dark);padding:14px 20px;display:flex;align-items:center;justify-content:space-between";
   header.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center">'+botSvg.replace(/14/g,'16')+'</div><div><div style="color:#fff;font-size:14px;font-weight:600">InsightPro 智能助手</div><div style="color:rgba(255,255,255,0.5);font-size:10px">AI · 站点问答</div></div></div>';
   var closeBtn=document.createElement("button");
   closeBtn.style.cssText="background:rgba(255,255,255,0.1);border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center";
@@ -35,16 +35,16 @@
 
   var welcome=document.createElement("div");
   welcome.style.cssText="display:flex;gap:10px";
-  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:#111827;display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:#f8fafc;border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:#374151;line-height:1.6">你好！我是 InsightPro 智能助手，可以回答技术热点、解决方案和友商能力等问题。</p></div>';
+  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:var(--color-primary-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:var(--color-surface-subtle);border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:var(--color-ink-secondary);line-height:1.6">你好！我是 InsightPro 智能助手，可以回答技术热点、解决方案和友商能力等问题。</p></div>';
   msgBox.appendChild(welcome);
 
   var quickBox=document.createElement("div");
   quickBox.style.cssText="padding-left:38px;display:flex;flex-direction:column;gap:6px";
-  quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
+  quickBox.innerHTML='<p style="margin:0;font-size:10px;font-weight:600;color:var(--color-ink-muted);text-transform:uppercase;letter-spacing:0.05em">快速提问</p>';
   ["首页洞察有哪些数据？","热点追踪如何分析 GitHub 项目？","阿里云解决方案最近有更新吗？","如何对比友商方案能力？"].forEach(function(q){
     var b=document.createElement("button");
     b.textContent=q;
-    b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:#6366f1;background:#eef2ff;border:none;padding:8px 12px;border-radius:8px;cursor:pointer";
+    b.style.cssText="display:block;width:100%;text-align:left;font-size:12px;color:var(--color-primary);background:var(--color-primary-soft);border:none;padding:8px 12px;border-radius:8px;cursor:pointer";
     b.onclick=function(){sendMsg(q)};
     quickBox.appendChild(b);
   });
@@ -52,23 +52,23 @@
   panel.appendChild(msgBox);
 
   var inputArea=document.createElement("div");
-  inputArea.style.cssText="border-top:1px solid #f1f5f9;padding:12px 16px";
+  inputArea.style.cssText="border-top:1px solid var(--color-grid);padding:12px 16px";
   var inputRow=document.createElement("div");
   inputRow.style.cssText="display:flex;gap:8px";
   var input=document.createElement("input");
   input.id="chatInput";
   input.placeholder="输入你的问题...";
-  input.style.cssText="flex:1;padding:8px 12px;border-radius:8px;background:#f8fafc;border:1px solid #e2e8f0;font-size:13px;outline:none";
+  input.style.cssText="flex:1;padding:8px 12px;border-radius:8px;background:var(--color-surface-subtle);border:1px solid var(--color-grid);font-size:13px;outline:none";
   input.onkeydown=function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMsg(this.value)}};
   var sendBtn=document.createElement("button");
-  sendBtn.style.cssText="width:36px;height:36px;border-radius:8px;background:#111827;color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center";
+  sendBtn.style.cssText="width:36px;height:36px;border-radius:8px;background:var(--color-primary-dark);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center";
   sendBtn.innerHTML='<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>';
   sendBtn.onclick=function(){sendMsg(input.value)};
   inputRow.appendChild(input);
   inputRow.appendChild(sendBtn);
   inputArea.appendChild(inputRow);
   var hint=document.createElement("p");
-  hint.style.cssText="margin:6px 0 0;font-size:9px;color:#94a3b8;text-align:center";
+  hint.style.cssText="margin:6px 0 0;font-size:9px;color:var(--color-ink-muted);text-align:center";
   hint.textContent="AI 助手 · 站点知识库";
   inputArea.appendChild(hint);
   panel.appendChild(inputArea);
@@ -82,8 +82,8 @@
     var isUser=role==="user";
     var d=document.createElement("div");
     d.style.cssText="display:flex;gap:10px;flex-direction:"+(isUser?"row-reverse":"row");
-    var avatar='<div style="width:28px;height:28px;border-radius:8px;background:'+(isUser?"#6366f1":"#111827")+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(isUser?userSvg:botSvg)+'</div>';
-    var bubble='<div class="chat-bubble" style="max-width:85%;padding:10px 14px;border-radius:'+(isUser?"12px 12px 4px 12px":"12px 12px 12px 4px")+';background:'+(isUser?"#6366f1":"#f8fafc")+';color:'+(isUser?"#fff":"#374151")+'"><p style="margin:0;font-size:13px;line-height:1.6;white-space:pre-wrap">'+content.replace(/</g,"&lt;")+'</p></div>';
+    var avatar='<div style="width:28px;height:28px;border-radius:8px;background:'+(isUser?"var(--color-primary)":"var(--color-primary-dark)")+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+(isUser?userSvg:botSvg)+'</div>';
+    var bubble='<div class="chat-bubble" style="max-width:85%;padding:10px 14px;border-radius:'+(isUser?"12px 12px 4px 12px":"12px 12px 12px 4px")+';background:'+(isUser?"var(--color-primary)":"var(--color-surface-subtle)")+';color:'+(isUser?"#fff":"var(--color-ink-secondary)")+'"><p style="margin:0;font-size:13px;line-height:1.6;white-space:pre-wrap">'+content.replace(/</g,"&lt;")+'</p></div>';
     d.innerHTML=avatar+bubble;
     msgBox.appendChild(d);
     msgBox.scrollTop=msgBox.scrollHeight;

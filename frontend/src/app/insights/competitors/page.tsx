@@ -50,9 +50,9 @@ const allVendors: Vendor[] = [
     name: "AWS",
     fullName: "Amazon Web Services",
     region: "全球",
-    color: "text-orange-600",
-    bgColor: "bg-orange-50 border-orange-200",
-    icon: "🟠",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "AW",
     marketShare: "全球 32% · 中国区 < 5%",
     description: "全球云市场份额第一，AI/ML 服务成熟度最高。中国区由光环新网（北京）和西云数据（宁夏）运营，服务可用性受限。",
     products: [
@@ -73,9 +73,9 @@ const allVendors: Vendor[] = [
     name: "Microsoft Azure",
     fullName: "Microsoft Azure",
     region: "全球",
-    color: "text-blue-600",
-    bgColor: "bg-blue-50 border-blue-200",
-    icon: "🔵",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "AZ",
     marketShare: "全球 23% · 中国区 < 3%",
     description: "全球第二大云厂商，OpenAI 独占整合优势。中国区由世纪互联运营，Azure OpenAI Service 已在中国区有限可用。",
     products: [
@@ -95,9 +95,9 @@ const allVendors: Vendor[] = [
     name: "阿里云",
     fullName: "阿里云计算有限公司",
     region: "中国",
-    color: "text-orange-500",
-    bgColor: "bg-orange-50 border-orange-200",
-    icon: "🟧",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "AL",
     marketShare: "国内 34% · 第一",
     description: "国内市场份额第一，双11 高并发验证。通义千问大模型持续开源，百炼平台为企业提供一站式 AI 应用开发能力。",
     products: [
@@ -120,9 +120,9 @@ const allVendors: Vendor[] = [
     name: "火山云",
     fullName: "火山引擎（字节跳动）",
     region: "中国",
-    color: "text-blue-500",
-    bgColor: "bg-blue-50 border-blue-200",
-    icon: "🔥",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "VC",
     marketShare: "国内 5% · 增速最快",
     description: "依托字节跳动抖音生态，在 AI 推理和内容分发上增长迅猛。豆包大模型以极低价格抢占市场，Coze 成为中国最流行的 AI Agent 搭建平台之一。",
     products: [
@@ -143,9 +143,9 @@ const allVendors: Vendor[] = [
     name: "华为云",
     fullName: "华为云计算技术有限公司",
     region: "中国",
-    color: "text-rose-600",
-    bgColor: "bg-rose-50 border-rose-200",
-    icon: "🔴",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "HW",
     marketShare: "国内第二 · 政企市场第一",
     description: "国内政企市场份额第一，全栈自主可控（鲲鹏+欧拉+GaussDB+盘古）。端边云协同能力在制造、政务、能源等重资产行业具有独特优势。",
     products: [
@@ -168,9 +168,9 @@ const allVendors: Vendor[] = [
     name: "腾讯云",
     fullName: "腾讯云计算（深圳）有限公司",
     region: "中国",
-    color: "text-green-600",
-    bgColor: "bg-green-50 border-green-200",
-    icon: "🟢",
+    color: "text-primary",
+    bgColor: "bg-primary-soft border-primary/20",
+    icon: "TC",
     marketShare: "国内 16% · 第三",
     description: "依托微信生态（13亿用户）在 C 端场景占据优势。混元大模型深度集成到微信、QQ、腾讯文档等产品中。游戏和社交场景技术领先。",
     products: [
@@ -196,19 +196,12 @@ const categoryIcons: Record<string, React.ElementType> = {
   "产品发布": Package, "案例发布": FileText, "解决方案": ShieldCheck, "最新动态": Newspaper,
 };
 
-const categoryColors: Record<string, string> = {
-  "产品发布": "bg-indigo-50 text-indigo-700 border-indigo-200",
-  "案例发布": "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "解决方案": "bg-amber-50 text-amber-700 border-amber-200",
-  "最新动态": "bg-sky-50 text-sky-700 border-sky-200",
-};
-
 const vendorMeta: Record<string, { icon: string; color: string; borderColor: string }> = {
-  "AWS": { icon: "🟠", color: "text-orange-600", borderColor: "border-orange-200" },
-  "Azure": { icon: "🔵", color: "text-blue-600", borderColor: "border-blue-200" },
-  "阿里云": { icon: "🟧", color: "text-orange-500", borderColor: "border-orange-200" },
-  "腾讯云": { icon: "🟢", color: "text-green-600", borderColor: "border-green-200" },
-  "火山云": { icon: "🔥", color: "text-blue-500", borderColor: "border-blue-200" },
+  "AWS": { icon: "AW", color: "text-primary", borderColor: "border-primary/20" },
+  "Azure": { icon: "AZ", color: "text-primary", borderColor: "border-primary/20" },
+  "阿里云": { icon: "AL", color: "text-primary", borderColor: "border-primary/20" },
+  "腾讯云": { icon: "TC", color: "text-primary", borderColor: "border-primary/20" },
+  "火山云": { icon: "VC", color: "text-primary", borderColor: "border-primary/20" },
 };
 
 export default function CompetitorsPage() {
@@ -230,29 +223,29 @@ export default function CompetitorsPage() {
   }, []);
 
   return (
-    <div className="space-y-10">
+    <div className="page-stack">
       <SectionHeader
         badge="Cloud Vendor Research"
-        title="云厂商商业调研"
-        subtitle="五大竞争云厂商最新动态：新产品发布、新案例、新解决方案、商业策略追踪"
+        title="云厂商能力观察"
+        subtitle="集中查看五家云厂商的产品发布、技术方案与能力变化"
         image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80"
       />
 
       {/* News Summary Overview */}
       {!summaryLoading && Object.keys(summary).length > 0 && (
-        <div className="rounded-2xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+        <div className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
+          <div className="flex items-center gap-2 bg-surface-subtle px-6 py-4">
             <Activity className="h-4 w-4 text-primary" />
             <h4 className="font-bold text-sm serif-heading text-ink">友商最新动态概览</h4>
             <span className="text-xs text-ink-muted ml-auto">
               {Object.values(summary).reduce((acc, items) => acc + items.length, 0)} 条动态 · {Object.keys(summary).length} 家厂商
             </span>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2 xl:grid-cols-3">
             {Object.entries(summary).map(([vendor, items]) => {
-              const meta = vendorMeta[vendor] || { icon: "☁️", color: "text-slate-600", borderColor: "border-slate-200" };
+              const meta = vendorMeta[vendor] || { icon: "☁️", color: "text-ink-secondary", borderColor: "border-grid" };
               return (
-                <div key={vendor} className="p-5 space-y-3">
+                <div key={vendor} className="space-y-3 rounded-xl bg-surface-subtle/60 p-5">
                   <div className="flex items-center gap-2">
                     <span className="text-base">{meta.icon}</span>
                     <span className={`font-bold text-sm ${meta.color}`}>{vendor}</span>
@@ -268,7 +261,7 @@ export default function CompetitorsPage() {
                         className="block group"
                       >
                         <div className="flex items-start gap-2">
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-slate-100 text-ink-muted shrink-0 mt-0.5">
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-surface-subtle text-ink-muted shrink-0 mt-0.5">
                             {item.category}
                           </span>
                           <p className="text-xs font-semibold text-ink group-hover:text-primary transition-colors leading-snug line-clamp-2">
@@ -294,27 +287,27 @@ export default function CompetitorsPage() {
           <button
             key={v.id}
             onClick={() => setActiveVendor(activeVendor === v.id ? null : v.id)}
-            className={`group text-left rounded-xl bg-white border p-5 transition-all duration-200 ${
+            className={`ui-card ui-card-interactive group text-left ${
               activeVendor === v.id
-                ? "border-primary/40 shadow-[var(--shadow-card-hover)] ring-1 ring-primary/20"
-                : "border-slate-200/60 shadow-[var(--shadow-card)] hover:border-primary/30 hover:shadow-[var(--shadow-card-hover)]"
+                ? "bg-primary-soft ring-2 ring-primary/25"
+                : ""
             }`}
           >
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
                   activeVendor === v.id
-                    ? "bg-ink text-paper"
-                    : "bg-slate-100 text-ink-secondary"
+                    ? "bg-primary text-white"
+                    : "bg-surface-subtle text-ink-secondary"
                 }`}>
                   <Cloud className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="serif-heading text-xl text-ink">{v.name}</h3>
+                  <h3 className="type-h3 text-ink">{v.name}</h3>
                   <span className={`rounded-full text-[10px] font-semibold px-2 py-0.5 ${v.bgColor} ${v.color}`}>{v.region}</span>
                 </div>
               </div>
-              <ChevronRight className={`h-5 w-5 text-slate-300 transition-transform duration-200 ${
+              <ChevronRight className={`h-5 w-5 text-ink-muted transition-transform duration-200 ${
                 activeVendor === v.id ? "rotate-90 text-primary" : ""
               }`} />
             </div>
@@ -331,14 +324,14 @@ export default function CompetitorsPage() {
       {selectedVendor && (
         <div className="space-y-6">
           {/* Vendor Header */}
-          <div className="rounded-2xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
-            <div className="bg-ink px-8 py-5 flex items-center justify-between">
+          <div className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
+            <div className="flex items-center justify-between bg-primary-dark px-8 py-5">
               <div className="flex items-center gap-4">
                 <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white text-lg font-bold">
                   {selectedVendor.icon}
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">{selectedVendor.fullName}</h3>
+                  <h3 className="type-h3 text-white">{selectedVendor.fullName}</h3>
                   <p className="text-sm text-white/70">{selectedVendor.marketShare}</p>
                 </div>
               </div>
@@ -363,7 +356,7 @@ export default function CompetitorsPage() {
           </div>
 
           {/* Products */}
-          <div className="rounded-xl bg-white border border-slate-200/60 p-6 shadow-[var(--shadow-card)]">
+          <div className="ui-card">
             <div className="flex items-center gap-2 mb-4">
               <Package className="h-4 w-4 text-primary" />
               <h4 className="font-bold text-sm text-ink">核心产品与服务</h4>
@@ -371,8 +364,8 @@ export default function CompetitorsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {selectedVendor.products.map((p, i) => (
                 <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-3 p-3 rounded-lg border border-slate-200/60 hover:border-primary/30 hover:bg-indigo-50/30 transition-all group">
-                  <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
+                  className="group flex items-center gap-3 rounded-lg bg-surface-subtle p-3 transition-colors hover:bg-primary-soft">
+                  <div className="h-8 w-8 rounded-lg bg-surface-subtle flex items-center justify-center group-hover:bg-primary/10 transition-colors">
                     <Server className="h-4 w-4 text-ink-muted group-hover:text-primary" />
                   </div>
                   <span className="text-xs font-semibold text-ink-secondary group-hover:text-primary transition-colors">{p.name}</span>
@@ -383,24 +376,24 @@ export default function CompetitorsPage() {
           </div>
 
           {/* News Feed */}
-          <div className="rounded-xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+          <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
+            <div className="flex items-center gap-2 bg-surface-subtle px-6 py-4">
               <Newspaper className="h-4 w-4 text-primary" />
               <h4 className="font-bold text-sm text-ink">最新动态</h4>
               <span className="text-xs text-ink-muted ml-auto">{selectedVendor.news.length} 条</span>
             </div>
-            <div className="divide-y divide-slate-100">
+            <div className="divide-y divide-grid/60">
               {selectedVendor.news.map((item, i) => {
                 const CatIcon = categoryIcons[item.category] || Newspaper;
                 return (
                   <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-start gap-4 p-5 hover:bg-slate-50/50 transition-colors group">
-                    <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                    className="flex items-start gap-4 p-5 hover:bg-surface-subtle/50 transition-colors group">
+                    <div className="h-8 w-8 rounded-lg bg-surface-subtle flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
                       <CatIcon className="h-4 w-4 text-ink-muted group-hover:text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full border ${categoryColors[item.category]}`}>
+                        <span className={`ui-tag ${item.category === "解决方案" ? "ui-tag-warning" : ""}`}>
                           {item.category}
                         </span>
                         {item.date && <span className="text-[10px] text-ink-muted">{item.date}</span>}
@@ -423,14 +416,14 @@ export default function CompetitorsPage() {
       {!activeVendor && (
         <div className="space-y-6">
           {/* Quick Comparison */}
-          <div className="rounded-xl bg-white border border-slate-200/60 overflow-hidden shadow-[var(--shadow-card)]">
-            <div className="px-6 py-4 border-b border-slate-100">
+          <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
+            <div className="bg-surface-subtle px-6 py-4">
               <h4 className="font-bold text-sm text-ink">五大竞争云厂商一览</h4>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <tr className="border-b border-grid/60 bg-surface-subtle/50">
                     <th className="text-left py-3 px-5 text-xs font-semibold text-ink-muted uppercase tracking-wider">厂商</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">市场份额</th>
                     <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">AI 核心产品</th>
@@ -447,7 +440,7 @@ export default function CompetitorsPage() {
                       tencent: "微信 13 亿用户生态，游戏场景领先",
                     };
                     return (
-                      <tr key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      <tr key={v.id} className="border-b border-grid/40 hover:bg-surface-subtle/50 transition-colors cursor-pointer"
                         onClick={() => setActiveVendor(v.id)}>
                         <td className="py-3 px-5">
                           <div className="flex items-center gap-2">

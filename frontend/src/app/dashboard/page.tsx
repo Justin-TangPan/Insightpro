@@ -12,8 +12,7 @@ import {
   Users, Activity, Eye, UserCheck
 } from "lucide-react";
 
-// 瑞士色盘：柠檬黄 / 柠檬绿 / 安全橙 / 黑 / 灰
-const COLORS = ["#0A0A0A", "#84CC16", "#FF6B00", "#F5D300", "#737373", "#3F3F3F"];
+const COLORS = ["#176B46", "#2D8A60", "#0D4F34", "#6C7A71", "#425148"];
 
 interface AnalyticsData {
   today: { pv: number; uv: number };
@@ -37,14 +36,14 @@ const pageNameMap: Record<string, string> = {
 
 const tooltipStyle = {
   background: "#FFFFFF",
-  border: "1px solid #E5E5E0",
-  borderRadius: "0",
-  boxShadow: "none",
+  border: "none",
+  borderRadius: "10px",
+  boxShadow: "0 8px 24px rgba(21, 34, 26, 0.08)",
   fontSize: "12px",
-  color: "#0A0A0A",
+  color: "#15221A",
 };
 
-const kpiTiles = ["bg-ink text-paper", "bg-lime text-ink", "bg-signal text-paper", "bg-lemon text-ink"];
+const kpiTiles = Array(4).fill("bg-primary-soft text-primary");
 
 export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -79,21 +78,21 @@ export default function DashboardPage() {
   const topPageNames = analytics?.pages?.slice(0, 5).map((p) => pageNameMap[p.page_path] || p.page_path) || [];
 
   return (
-    <div className="space-y-10">
+    <div className="page-stack">
       <SectionHeader
         badge="Data Dashboard"
         title="数据大屏 · 运营看板"
         subtitle="实时页面访问统计：PV、UV、页面热度、访问趋势"
         action={
-          <div className="flex gap-px border border-grid">
+          <div className="flex gap-1 rounded-xl bg-white/70 p-1">
             {(["week", "month"] as const).map((r) => (
               <button
                 key={r}
                 onClick={() => setTimeRange(r)}
-                className={`px-4 py-1.5 text-xs font-semibold transition-colors ${
+                className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
                   timeRange === r
-                    ? "bg-ink text-paper"
-                    : "bg-white text-ink-secondary hover:text-ink"
+                    ? "bg-primary text-white shadow-[var(--shadow-card)]"
+                    : "text-ink-secondary hover:bg-primary-soft hover:text-primary"
                 }`}
               >
                 {r === "week" ? "近 7 天" : "近 30 天"}
@@ -104,16 +103,16 @@ export default function DashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-grid border border-grid">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[
           { label: "今日 PV", value: analytics?.today?.pv ?? 0, icon: Eye },
           { label: "今日 UV", value: analytics?.today?.uv ?? 0, icon: UserCheck },
           { label: "累计 PV", value: analytics?.total?.pv ?? 0, icon: Activity },
           { label: "累计 UV", value: analytics?.total?.uv ?? 0, icon: Users },
         ].map((kpi, i) => (
-          <div key={i} className="bg-white p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div className={`h-10 w-10 flex items-center justify-center ${kpiTiles[i]}`}>
+          <div key={i} className="ui-card min-h-40">
+            <div className="mb-7 flex items-center justify-between">
+              <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${kpiTiles[i]}`}>
                 <kpi.icon className="h-5 w-5" strokeWidth={1.5} />
               </div>
             </div>
@@ -124,20 +123,20 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-grid border border-grid">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         {/* Daily PV/UV Trend */}
-        <div className="bg-white p-6">
-          <h3 className="serif-heading text-xl text-ink mb-6">每日 PV/UV 趋势</h3>
+        <div className="ui-card">
+          <h3 className="type-h3 mb-6 text-ink">每日 PV/UV 趋势</h3>
           <div className="h-64">
             {analytics?.daily && analytics.daily.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={analytics.daily}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#737373" }} stroke="#E5E5E0" tickFormatter={(v) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10, fill: "#737373" }} stroke="#E5E5E0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" tickFormatter={(v) => v.slice(5)} />
+                  <YAxis tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Area type="monotone" dataKey="pv" stroke="#0A0A0A" fill="#0A0A0A" fillOpacity={0.08} strokeWidth={2} name="PV" />
-                  <Area type="monotone" dataKey="uv" stroke="#84CC16" fill="#84CC16" fillOpacity={0.12} strokeWidth={2} name="UV" />
+                  <Area type="monotone" dataKey="pv" stroke="#0D4F34" fill="#0D4F34" fillOpacity={0.08} strokeWidth={2} name="PV" />
+                  <Area type="monotone" dataKey="uv" stroke="#2D8A60" fill="#2D8A60" fillOpacity={0.12} strokeWidth={2} name="UV" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -147,18 +146,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Top Pages Bar Chart */}
-        <div className="bg-white p-6">
-          <h3 className="serif-heading text-xl text-ink mb-6">页面访问排行</h3>
+        <div className="ui-card">
+          <h3 className="type-h3 mb-6 text-ink">页面访问排行</h3>
           <div className="h-64">
             {analytics?.pages && analytics.pages.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={analytics.pages.slice(0, 8).map((p) => ({ name: pageNameMap[p.page_path] || p.page_path, pv: p.pv, uv: p.uv }))} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E0" />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#737373" }} stroke="#E5E5E0" />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#737373" }} stroke="#E5E5E0" width={80} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6C7A71" }} stroke="#DCE4DF" width={80} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="pv" fill="#0A0A0A" name="PV" />
-                  <Bar dataKey="uv" fill="#84CC16" name="UV" />
+                  <Bar dataKey="pv" fill="#0D4F34" name="PV" />
+                  <Bar dataKey="uv" fill="#2D8A60" name="UV" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -168,15 +167,15 @@ export default function DashboardPage() {
         </div>
 
         {/* Page Trend by Module */}
-        <div className="bg-white p-6 lg:col-span-2">
-          <h3 className="serif-heading text-xl text-ink mb-6">各模块访问趋势</h3>
+        <div className="ui-card lg:col-span-2">
+          <h3 className="type-h3 mb-6 text-ink">各模块访问趋势</h3>
           <div className="h-64">
             {trendChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#E5E5E0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#737373" }} stroke="#E5E5E0" tickFormatter={(v) => String(v).slice(5)} />
-                  <YAxis tick={{ fontSize: 10, fill: "#737373" }} stroke="#E5E5E0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" tickFormatter={(v) => String(v).slice(5)} />
+                  <YAxis tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
                   <Tooltip contentStyle={tooltipStyle} />
                   {topPageNames.map((name, i) => (
                     <Line key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
@@ -201,9 +200,9 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Visits Table */}
-      <div className="bg-white border border-grid p-6">
+      <div className="ui-card">
         <div className="flex items-center justify-between mb-5">
-          <h3 className="serif-heading text-xl text-ink">最近访问记录</h3>
+          <h3 className="type-h3 text-ink">最近访问记录</h3>
           <span className="swiss-kicker text-ink-muted">实时更新</span>
         </div>
         <div className="overflow-x-auto">

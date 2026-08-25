@@ -9,10 +9,9 @@ interface InsightCardProps {
 }
 
 export function InsightCard({ children, className = "", href, glass = false }: InsightCardProps) {
-  // 瑞士式：锐角、发丝线、无浮起，hover 加深边框
   const base = glass
-    ? `glass p-6 ${className}`
-    : `bg-white border border-grid p-6 transition-colors duration-200 hover:border-ink/30 ${className}`;
+    ? `glass ui-card ${className}`
+    : `ui-card ${href ? "ui-card-interactive" : ""} ${className}`;
 
   if (href) {
     return (
@@ -26,8 +25,8 @@ export function InsightCard({ children, className = "", href, glass = false }: I
 
 export function InsightCardHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between mb-6 pb-5 border-b border-grid">
-      <h3 className="text-2xl serif-heading text-ink">{title}</h3>
+    <div className="ui-card-header">
+      <h3 className="type-h3 text-ink">{title}</h3>
       {action}
     </div>
   );
@@ -48,29 +47,28 @@ export function StatCard({
   href?: string;
   color?: string;
 }) {
-  // 瑞士式：纯色 tile（去渐变），黑/柠檬/绿/橙轮换
   const tileMap: Record<string, string> = {
-    primary: "bg-ink text-paper",
-    cyan: "bg-lime text-ink",
-    emerald: "bg-lime text-ink",
-    amber: "bg-signal text-paper",
-    rose: "bg-signal text-paper",
+    primary: "bg-primary-soft text-primary",
+    cyan: "bg-primary-soft text-primary",
+    emerald: "bg-primary-soft text-primary",
+    amber: "bg-warning-soft text-warning",
+    rose: "bg-warning-soft text-warning",
   };
 
   const content = (
-    <div className="group bg-white border border-grid p-6 transition-colors duration-200 hover:border-ink/30">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`h-10 w-10 flex items-center justify-center ${tileMap[color] || tileMap.primary}`}>
+    <div className="ui-card ui-card-interactive group min-h-40">
+      <div className="mb-7 flex items-start justify-between">
+        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${tileMap[color] || tileMap.primary}`}>
           <Icon className="h-5 w-5" />
         </div>
         {trend && (
-          <span className="text-xs font-semibold text-ink bg-lemon px-2 py-0.5">
+          <span className="ui-tag ui-tag-warning">
             {trend}
           </span>
         )}
       </div>
-      <p className="swiss-kicker text-ink-muted mb-2">{label}</p>
-      <h3 className="text-4xl serif-stat text-ink">{value}</h3>
+      <p className="swiss-kicker mb-2">{label}</p>
+      <h3 className="text-4xl text-ink serif-stat">{value}</h3>
     </div>
   );
 
@@ -81,9 +79,8 @@ export function StatCard({
 }
 
 export function GradientBadge({ children }: { children: ReactNode }) {
-  // 瑞士式锐角标签：黑底白字 uppercase tracking
   return (
-    <span className="inline-flex items-center px-3 py-1 bg-ink text-paper swiss-kicker">
+    <span className="ui-tag font-mono uppercase tracking-[0.08em]">
       {children}
     </span>
   );

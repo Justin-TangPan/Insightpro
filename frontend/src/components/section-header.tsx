@@ -11,27 +11,26 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ badge, title, subtitle, action, image }: SectionHeaderProps) {
   return (
-    <div className="relative overflow-hidden bg-white border border-grid mb-10">
-      {/* Optional hero image — 极淡，去色感 */}
+    <section className="relative overflow-hidden rounded-2xl bg-surface-subtle">
       {image && (
-        <div className="absolute inset-0 opacity-[0.06] grayscale">
+        <div className="absolute inset-0 opacity-[0.04] grayscale">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={image} alt="" className="w-full h-full object-cover" />
         </div>
       )}
 
-      <div className="relative px-8 lg:px-12 py-10 lg:py-14">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="space-y-5 max-w-3xl">
+      <div className="relative px-6 py-8 md:px-8 md:py-10">
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
+          <div className="max-w-3xl space-y-4">
             {badge && <GradientBadge>{badge}</GradientBadge>}
             <div className="editorial-rule">
               <span className="editorial-rule__diamond" />
             </div>
-            <h2 className="text-5xl md:text-6xl serif-display text-ink">
+            <h1 className="serif-display text-ink">
               {title}
-            </h2>
+            </h1>
             {subtitle && (
-              <p className="text-base text-ink-secondary max-w-2xl leading-relaxed">
+              <p className="max-w-2xl text-[0.9375rem] leading-6 text-ink-secondary">
                 {subtitle}
               </p>
             )}
@@ -39,6 +38,6 @@ export function SectionHeader({ badge, title, subtitle, action, image }: Section
           {action && <div className="shrink-0">{action}</div>}
         </div>
       </div>
-    </div>
+    </section>
   );
 }

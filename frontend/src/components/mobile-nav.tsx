@@ -23,7 +23,8 @@ export function MobileNavTrigger() {
   return (
     <button
       onClick={toggle}
-      className="lg:hidden h-9 w-9 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-center hover:bg-slate-100 transition-colors"
+      aria-label="打开导航"
+      className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-ink-secondary shadow-[var(--shadow-card)] transition-colors hover:bg-primary-soft hover:text-primary lg:hidden"
     >
       <Menu className="h-4 w-4 text-ink-secondary" />
     </button>

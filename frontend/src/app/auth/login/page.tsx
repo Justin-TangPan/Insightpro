@@ -25,57 +25,57 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf9f5] flex items-center justify-center p-4">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-serif text-[#1a1a2e] mb-2">InsightPro</h1>
-          <p className="text-sm text-slate-500">AI 驱动的技术解决方案洞察平台</p>
+          <h1 className="type-h1 mb-2 text-primary-dark">InsightPro</h1>
+          <p className="type-body text-ink-muted">AI 驱动的技术解决方案洞察平台</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-8">
-          <h2 className="text-xl font-serif text-[#1a1a2e] mb-6">登录</h2>
+        <div className="ui-card p-8">
+          <h2 className="type-h2 mb-6 text-ink">登录</h2>
 
           {error && (
-            <div className="bg-red-50 text-red-600 text-sm rounded-lg p-3 mb-4 border border-red-200/60">
+            <div className="mb-4 rounded-lg bg-warning-soft p-3 text-sm text-warning">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1.5">用户名或邮箱</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink-secondary">用户名或邮箱</label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-[#2563eb] focus:bg-white transition-colors"
+                className="ui-input w-full px-4 py-2.5 text-sm"
                 placeholder="admin 或 your@email.com"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1.5">密码</label>
+              <label className="mb-1.5 block text-sm font-medium text-ink-secondary">密码</label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:border-[#2563eb] focus:bg-white transition-colors"
+                className="ui-input w-full px-4 py-2.5 text-sm"
                 placeholder="••••••••"
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-lg bg-[#2563eb] text-white text-sm font-medium hover:bg-[#1d4ed8] transition-colors disabled:opacity-50"
+              className="ui-button-primary w-full"
             >
               {loading ? "登录中..." : "登录"}
             </button>
           </form>
 
-          <p className="text-sm text-slate-500 text-center mt-6">
+          <p className="mt-6 text-center text-sm text-ink-muted">
             还没有账号？{" "}
-            <Link href="/auth/register" className="text-[#2563eb] hover:underline font-medium">
+            <Link href="/auth/register" className="ui-link">
               注册
             </Link>
           </p>

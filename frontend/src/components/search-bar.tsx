@@ -4,8 +4,8 @@ import { Search } from "lucide-react";
 
 export function SearchBar() {
   return (
-    <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-sm border border-grid w-60 lg:w-72 focus-within:border-ink/40 transition-colors">
-      <Search className="h-3.5 w-3.5 text-ink-muted" />
+    <div className="ui-input flex w-60 items-center gap-2 px-3.5 lg:w-72">
+      <Search className="h-4 w-4 text-ink-muted" />
       <input
         type="text"
         placeholder="搜索技术项目、方案或友商..."

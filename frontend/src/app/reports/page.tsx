@@ -144,9 +144,9 @@ export default function ReportsPage() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case "completed": return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
-      case "processing": return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
-      case "failed": return <AlertCircle className="h-4 w-4 text-red-500" />;
+      case "completed": return <CheckCircle2 className="h-4 w-4 text-primary" />;
+      case "processing": return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+      case "failed": return <AlertCircle className="h-4 w-4 text-warning" />;
       default: return <Clock className="h-4 w-4 text-ink-muted" />;
     }
   };
@@ -173,7 +173,7 @@ export default function ReportsPage() {
               <h4 className="text-sm font-semibold text-ink mb-3">市场指标</h4>
               <div className="grid grid-cols-3 gap-3">
                 {Object.entries(summaryMetrics).map(([k, v]) => (
-                  <div key={k} className="bg-slate-50 border border-slate-200/60 rounded-lg p-3 text-center">
+                  <div key={k} className="rounded-lg bg-surface-subtle p-3 text-center">
                     <p className="text-xs text-ink-muted mb-1">{k}</p>
                     <p className="text-lg font-bold text-ink">{typeof v === "number" ? v : String(v)}</p>
                   </div>
@@ -186,7 +186,7 @@ export default function ReportsPage() {
               <h4 className="text-sm font-semibold text-ink mb-3">核心结论</h4>
               <div className="space-y-2">
                 {result.takeaways.map((t, i) => (
-                  <div key={i} className="bg-white border border-slate-200/60 rounded-lg p-4">
+                  <div key={i} className="rounded-lg bg-surface-subtle p-4">
                     <p className="text-sm text-ink-secondary leading-relaxed">{typeof t === "string" ? t : JSON.stringify(t)}</p>
                   </div>
                 ))}
@@ -196,7 +196,7 @@ export default function ReportsPage() {
           {typeof result.detailed_report === "string" && result.detailed_report && (
             <div>
               <h4 className="text-sm font-semibold text-ink mb-3">详细报告</h4>
-              <div className="prose prose-slate max-w-none bg-white border border-slate-200/60 rounded-lg p-6">
+              <div className="prose max-w-none rounded-xl bg-surface-subtle p-5">
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">{result.detailed_report}</p>
               </div>
             </div>
@@ -204,7 +204,7 @@ export default function ReportsPage() {
           {Boolean(result.strategies) && (
             <div>
               <h4 className="text-sm font-semibold text-ink mb-3">战略建议</h4>
-              <div className="bg-white border border-slate-200/60 rounded-lg p-4">
+              <div className="rounded-lg bg-surface-subtle p-4">
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">
                   {typeof result.strategies === "string" ? result.strategies : JSON.stringify(result.strategies, null, 2)}
                 </p>
@@ -216,7 +216,7 @@ export default function ReportsPage() {
     }
     // Fallback: render raw JSON
     return (
-      <div className="bg-white border border-slate-200/60 rounded-lg p-6">
+      <div className="ui-card">
         <pre className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap overflow-auto">
           {JSON.stringify(result, null, 2)}
         </pre>
@@ -227,7 +227,7 @@ export default function ReportsPage() {
   const totalPages = Math.ceil(total / pageSize) || 1;
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <SectionHeader
         badge="Reports"
         title="深度研报"
@@ -235,7 +235,7 @@ export default function ReportsPage() {
         action={
           <button
             onClick={() => setShowNew(true)}
-            className="flex items-center gap-2 rounded-lg bg-ink px-5 py-2 text-xs font-semibold text-paper hover:bg-ink-secondary transition-colors"
+            className="ui-button-primary"
           >
             <Plus className="h-4 w-4" />
             新建分析
@@ -246,9 +246,9 @@ export default function ReportsPage() {
       {/* Task processing indicator */}
       {taskId && taskStatus && (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${
-          taskStatus === "completed" ? "bg-emerald-50 border-emerald-200" :
-          taskStatus === "failed" ? "bg-red-50 border-red-200" :
-          "bg-blue-50 border-blue-200"
+          taskStatus === "completed" ? "bg-primary-soft border-primary/20" :
+          taskStatus === "failed" ? "bg-warning-soft border-warning/20" :
+          "bg-primary-soft border-primary/20"
         }`}>
           {statusIcon(taskStatus)}
           <span className="text-sm font-medium text-ink">
@@ -257,14 +257,14 @@ export default function ReportsPage() {
             {taskStatus === "failed" && "分析失败，请重试"}
             {taskStatus === "pending" && "任务排队中..."}
           </span>
-          {taskStatus === "processing" && <Loader2 className="h-4 w-4 text-blue-500 animate-spin ml-auto" />}
+          {taskStatus === "processing" && <Loader2 className="h-4 w-4 text-primary animate-spin ml-auto" />}
         </div>
       )}
 
       {/* New analysis form */}
       {showNew && (
-        <div className="bg-white border border-slate-200/60 rounded-lg p-6 space-y-4">
-          <h3 className="text-sm font-semibold text-ink">新建 AI 分析任务</h3>
+        <div className="ui-card space-y-4">
+          <h3 className="type-h3 text-ink">新建 AI 分析任务</h3>
           <div>
             <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">分析标题</label>
             <input
@@ -272,7 +272,7 @@ export default function ReportsPage() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="例：2026年新能源汽车市场深度洞察"
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors"
+              className="ui-input w-full px-3.5 py-2 text-sm"
             />
           </div>
           <div>
@@ -282,12 +282,12 @@ export default function ReportsPage() {
               onChange={(e) => setNewKeyword(e.target.value)}
               placeholder="输入技术、解决方案或友商名称，AI 将基于平台数据生成深度分析报告"
               rows={4}
-              className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors resize-none"
+              className="ui-input w-full resize-none px-3.5 py-2 text-sm"
             />
           </div>
           <div className="flex justify-end gap-2">
-            <button onClick={() => setShowNew(false)} className="px-4 py-2 rounded-lg text-xs font-medium border border-slate-200 text-ink-secondary hover:bg-slate-50 transition-colors">取消</button>
-            <button onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-semibold bg-ink text-paper hover:bg-ink-secondary transition-colors disabled:opacity-50">
+            <button onClick={() => setShowNew(false)} className="ui-button-secondary">取消</button>
+            <button onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="ui-button-primary">
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               开始分析
             </button>
@@ -298,14 +298,14 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Report List */}
         <div className="lg:col-span-1">
-          <div className="bg-white border border-slate-200/60 rounded-lg overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-              <h3 className="text-sm font-semibold text-ink">报告列表</h3>
+          <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-grid/60">
+              <h3 className="type-h3 text-ink">报告列表</h3>
               <button onClick={fetchReports} className="text-ink-muted hover:text-ink transition-colors">
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
+            <div className="divide-y divide-grid/60 max-h-[600px] overflow-y-auto">
               {loading ? (
                 <div className="p-6 text-center text-ink-muted text-sm">加载中...</div>
               ) : reports.length === 0 ? (
@@ -319,7 +319,7 @@ export default function ReportsPage() {
                   <button
                     key={r.id}
                     onClick={() => setSelectedId(r.id)}
-                    className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors ${selectedId === r.id ? "bg-slate-50 border-l-2 border-l-ink" : ""}`}
+                    className={`w-full text-left px-4 py-3 hover:bg-surface-subtle transition-colors ${selectedId === r.id ? "bg-surface-subtle border-l-2 border-l-ink" : ""}`}
                   >
                     <div className="flex items-start gap-2">
                       {statusIcon(r.status)}
@@ -334,7 +334,7 @@ export default function ReportsPage() {
             </div>
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between px-4 py-2 border-t border-slate-100 text-xs text-ink-muted">
+              <div className="flex items-center justify-between px-4 py-2 border-t border-grid/60 text-xs text-ink-muted">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="hover:text-ink disabled:opacity-30">上一页</button>
                 <span>{page} / {totalPages}</span>
                 <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="hover:text-ink disabled:opacity-30">下一页</button>
@@ -346,18 +346,18 @@ export default function ReportsPage() {
         {/* Report Detail */}
         <div className="lg:col-span-2">
           {!selectedId ? (
-            <div className="bg-white border border-slate-200/60 rounded-lg p-12 text-center">
+            <div className="ui-card !p-12 text-center">
               <FileText className="h-12 w-12 text-ink-muted mx-auto mb-3" />
               <p className="text-ink-secondary">选择左侧报告查看详情</p>
             </div>
           ) : detailLoading ? (
-            <div className="bg-white border border-slate-200/60 rounded-lg p-12 text-center">
+            <div className="ui-card !p-12 text-center">
               <Loader2 className="h-8 w-8 text-ink-muted mx-auto animate-spin" />
             </div>
           ) : detail ? (
-            <div className="bg-white border border-slate-200/60 rounded-lg overflow-hidden">
+            <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
               {/* Header */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-grid/60 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     {statusIcon(detail.status)}
@@ -365,12 +365,12 @@ export default function ReportsPage() {
                     <span className="text-xs text-ink-muted">•</span>
                     <span className="text-xs text-ink-muted">{formatDate(detail.created_at)}</span>
                   </div>
-                  <h2 className="text-lg font-semibold text-ink">{detail.title}</h2>
+                  <h2 className="type-h2 text-ink">{detail.title}</h2>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleDelete(detail.id)}
-                    className="p-2 rounded-lg hover:bg-red-50 text-ink-muted hover:text-red-500 transition-colors"
+                    className="p-2 rounded-lg hover:bg-warning-soft text-ink-muted hover:text-warning transition-colors"
                     title="删除报告"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -380,16 +380,16 @@ export default function ReportsPage() {
               {/* Content */}
               <div className="p-6">
                 {detail.status === "failed" ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="bg-warning-soft border border-warning/20 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
-                      <AlertCircle className="h-4 w-4 text-red-500" />
-                      <span className="text-sm font-semibold text-red-700">分析失败</span>
+                      <AlertCircle className="h-4 w-4 text-warning" />
+                      <span className="text-sm font-semibold text-warning">分析失败</span>
                     </div>
-                    <p className="text-sm text-red-600">{detail.error || "未知错误"}</p>
+                    <p className="text-sm text-warning">{detail.error || "未知错误"}</p>
                   </div>
                 ) : detail.status === "processing" ? (
                   <div className="text-center py-12">
-                    <Loader2 className="h-8 w-8 text-blue-500 mx-auto animate-spin mb-3" />
+                    <Loader2 className="h-8 w-8 text-primary mx-auto animate-spin mb-3" />
                     <p className="text-sm text-ink-secondary">AI 正在生成分析报告...</p>
                     <p className="text-xs text-ink-muted mt-1">通常需要 30-60 秒</p>
                   </div>

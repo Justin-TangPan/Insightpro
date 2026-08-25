@@ -32,10 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div id="sidebar-overlay" className="hidden fixed inset-0 bg-black/40 z-30 lg:hidden" />
 
           {/* Main */}
-          <main className="flex-1 lg:pl-[250px]">
-            {/* Header — 瑞士式发丝线顶栏 */}
-            <header className="sticky top-0 z-10 bg-paper border-b border-grid">
-              <div className="flex h-14 items-center justify-between px-4 lg:px-10">
+          <main className="min-w-0 flex-1 lg:pl-[250px]">
+            <header className="sticky top-0 z-10 border-b border-grid/70 bg-paper/90 backdrop-blur-xl">
+              <div className="flex h-16 items-center justify-between px-[var(--page-gutter)]">
                 <div className="flex items-center gap-3">
                   <MobileNavTrigger />
                   <SearchBar />
@@ -45,16 +44,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <p className="swiss-kicker text-ink-muted mb-0.5">Today</p>
                     <p className="text-sm font-semibold text-ink tracking-tight leading-tight">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                   </div>
-                  <div className="h-6 w-px bg-grid hidden sm:block" />
-                  <button className="relative h-8 w-8 rounded-sm bg-white border border-grid flex items-center justify-center hover:border-ink/40 transition-colors">
-                    <Bell className="h-3.5 w-3.5 text-ink-secondary" />
-                    <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-signal border-[1.5px] border-paper" />
+                  <div className="hidden h-6 w-px bg-grid sm:block" />
+                  <button aria-label="查看通知" className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white text-ink-secondary shadow-[var(--shadow-card)] transition-colors hover:bg-primary-soft hover:text-primary">
+                    <Bell className="h-4 w-4" />
+                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warning ring-2 ring-white" />
                   </button>
                 </div>
               </div>
             </header>
 
-            <div className="p-8 lg:p-12 max-w-[1440px] mx-auto">{children}</div>
+            <div className="page-shell">{children}</div>
           </main>
         </div>
         <Script src="/chat.js" strategy="afterInteractive" />

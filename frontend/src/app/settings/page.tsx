@@ -198,7 +198,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="page-stack">
       <SectionHeader
         badge="Settings"
         title="系统设置"
@@ -207,39 +207,39 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Profile */}
-        <div className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+        <div className="ui-card">
+          <div className="ui-card-header">
             <User className="h-4 w-4 text-ink-muted" />
-            <h3 className="font-semibold text-sm text-ink">用户信息</h3>
+            <h3 className="type-h3 text-ink">用户信息</h3>
           </div>
           <div className="space-y-3.5">
             <div>
               <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">用户名</label>
-              <input type="text" defaultValue="Justin Tang" className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="text" defaultValue="Justin Tang" className="ui-input w-full px-3.5 py-2 text-sm" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">邮箱</label>
-              <input type="email" defaultValue="1315304560@qq.com" className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="email" defaultValue="1315304560@qq.com" className="ui-input w-full px-3.5 py-2 text-[13px]" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">套餐</label>
-              <div className="px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-semibold text-ink flex items-center gap-2">
+              <div className="px-3.5 py-2 rounded-lg border border-grid bg-surface-subtle text-[13px] font-semibold text-ink flex items-center gap-2">
                 Premium Plan
-                <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-semibold">Active</span>
+                <span className="ui-tag">Active</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Notification */}
-        <div className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+        <div className="ui-card">
+          <div className="ui-card-header">
             <Bell className="h-4 w-4 text-ink-muted" />
-            <h3 className="font-semibold text-sm text-ink">通知设置</h3>
+            <h3 className="type-h3 text-ink">通知设置</h3>
           </div>
           <div className="space-y-0.5">
             {notifications.map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+              <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2.5 odd:bg-surface-subtle/60">
                 <div>
                   <p className="text-sm font-medium text-ink">{item.label}</p>
                   <p className="text-xs text-ink-muted mt-0.5">{item.desc}</p>
@@ -247,7 +247,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => handleToggle(i)}
-                  className={`relative w-9 h-5 rounded-full cursor-pointer transition-colors ${toggles[i] ? "bg-slate-900" : "bg-slate-200"}`}
+                  className={`relative w-9 h-5 rounded-full cursor-pointer transition-colors ${toggles[i] ? "bg-primary" : "bg-grid"}`}
                 >
                   <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${toggles[i] ? "translate-x-[18px]" : "translate-x-0.5"}`} />
                 </button>
@@ -257,18 +257,18 @@ export default function SettingsPage() {
         </div>
 
         {/* Email Subscription */}
-        <div className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm lg:col-span-2">
-          <div className="mb-4 flex flex-col gap-3 border-b border-slate-100 pb-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="ui-card lg:col-span-2">
+          <div className="ui-card-header flex-col sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
               <Mail className="h-4 w-4 text-ink-muted" />
-              <h3 className="serif-heading text-sm text-ink">邮件订阅管理</h3>
+              <h3 className="type-h3 text-ink">邮件订阅管理</h3>
               <span className="text-[10px] font-medium text-ink-muted">每位订阅者独立排期</span>
             </div>
             <div className="flex gap-2 self-start">
               <button
                 onClick={handlePreview}
                 disabled={previewing}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
+                className="ui-button-secondary"
               >
                 <Eye className="h-3 w-3" />
                 {previewing ? "生成中..." : "预览邮件"}
@@ -277,7 +277,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Add subscriber */}
-          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+          <div className="mb-4 rounded-xl bg-surface-subtle p-4">
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
               <input
                 type="email"
@@ -285,7 +285,7 @@ export default function SettingsPage() {
                 placeholder="收件人邮箱"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-ink outline-none transition-colors focus:border-slate-400"
+                className="ui-input px-3.5 py-2 text-[13px]"
               />
               <input
                 type="text"
@@ -293,12 +293,12 @@ export default function SettingsPage() {
                 placeholder="姓名（可选）"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-[13px] text-ink outline-none transition-colors focus:border-slate-400"
+                className="ui-input px-3.5 py-2 text-[13px]"
               />
               <button
                 onClick={handleSubscribe}
                 disabled={!newEmail || !newWeekdays.length}
-                className="flex items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                className="ui-button-primary"
               >
                 <Plus className="h-3.5 w-3.5" />
                 添加订阅
@@ -313,7 +313,7 @@ export default function SettingsPage() {
                     type="button"
                     aria-pressed={newWeekdays.includes(day)}
                     onClick={() => toggleNewWeekday(day)}
-                    className={`h-7 w-7 rounded-md text-[11px] font-semibold transition-colors ${newWeekdays.includes(day) ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-ink-muted hover:border-slate-300"}`}
+                    className={`h-7 w-7 rounded-md text-[11px] font-semibold transition-colors ${newWeekdays.includes(day) ? "bg-primary text-white" : "border border-grid bg-white text-ink-muted hover:border-primary/30"}`}
                   >
                     {label}
                   </button>
@@ -326,16 +326,16 @@ export default function SettingsPage() {
                   type="time"
                   value={newSendTime}
                   onChange={(e) => setNewSendTime(e.target.value)}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-ink outline-none focus:border-slate-400"
+                  className="ui-input px-2.5 py-1.5 text-xs"
                 />
               </label>
             </div>
           </div>
 
           {emailStatus && (
-            <div role="status" className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 ${emailError ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"}`}>
-              <CheckCircle2 className={`h-3.5 w-3.5 ${emailError ? "text-rose-600" : "text-emerald-600"}`} />
-              <span className={`text-xs ${emailError ? "text-rose-700" : "text-emerald-700"}`}>{emailStatus}</span>
+            <div role="status" className={`mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 ${emailError ? "border-warning/20 bg-warning-soft" : "border-primary/20 bg-primary-soft"}`}>
+              <CheckCircle2 className={`h-3.5 w-3.5 ${emailError ? "text-warning" : "text-primary"}`} />
+              <span className={`text-xs ${emailError ? "text-warning" : "text-primary"}`}>{emailStatus}</span>
             </div>
           )}
 
@@ -345,17 +345,17 @@ export default function SettingsPage() {
               <div className="text-center py-6">
                 <p className="text-sm text-ink-muted">{subscriberError || "暂无订阅者"}</p>
                 {subscriberError && (
-                  <a href="/auth/login" className="mt-2 inline-flex rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                  <a href="/auth/login" className="mt-2 inline-flex rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white">
                     登录后查看订阅者
                   </a>
                 )}
               </div>
             ) : (
               subscribers.map((sub) => (
-                <div key={sub.id} className="rounded-xl border border-slate-200 px-3.5 py-3 transition-colors hover:border-slate-300">
+                <div key={sub.id} className="rounded-xl bg-surface-subtle/70 px-4 py-3.5 transition-colors hover:bg-primary-soft/60">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div className="flex min-w-0 items-center gap-3 lg:w-64">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-ink-muted">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-[10px] font-bold text-ink-muted">
                         {(sub.name || sub.email)[0].toUpperCase()}
                       </div>
                       <div className="min-w-0">
@@ -371,7 +371,7 @@ export default function SettingsPage() {
                           type="button"
                           aria-pressed={sub.weekdays.includes(day)}
                           onClick={() => toggleSubscriberWeekday(sub, day)}
-                          className={`h-7 w-7 rounded-md text-[11px] font-semibold transition-colors ${sub.weekdays.includes(day) ? "bg-emerald-700 text-white" : "border border-slate-200 text-ink-muted hover:border-slate-300"}`}
+                          className={`h-7 w-7 rounded-md text-[11px] font-semibold transition-colors ${sub.weekdays.includes(day) ? "bg-primary text-white" : "border border-grid text-ink-muted hover:border-primary/30"}`}
                         >
                           {label}
                         </button>
@@ -381,7 +381,7 @@ export default function SettingsPage() {
                         aria-label={`${sub.email} 投递时间`}
                         value={sub.send_time}
                         onChange={(e) => updateSubscriberDraft(sub.id, { send_time: e.target.value })}
-                        className="ml-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-xs text-ink outline-none focus:border-slate-400"
+                        className="ml-1 rounded-md border border-grid bg-white px-2 py-1.5 text-xs text-ink outline-none focus:border-primary/50"
                       />
                     </div>
 
@@ -389,21 +389,21 @@ export default function SettingsPage() {
                       <button
                         onClick={() => handleUpdateSubscriber(sub)}
                         disabled={savingId === sub.id}
-                        className="rounded-md border border-slate-200 px-2.5 py-1.5 text-[11px] font-semibold text-ink-secondary transition-colors hover:bg-slate-50 disabled:opacity-50"
+                        className="ui-button-secondary !min-h-8 !px-2.5 !py-1.5 text-[11px]"
                       >
                         {savingId === sub.id ? "保存中" : "保存排期"}
                       </button>
                       <button
                         onClick={() => handleSendSubscriber(sub)}
                         disabled={sendingId === sub.id}
-                        className="flex items-center gap-1 rounded-md bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-slate-800 disabled:opacity-50"
+                        className="ui-button-primary !min-h-8 !px-2.5 !py-1.5 text-[11px]"
                       >
                         <Send className="h-3 w-3" />
                         {sendingId === sub.id ? "发送中" : "立即发送"}
                       </button>
                       <button
                         onClick={() => handleRemove(sub.email)}
-                        className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-rose-50 hover:text-rose-500"
+                        className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-warning-soft hover:text-warning"
                         aria-label={`删除 ${sub.email}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -417,16 +417,16 @@ export default function SettingsPage() {
         </div>
 
         {/* Data Sources */}
-        <div className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+        <div className="ui-card">
+          <div className="ui-card-header">
             <Database className="h-4 w-4 text-ink-muted" />
-            <h3 className="font-semibold text-sm text-ink">数据源配置</h3>
+            <h3 className="type-h3 text-ink">数据源配置</h3>
           </div>
           <div className="space-y-0.5">
             {dataSources.map((src, i) => (
-              <div key={i} className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+              <div key={i} className="flex items-center justify-between rounded-lg px-3 py-2.5 odd:bg-surface-subtle/60">
                 <span className="text-sm font-medium text-ink">{src.name}</span>
-                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${src.ok ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                <span className={`ui-tag ${src.ok ? "" : "ui-tag-warning"}`}>
                   {src.status}
                 </span>
               </div>
@@ -435,37 +435,37 @@ export default function SettingsPage() {
         </div>
 
         {/* Security */}
-        <div className="rounded-lg bg-white border border-slate-200/80 p-5 shadow-sm">
-          <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-slate-100">
+        <div className="ui-card">
+          <div className="ui-card-header">
             <Shield className="h-4 w-4 text-ink-muted" />
-            <h3 className="font-semibold text-sm text-ink">安全设置</h3>
+            <h3 className="type-h3 text-ink">安全设置</h3>
           </div>
           <div className="space-y-3.5">
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">API Key</label>
-              <input type="password" defaultValue="••••••••" disabled className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="password" defaultValue="••••••••" disabled className="ui-input w-full bg-surface-subtle px-3.5 py-2 font-mono text-[13px]" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">数据库连接</label>
-              <input type="password" defaultValue="postgresql://••••••••" disabled className="w-full px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 text-[13px] font-mono text-ink focus:outline-none focus:border-slate-300 focus:bg-white transition-colors" />
+              <input type="password" defaultValue="postgresql://••••••••" disabled className="ui-input w-full bg-surface-subtle px-3.5 py-2 font-mono text-[13px]" />
             </div>
           </div>
         </div>
       </div>
 
       {previewHtml && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="邮件预览">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="邮件预览">
           <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+            <div className="flex items-center justify-between border-b border-grid px-5 py-3">
               <div>
                 <h2 className="text-sm font-semibold text-ink">每日洞察邮件预览</h2>
                 <p className="text-xs text-ink-muted">以下内容与正式发送版本一致</p>
               </div>
-              <button onClick={() => setPreviewHtml("")} className="rounded-lg p-2 text-ink-muted hover:bg-slate-100 hover:text-ink" aria-label="关闭邮件预览">
+              <button onClick={() => setPreviewHtml("")} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink" aria-label="关闭邮件预览">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <iframe title="每日洞察邮件" srcDoc={previewHtml} sandbox="" className="min-h-0 flex-1 bg-slate-100" />
+            <iframe title="每日洞察邮件" srcDoc={previewHtml} sandbox="" className="min-h-0 flex-1 bg-surface-subtle" />
           </div>
         </div>
       )}
@@ -474,7 +474,7 @@ export default function SettingsPage() {
       <div className="flex justify-end">
         <button
           onClick={handleSave}
-          className="flex items-center gap-2 rounded-lg bg-slate-900 px-6 py-2.5 text-[13px] font-semibold text-white hover:bg-slate-800 transition-colors"
+          className="ui-button-primary px-6"
         >
           {saved ? <><RefreshCw className="h-4 w-4" /> 已保存</> : <><Save className="h-4 w-4" /> 保存设置</>}
         </button>

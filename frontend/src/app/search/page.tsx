@@ -53,12 +53,12 @@ function SearchContent() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <SectionHeader badge="Search" title="全局搜索" subtitle="搜索技术项目、解决方案与友商动态" />
 
       {/* Search Input */}
       <div className="flex gap-3">
-        <div className="flex-1 flex items-center gap-2 bg-white px-4 py-3 rounded-lg border border-slate-200 focus-within:border-ink/40 transition-colors">
+        <div className="ui-input flex flex-1 items-center gap-2 px-4 py-3">
           <Search className="h-4 w-4 text-ink-muted" />
           <input
             type="text"
@@ -73,7 +73,7 @@ function SearchContent() {
         <button
           onClick={() => handleSearch()}
           disabled={loading || !query.trim()}
-          className="flex items-center gap-2 px-6 py-3 rounded-lg bg-ink text-paper text-sm font-semibold hover:bg-ink-secondary transition-colors disabled:opacity-50"
+          className="ui-button-primary px-6"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           搜索
@@ -101,9 +101,9 @@ function SearchContent() {
                 key={i}
                 href={r.url || "#"}
                 target={r.url ? "_blank" : undefined}
-                className="flex items-start gap-3 bg-white border border-slate-200/60 rounded-lg p-4 hover:bg-slate-50 transition-colors"
+                className="ui-card ui-card-interactive flex items-start gap-3"
               >
-                <div className={`h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 shrink-0 ${config.color}`}>
+                <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft ${config.color}`}>
                   <Icon className="h-4 w-4" />
                 </div>
                 <div className="flex-1 min-w-0">

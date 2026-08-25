@@ -106,7 +106,7 @@ export default function SolutionInsightsPage() {
   const activeDirectory = directory.find((group) => group.name === activeRoot);
 
   return (
-    <div className="space-y-8">
+    <div className="page-stack">
       <SectionHeader
         badge="Solution Intelligence"
         title="解决方案洞察"
@@ -121,7 +121,7 @@ export default function SolutionInsightsPage() {
               type="button"
               onClick={refresh}
               disabled={refreshing}
-              className="flex items-center gap-2 bg-ink px-4 py-2 text-xs font-semibold text-paper transition-colors hover:bg-signal disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+              className="ui-button-primary"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? "正在检查" : "立即检查更新"}
@@ -130,14 +130,14 @@ export default function SolutionInsightsPage() {
         }
       />
 
-      <div className="grid gap-px border border-grid bg-grid sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "当前方案", value: data?.count ?? 0, unit: "项" },
           { label: "近 7 日更新", value: data?.recent_count ?? 0, unit: "项" },
           { label: "一级领域", value: directory.length, unit: "类" },
           { label: "最近检查", value: data?.last_checked?.slice(5) || "—", unit: "日期" },
         ].map((stat) => (
-          <div key={stat.label} className="bg-white p-5">
+          <div key={stat.label} className="ui-card flex min-h-36 flex-col justify-end">
             <p className="swiss-kicker text-ink-muted">{stat.label}</p>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="serif-stat text-3xl text-ink">{stat.value}</span>
@@ -148,23 +148,23 @@ export default function SolutionInsightsPage() {
       </div>
 
       {error && (
-        <div role="alert" className="border-l-4 border-signal bg-white px-5 py-4 text-sm text-ink-secondary">
+        <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">
           {error}。系统仍会在每天 09:00 自动检查。
         </div>
       )}
 
-      <section className="border border-grid bg-white">
-        <div className="flex flex-col gap-4 border-b border-grid px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
+        <div className="flex flex-col gap-4 bg-surface-subtle px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="swiss-kicker text-signal">Change-first catalog</p>
-            <h2 className="mt-1 text-2xl font-bold tracking-tight text-ink">阿里云技术解决方案全量目录</h2>
+            <p className="swiss-kicker text-primary">Change-first catalog</p>
+            <h2 className="mt-1 type-h2 text-ink">阿里云技术解决方案全量目录</h2>
           </div>
           {data?.source && (
             <a
               href={data.source}
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2 text-xs font-semibold text-ink-muted hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+              className="ui-link flex items-center gap-2 text-xs"
             >
               查看官方来源 <ArrowUpRight className="h-3.5 w-3.5" />
             </a>
@@ -172,26 +172,26 @@ export default function SolutionInsightsPage() {
         </div>
 
         {loading ? (
-          <div className="grid gap-px bg-grid md:grid-cols-2">
+          <div className="grid gap-3 bg-paper p-3 md:grid-cols-2">
             {Array.from({ length: 6 }).map((_, index) => (
               <div key={index} className="h-52 animate-shimmer bg-white" />
             ))}
           </div>
         ) : activeDirectory ? (
           <div className="grid lg:grid-cols-[240px_minmax(0,1fr)]">
-            <div className="border-b border-grid bg-paper p-4 lg:hidden">
+            <div className="bg-surface-subtle p-4 lg:hidden">
               <label htmlFor="solution-category" className="swiss-kicker text-ink-muted">选择一级领域</label>
               <select
                 id="solution-category"
                 value={activeRoot}
                 onChange={(event) => setSelectedRoot(event.target.value)}
-                className="mt-2 w-full border border-grid bg-white px-3 py-2.5 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+                className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold"
               >
                 {directory.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.count}）</option>)}
               </select>
             </div>
 
-            <aside className="hidden border-r border-grid bg-paper lg:block" aria-label="阿里云解决方案一级分类">
+            <aside className="hidden bg-surface-subtle lg:block" aria-label="阿里云解决方案一级分类">
               <div className="sticky top-6 p-4">
                 <p className="px-3 pb-3 swiss-kicker text-ink-muted">官方分类</p>
                 <nav className="space-y-1">
@@ -203,11 +203,11 @@ export default function SolutionInsightsPage() {
                         type="button"
                         onClick={() => setSelectedRoot(group.name)}
                         aria-current={active ? "page" : undefined}
-                        className={`flex w-full items-center justify-between border-l-4 px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal ${active ? "border-signal bg-white text-ink" : "border-transparent text-ink-muted hover:bg-white hover:text-ink"}`}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}
                       >
                         <span className="text-sm font-bold">{group.name}</span>
                         <span className="flex items-center gap-1 text-xs tabular-nums">
-                          {group.count}<ChevronRight className={`h-3.5 w-3.5 ${active ? "text-signal" : ""}`} />
+                          {group.count}<ChevronRight className={`h-3.5 w-3.5 ${active ? "text-primary" : ""}`} />
                         </span>
                       </button>
                     );
@@ -217,37 +217,37 @@ export default function SolutionInsightsPage() {
             </aside>
 
             <div className="min-w-0">
-              <header className="border-b border-grid bg-ink px-6 py-7 text-paper">
-                <p className="swiss-kicker text-lemon">Aliyun directory</p>
+              <header className="bg-primary-dark px-6 py-7 text-white">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">Aliyun directory</p>
                 <div className="mt-2 flex items-end justify-between gap-4">
-                  <h3 className="text-3xl font-bold tracking-tight">{activeDirectory.name}</h3>
-                  <span className="serif-stat text-4xl text-paper/40">{activeDirectory.count}</span>
+                  <h3 className="type-h2">{activeDirectory.name}</h3>
+                  <span className="serif-stat text-4xl text-white/35">{activeDirectory.count}</span>
                 </div>
-                <p className="mt-2 text-sm text-paper/60">按阿里云原生二级目录浏览，共 {activeDirectory.categories.length} 个分类</p>
+                <p className="mt-2 text-sm text-white/65">按阿里云原生二级目录浏览，共 {activeDirectory.categories.length} 个分类</p>
               </header>
 
               {activeDirectory.categories.map((category) => (
                 <section key={category.name}>
-                  <div className="flex items-center justify-between border-b border-grid bg-paper px-6 py-4">
-                    <h4 className="text-lg font-bold text-ink">{category.name}</h4>
+                  <div className="flex items-center justify-between bg-surface-subtle px-6 py-4">
+                    <h4 className="type-h3 text-ink">{category.name}</h4>
                     <span className="text-xs font-semibold tabular-nums text-ink-muted">{category.items.length} 项</span>
                   </div>
-                  <div className="grid gap-px bg-grid xl:grid-cols-2">
+                  <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">
                     {category.items.map((item) => (
                       <article
                         key={item.url}
-                        className={`relative bg-white p-6 transition-colors hover:bg-paper ${item.is_recent ? "border-l-4 border-signal" : "border-l-4 border-transparent"}`}
+                        className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]"
                       >
                         <div className="flex min-h-7 items-start justify-between gap-5">
                           <p className="swiss-kicker text-ink-muted">{category.name}</p>
                           {item.is_recent && (
-                            <span className="flex shrink-0 items-center gap-1 bg-signal px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                            <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider">
                               <Sparkles className="h-3 w-3" />
                               {item.change_type === "new" ? "新增置顶" : "更新置顶"}
                             </span>
                           )}
                         </div>
-                        <h5 className="mt-3 text-xl font-bold leading-snug tracking-tight text-ink">{item.title}</h5>
+                        <h5 className="mt-3 type-h3 text-ink">{item.title}</h5>
                         <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary">
                           {item.summary}
                         </p>
@@ -259,7 +259,7 @@ export default function SolutionInsightsPage() {
                             target="_blank"
                             rel="noreferrer"
                             aria-label={`查看阿里云方案：${item.title}`}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-ink hover:text-signal focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+                            className="ui-link flex items-center gap-1.5 text-xs"
                           >
                             查看方案 <ArrowUpRight className="h-3.5 w-3.5" />
                           </a>

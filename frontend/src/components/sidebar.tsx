@@ -47,11 +47,11 @@ export function Sidebar() {
   return (
     <aside
       id="sidebar"
-      className="fixed left-0 top-0 h-full w-[250px] flex-col bg-paper border-r border-grid z-40 -translate-x-full lg:translate-x-0 flex transition-transform duration-200"
+      className="fixed left-0 top-0 z-40 flex h-full w-[250px] -translate-x-full flex-col border-r border-grid/70 bg-surface-subtle transition-transform duration-200 lg:translate-x-0"
     >
-      <div className="h-[68px] flex items-center px-6 border-b border-grid">
+      <div className="flex h-16 items-center px-5">
         <Link href="/" onClick={closeMobile} className="flex items-center gap-2.5 group">
-          <div className="h-9 w-9 bg-ink flex items-center justify-center text-paper font-bold text-lg">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-lg font-bold text-white shadow-[0_8px_18px_rgba(23,107,70,0.18)]">
             I
           </div>
           <div className="flex flex-col gap-[3px]">
@@ -61,26 +61,26 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 px-3 py-4 overflow-y-auto" onClick={closeMobile}>
-        <div className="space-y-1">
+      <nav className="flex-1 overflow-y-auto px-3 py-5" onClick={closeMobile}>
+        <div className="space-y-1.5">
           {navItems.map((item, index) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 border-l-2 px-3 py-3 transition-colors ${
+                className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${
                   active
-                    ? "border-ink bg-white text-ink"
-                    : "border-transparent text-ink-muted hover:bg-white hover:text-ink"
+                    ? "bg-white text-primary shadow-[var(--shadow-card)]"
+                    : "text-ink-muted hover:bg-white/70 hover:text-ink"
                 }`}
               >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center border border-grid bg-paper">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary-soft text-primary" : "bg-white/60"}`}>
                   <item.icon className="h-4 w-4" strokeWidth={1.5} />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
                     <span className="text-sm font-semibold">{item.label}</span>
                   </div>
                   <p className="mt-0.5 truncate text-xs text-ink-muted">{item.description}</p>
@@ -91,7 +91,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      <div className="border-t border-grid p-5">
+      <div className="m-3 rounded-xl bg-white/70 p-3">
         {loading ? (
           <div className="flex items-center gap-2.5">
             <div className="h-8 w-8 rounded-full bg-grid animate-pulse" />
@@ -103,7 +103,7 @@ export function Sidebar() {
         ) : user ? (
           <>
             <div className="flex items-center gap-2.5 mb-2.5">
-              <div className="h-8 w-8 rounded-full bg-ink flex items-center justify-center text-paper text-[11px] font-bold">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
                 {userInitials}
               </div>
               <div className="flex-1 overflow-hidden">
@@ -113,7 +113,7 @@ export function Sidebar() {
             </div>
             <button
               onClick={async () => { await signOut(); window.location.href = "/"; }}
-              className="w-full flex items-center px-2.5 py-1.5 text-xs text-ink-muted hover:text-ink transition-colors"
+              className="flex w-full items-center rounded-lg px-2.5 py-2 text-xs text-ink-muted transition-colors hover:bg-primary-soft hover:text-primary"
             >
               <LogOut className="mr-2 h-3.5 w-3.5" strokeWidth={1.5} />
               退出登录
@@ -129,7 +129,7 @@ export function Sidebar() {
                 <p className="text-sm text-ink-secondary">未登录</p>
               </div>
             </div>
-            <Link href="/auth/login" onClick={closeMobile} className="flex items-center px-2.5 py-1.5 text-xs text-ink hover:bg-white transition-colors font-semibold">
+            <Link href="/auth/login" onClick={closeMobile} className="ui-button-primary w-full">
               <LogIn className="mr-2 h-3.5 w-3.5" strokeWidth={1.5} />
               登录 / 注册
             </Link>

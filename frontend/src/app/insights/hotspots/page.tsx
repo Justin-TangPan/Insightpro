@@ -62,10 +62,10 @@ const evalDimensions = [
 ] as const;
 
 const levelStyles: Record<string, string> = {
-  "强烈推荐": "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "值得做": "bg-amber-50 text-amber-700 border-amber-200",
-  "勉强": "bg-orange-50 text-orange-700 border-orange-200",
-  "不建议": "bg-rose-50 text-rose-700 border-rose-200",
+  "强烈推荐": "bg-primary-soft text-primary border-primary/20",
+  "值得做": "bg-warning-soft text-warning border-warning/20",
+  "勉强": "bg-warning-soft text-warning border-warning/20",
+  "不建议": "bg-warning-soft text-warning border-warning/20",
 };
 
 function levelClass(level: string) {
@@ -82,12 +82,12 @@ const periods = [
 ];
 
 const langColors: Record<string, string> = {
-  Python: "bg-blue-500", TypeScript: "bg-blue-600", JavaScript: "bg-yellow-400",
-  Rust: "bg-orange-700", Go: "bg-cyan-500", Java: "bg-red-600",
-  "C++": "bg-pink-500", C: "bg-gray-500", Ruby: "bg-red-500",
-  PHP: "bg-purple-500", Shell: "bg-green-500", Kotlin: "bg-purple-600",
-  Swift: "bg-orange-500", Dart: "bg-blue-400", Vue: "bg-green-400",
-  Svelte: "bg-orange-600", Jupyter: "bg-orange-400",
+  Python: "bg-primary", TypeScript: "bg-primary-dark", JavaScript: "bg-primary-light",
+  Rust: "bg-ink-secondary", Go: "bg-primary", Java: "bg-primary-dark",
+  "C++": "bg-primary-light", C: "bg-ink-muted", Ruby: "bg-primary",
+  PHP: "bg-primary-dark", Shell: "bg-primary-light", Kotlin: "bg-primary",
+  Swift: "bg-ink-secondary", Dart: "bg-primary-light", Vue: "bg-primary",
+  Svelte: "bg-primary-dark", Jupyter: "bg-ink-muted",
 };
 
 export default function HotspotsPage() {
@@ -213,7 +213,7 @@ export default function HotspotsPage() {
   } : evalSummary;
 
   return (
-    <div className="space-y-6">
+    <div className="page-stack">
       <SectionHeader
         badge="Tech Trends"
         title="技术热点追踪"
@@ -236,10 +236,10 @@ export default function HotspotsPage() {
             <button
               key={p.key}
               onClick={() => { setPeriod(p.key); setHistoryDate(""); }}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`ui-button-secondary ${
                 period === p.key
-                  ? "gradient-primary text-white shadow-md shadow-indigo-500/20"
-                  : "bg-white border border-slate-200/60 text-ink-secondary hover:border-primary/30 hover:text-primary"
+                  ? "!bg-primary !text-white !shadow-[0_8px_18px_rgba(23,107,70,0.18)]"
+                  : ""
               }`}
             >
               <p.icon className="h-3.5 w-3.5" />
@@ -250,10 +250,10 @@ export default function HotspotsPage() {
         <div className="flex gap-2">
           <button
             onClick={() => setShowHistory(!showHistory)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            className={`ui-button-secondary ${
               showHistory
-                ? "gradient-primary text-white shadow-md shadow-indigo-500/20"
-                : "bg-white border border-slate-200/60 text-ink-secondary hover:border-primary/30"
+                ? "!bg-primary !text-white"
+                : ""
             }`}
           >
             <CalendarDays className="h-3.5 w-3.5" />
@@ -262,7 +262,7 @@ export default function HotspotsPage() {
           <button
             onClick={handleRefresh}
             disabled={refreshing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200/60 text-ink-secondary hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50"
+            className="ui-button-secondary"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
             {refreshing ? "刷新中..." : "手动刷新"}
@@ -272,9 +272,9 @@ export default function HotspotsPage() {
 
       {/* History Panel */}
       {showHistory && (
-        <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)]">
+        <div className="ui-card">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-sm text-ink">历史抓取记录（近 14 天）</h3>
+            <h3 className="type-h3 text-ink">历史抓取记录（近 14 天）</h3>
             {historyDate && (
               <button onClick={() => setHistoryDate("")} className="text-xs font-semibold text-primary hover:underline">
                 ← 返回今日数据
@@ -283,7 +283,7 @@ export default function HotspotsPage() {
           </div>
           {historyLoading ? (
             <div className="grid grid-cols-7 gap-2">
-              {[...Array(7)].map((_, i) => <div key={i} className="h-14 bg-slate-100 animate-shimmer rounded-xl" />)}
+              {[...Array(7)].map((_, i) => <div key={i} className="h-14 bg-surface-subtle animate-shimmer rounded-xl" />)}
             </div>
           ) : history.length === 0 ? (
             <p className="text-sm text-ink-muted text-center py-6">暂无历史记录，明早 09:00 首次抓取</p>
@@ -295,8 +295,8 @@ export default function HotspotsPage() {
                   onClick={() => setHistoryDate(h.date === historyDate ? "" : h.date)}
                   className={`flex flex-col items-center px-3.5 py-2.5 rounded-xl transition-all ${
                     historyDate === h.date
-                      ? "gradient-primary text-white shadow-md shadow-indigo-500/20"
-                      : "bg-slate-50 border border-slate-200/60 hover:border-primary/30"
+                      ? "gradient-primary text-white shadow-md shadow-primary/20"
+                      : "bg-surface-subtle border border-grid hover:border-primary/30"
                   }`}
                 >
                   <span className="text-xs font-semibold uppercase tracking-wider">
@@ -313,7 +313,7 @@ export default function HotspotsPage() {
 
       {/* Date indicator */}
       {historyDate && (
-        <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-indigo-50 border border-indigo-200/60 rounded-xl px-4 py-2 w-fit">
+        <div className="flex items-center gap-2 text-sm font-semibold text-primary bg-primary-soft border border-primary/20 rounded-xl px-4 py-2 w-fit">
           <CalendarDays className="h-4 w-4" />
           正在查看 {historyDate} 的历史数据
         </div>
@@ -323,13 +323,13 @@ export default function HotspotsPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[...Array(8)].map((_, i) => (
-            <div key={i} className="rounded-xl bg-white border border-slate-200/60 p-5 animate-shimmer">
-              <div className="h-5 w-2/3 bg-slate-100 rounded mb-3" />
-              <div className="h-4 w-full bg-slate-100 rounded mb-2" />
-              <div className="h-4 w-3/4 bg-slate-100 rounded mb-4" />
+            <div key={i} className="ui-card animate-shimmer">
+              <div className="h-5 w-2/3 bg-surface-subtle rounded mb-3" />
+              <div className="h-4 w-full bg-surface-subtle rounded mb-2" />
+              <div className="h-4 w-3/4 bg-surface-subtle rounded mb-4" />
               <div className="flex gap-3">
-                <div className="h-5 w-14 bg-slate-100 rounded-full" />
-                <div className="h-5 w-14 bg-slate-100 rounded-full" />
+                <div className="h-5 w-14 bg-surface-subtle rounded-full" />
+                <div className="h-5 w-14 bg-surface-subtle rounded-full" />
               </div>
             </div>
           ))}
@@ -349,7 +349,7 @@ export default function HotspotsPage() {
               href={item.repo_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="group rounded-xl bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-300"
+              className="group ui-card hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-300"
             >
               <div className="flex items-start justify-between mb-2.5">
                 <div className="flex-1 min-w-0">
@@ -376,7 +376,7 @@ export default function HotspotsPage() {
               <div className="flex flex-wrap items-center gap-3 ml-8 mt-2.5">
                 {item.language && item.language !== "N/A" && (
                   <span className="flex items-center gap-1.5 text-xs font-medium text-ink-secondary">
-                    <span className={`h-2.5 w-2.5 rounded-full ${langColors[item.language] || "bg-gray-400"}`} />
+                    <span className={`h-2.5 w-2.5 rounded-full ${langColors[item.language] || "bg-ink-muted"}`} />
                     {item.language}
                   </span>
                 )}
@@ -387,7 +387,7 @@ export default function HotspotsPage() {
                   <GitFork className="h-3 w-3" /> {item.forks}
                 </span>
                 {item.today_stars && (
-                  <span className="flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                  <span className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary-soft px-2 py-0.5 rounded-full">
                     <TrendingUp className="h-3 w-3" /> {item.today_stars}
                   </span>
                 )}
@@ -400,10 +400,10 @@ export default function HotspotsPage() {
 
       {/* AI 业务价值评估面板 */}
       {period === "daily" && (
-        <div className="rounded-xl bg-white border border-slate-200/60 p-5 shadow-[var(--shadow-card)]">
+        <div className="ui-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-semibold text-sm text-ink flex items-center gap-2">
+              <h3 className="type-h3 flex items-center gap-2 text-ink">
                 <Zap className="h-4 w-4 text-primary" />
                 AI 业务价值评估
               </h3>
@@ -415,7 +415,7 @@ export default function HotspotsPage() {
               <button
                 onClick={handleEvalRefresh}
                 disabled={evalRefreshing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200/60 text-ink-secondary hover:border-primary/30 hover:text-primary transition-all disabled:opacity-50"
+              className="ui-button-secondary"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${evalRefreshing ? "animate-spin" : ""}`} />
                 {evalRefreshing ? "评估中..." : "重新评估"}
@@ -425,7 +425,7 @@ export default function HotspotsPage() {
 
           {evalLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-slate-100 animate-shimmer rounded-xl" />)}
+              {[...Array(4)].map((_, i) => <div key={i} className="h-28 bg-surface-subtle animate-shimmer rounded-xl" />)}
             </div>
           ) : displayEvaluations.length === 0 ? (
             <div className="text-center py-8">
@@ -436,15 +436,15 @@ export default function HotspotsPage() {
             <>
               {displayEvalSummary && (
                 <div className="flex flex-wrap gap-2 mb-4 text-xs font-semibold">
-                  <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">🟢 强烈推荐 {displayEvalSummary.strong}</span>
-                  <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">🟡 值得做 {displayEvalSummary.worth}</span>
-                  <span className="px-3 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200">🟠 勉强可做 {displayEvalSummary.marginal}</span>
-                  <span className="px-3 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200">🔴 不建议 {displayEvalSummary.not_recommended}</span>
+                  <span className="ui-tag">强烈推荐 {displayEvalSummary.strong}</span>
+                  <span className="ui-tag">值得做 {displayEvalSummary.worth}</span>
+                  <span className="ui-tag ui-tag-warning">勉强可做 {displayEvalSummary.marginal}</span>
+                  <span className="ui-tag ui-tag-warning">不建议 {displayEvalSummary.not_recommended}</span>
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {displayEvaluations.map((ev, i) => (
-                  <div key={ev.repo_name || i} className="rounded-xl border border-slate-200/60 p-4 hover:border-primary/30 transition-all">
+                  <div key={ev.repo_name || i} className="rounded-xl bg-surface-subtle p-4 transition-colors hover:bg-primary-soft/60">
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="flex h-5 w-5 items-center justify-center rounded-md gradient-primary text-white text-[10px] font-bold shrink-0">{i + 1}</span>
@@ -468,7 +468,7 @@ export default function HotspotsPage() {
                             <div className="flex items-center justify-between text-[10px] text-ink-muted mb-0.5">
                               <span>{d.label}</span><span className="font-semibold text-ink-secondary">{v.toFixed(1)}</span>
                             </div>
-                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-1.5 bg-surface-subtle rounded-full overflow-hidden">
                               <div className="h-full gradient-primary rounded-full" style={{ width: `${Math.min(100, v * 10)}%` }} />
                             </div>
                           </div>
@@ -491,7 +491,7 @@ export default function HotspotsPage() {
       )}
 
       {/* Stats Footer */}
-      <div className="flex items-center justify-between rounded-xl bg-white border border-slate-200/60 px-5 py-3.5 text-xs text-ink-muted">
+      <div className="flex items-center justify-between rounded-xl bg-surface-subtle px-5 py-3.5 text-xs text-ink-muted">
         <span>当前显示 {displayData.length} 个项目</span>
         <div className="flex items-center gap-4">
           <span>数据更新时间：{date || "—"}</span>
