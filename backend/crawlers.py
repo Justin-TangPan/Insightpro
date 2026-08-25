@@ -171,7 +171,7 @@ def get_homepage_stats() -> dict:
               (SELECT COUNT(*) FROM github_trending WHERE scrape_date=%s) AS trending_today,
               (SELECT COUNT(*) FROM trending_business_eval WHERE scrape_date=%s) AS evaluation_today,
               (SELECT COUNT(*) FROM aliyun_solutions WHERE is_active=TRUE) AS solution_count,
-              (SELECT COUNT(*) FROM aliyun_solutions WHERE last_changed_date >= %s) AS solution_recent_count,
+              (SELECT COUNT(*) FROM aliyun_solutions WHERE is_active=TRUE AND NOT is_baseline AND last_changed_date >= %s) AS solution_recent_count,
               (SELECT COUNT(*) FROM competitor_news WHERE scrape_date >= %s) AS competitor_count,
               (SELECT COUNT(*) FROM cloud_vendor_news WHERE crawl_date >= %s) AS cloud_news_count
         """, (today, today, week_ago, week_ago, week_ago))
@@ -185,8 +185,13 @@ def get_homepage_modules() -> list[dict]:
         cursor = conn.cursor()
         cursor.execute("SELECT repo_name, language FROM github_trending WHERE scrape_date=%s AND category='daily' ORDER BY id LIMIT 3", (today,))
         hotspots = [{"title": row["repo_name"], "tag": row["language"] or "Trending"} for row in cursor.fetchall()]
-        cursor.execute("SELECT title, category, first_seen_date FROM aliyun_solutions WHERE is_active=TRUE ORDER BY last_changed_date DESC, id DESC LIMIT 3")
-        solutions = [{"title": row["title"], "tag": "NEW" if row["first_seen_date"] == today else row["category"]} for row in cursor.fetchall()]
+        cursor.execute("""
+            SELECT title, category, first_seen_date, is_baseline
+            FROM aliyun_solutions WHERE is_active=TRUE
+            ORDER BY CASE WHEN NOT is_baseline AND first_seen_date=%s THEN 0 ELSE 1 END, menu_order, id
+            LIMIT 3
+        """, (today,))
+        solutions = [{"title": row["title"], "tag": "NEW" if not row["is_baseline"] and row["first_seen_date"] == today else row["category"]} for row in cursor.fetchall()]
         cursor.execute("SELECT title, vendor FROM cloud_vendor_news WHERE crawl_date >= %s ORDER BY id DESC LIMIT 3", (week_ago,))
         competitors = [{"title": row["title"], "tag": row["vendor"]} for row in cursor.fetchall()]
     return [

@@ -149,12 +149,18 @@ def run():
             last_seen_date TEXT NOT NULL,
             last_changed_date TEXT NOT NULL,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            is_baseline BOOLEAN NOT NULL DEFAULT FALSE,
+            menu_order INTEGER NOT NULL DEFAULT 0,
+            removed_at TIMESTAMPTZ,
             created_at TIMESTAMP DEFAULT NOW(),
             updated_at TIMESTAMP DEFAULT NOW()
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_seen ON aliyun_solutions(last_seen_date)")
     c.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_changed ON aliyun_solutions(last_changed_date DESC)")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS is_baseline BOOLEAN NOT NULL DEFAULT FALSE")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS menu_order INTEGER NOT NULL DEFAULT 0")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ")
 
     conn.close()
     print("\nSchema reconciliation complete.")

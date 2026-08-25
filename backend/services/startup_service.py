@@ -39,6 +39,9 @@ def ensure_runtime_schema() -> None:
                 last_seen_date TEXT NOT NULL,
                 last_changed_date TEXT NOT NULL,
                 is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                is_baseline BOOLEAN NOT NULL DEFAULT FALSE,
+                menu_order INTEGER NOT NULL DEFAULT 0,
+                removed_at TIMESTAMPTZ,
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             )
@@ -46,6 +49,12 @@ def ensure_runtime_schema() -> None:
         )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_seen ON aliyun_solutions(last_seen_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_changed ON aliyun_solutions(last_changed_date DESC)")
+        cursor.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS is_baseline BOOLEAN")
+        cursor.execute("UPDATE aliyun_solutions SET is_baseline=TRUE WHERE is_baseline IS NULL")
+        cursor.execute("ALTER TABLE aliyun_solutions ALTER COLUMN is_baseline SET DEFAULT FALSE")
+        cursor.execute("ALTER TABLE aliyun_solutions ALTER COLUMN is_baseline SET NOT NULL")
+        cursor.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS menu_order INTEGER NOT NULL DEFAULT 0")
+        cursor.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS requirements (

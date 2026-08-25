@@ -70,7 +70,7 @@
 | 字段 | 类型 | 空值 | 说明 |
 |---|---|---|---|
 | `id` | serial | 否 | 主键 |
-| `title`、`url`、`category` | text | 否 | 方案标题、唯一链接和分类 |
+| `title`、`url`、`category` | text | 否 | 方案标题、唯一链接和官方一级/二级分类路径 |
 | `source_description` | text | 是 | 官方描述 |
 | `summary` | text | 否 | 20–30 字方案价值简介 |
 | `content_hash` | text | 否 | 变化检测指纹 |
@@ -78,6 +78,9 @@
 | `last_seen_date` | text | 否 | 最近仍存在日期 |
 | `last_changed_date` | text | 否 | 最近内容变化日期 |
 | `is_active` | boolean | 否 | 当前是否仍在官方目录 |
+| `is_baseline` | boolean | 否 | 初始存量基线；基线方案不参与新增置顶 |
+| `menu_order` | integer | 否 | 阿里云官方目录顺序 |
+| `removed_at` | timestamptz | 是 | 最近从官方目录下线的时间 |
 | `created_at`、`updated_at` | timestamp | 否 | 创建与更新时间 |
 
 索引：`last_seen_date`、`last_changed_date`。
@@ -187,7 +190,7 @@ public 业务表 ──► API 查询 ──► 页面、搜索、问答、报�
         └──────► 新鲜度检查与定期清理
 ```
 
-方案记录保留首次发现、最近出现和最近变化日期；采集快照通过复合唯一约束幂等写入；报告状态随任务执行更新。
+方案记录保留首次发现、最近出现、最近变化和下线时间；初次全量采集作为普通基线，此后按 URL 与内容指纹进行每日差异比较，新增优先置顶、更新次之。采集快照通过复合唯一约束幂等写入；报告状态随任务执行更新。
 
 ## 5. 变更流程
 

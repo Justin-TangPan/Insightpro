@@ -37,8 +37,10 @@ def _parse_menu_tree(payload: dict) -> list[dict]:
 
     solutions = []
     seen = set()
+    menu_order = 0
 
     def walk(nodes: list[dict] | None, categories: tuple[str, ...] = ()) -> None:
+        nonlocal menu_order
         for node in nodes or []:
             if node.get("visible") is False:
                 continue
@@ -46,10 +48,16 @@ def _parse_menu_tree(payload: dict) -> list[dict]:
             url = _canonical_url(node.get("url", "")) if node.get("url") else ""
             if title and url and url not in seen:
                 seen.add(url)
+                category_path = categories if len(categories) >= 2 else categories + (title,)
+                primary_category = category_path[0] if category_path else "技术解决方案"
+                secondary_category = category_path[1] if len(category_path) > 1 else "分类入口"
                 solutions.append({
                     "title": title,
                     "url": url,
-                    "category": " / ".join(categories[:2]) or "技术解决方案",
+                    "category": f"{primary_category} / {secondary_category}",
+                    "primary_category": primary_category,
+                    "secondary_category": secondary_category,
+                    "menu_order": menu_order,
                     "source_type": node.get("type", ""),
                     "node_id": node.get("abcId") or 0,
                     "source_description": "",
@@ -60,6 +68,7 @@ def _parse_menu_tree(payload: dict) -> list[dict]:
                         "tags": node.get("tags") or [],
                     },
                 })
+                menu_order += 1
             next_categories = categories if url else categories + ((title,) if title else ())
             walk(node.get("children"), next_categories)
 
@@ -113,8 +122,13 @@ def _summarize(items: list[dict]) -> dict[str, str]:
 
 
 def _content_hash(item: dict) -> str:
-    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed"}}
+    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed", "menu_order"}}
     return hashlib.sha256(json.dumps(fingerprint, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+def _classify_change(item: dict, cutoff: str) -> tuple[bool, str]:
+    change_type = "new" if item["first_seen_date"] == item["last_changed_date"] else "updated"
+    return not item["is_baseline"] and item["last_changed_date"] >= cutoff, change_type
 
 
 def _enrich_solution(item: dict) -> dict:
@@ -159,8 +173,9 @@ def refresh_aliyun_solutions() -> dict:
     today = datetime.now().strftime("%Y-%m-%d")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT url, title, source_description, content_hash, summary FROM aliyun_solutions")
+        cursor.execute("SELECT url, title, source_description, content_hash, summary, is_baseline FROM aliyun_solutions")
         existing = {row["url"]: dict(row) for row in cursor.fetchall()}
+        initial_baseline = not existing
         for item in items:
             old = existing.get(item["url"])
             if old and item.get("detail_failed"):
@@ -181,11 +196,13 @@ def refresh_aliyun_solutions() -> dict:
                     """
                     INSERT INTO aliyun_solutions
                       (title, url, category, source_description, summary, content_hash,
-                       first_seen_date, last_seen_date, last_changed_date, is_active)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                       first_seen_date, last_seen_date, last_changed_date, is_active,
+                       is_baseline, menu_order, removed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, NULL)
                     """,
                     (item["title"], item["url"], item["category"], item["source_description"],
-                     summaries[item["url"]], item["content_hash"], today, today, today),
+                     summaries[item["url"]], item["content_hash"], today, today, today,
+                     initial_baseline, item["menu_order"]),
                 )
             elif old["content_hash"] != item["content_hash"]:
                 changed_count += 1
@@ -194,23 +211,27 @@ def refresh_aliyun_solutions() -> dict:
                     UPDATE aliyun_solutions
                     SET title=%s, category=%s, source_description=%s, summary=%s,
                         content_hash=%s, last_seen_date=%s, last_changed_date=%s,
-                        is_active=TRUE, updated_at=NOW()
+                        is_active=TRUE, is_baseline=FALSE, menu_order=%s,
+                        removed_at=NULL, updated_at=NOW()
                     WHERE url=%s
                     """,
                     (item["title"], item["category"], item["source_description"], summaries[item["url"]],
-                     item["content_hash"], today, today, item["url"]),
+                     item["content_hash"], today, today, item["menu_order"], item["url"]),
                 )
             else:
                 cursor.execute(
                     """UPDATE aliyun_solutions
-                       SET last_seen_date=%s, is_active=TRUE, updated_at=NOW()
+                       SET category=%s, menu_order=%s, last_seen_date=%s,
+                           is_active=TRUE, removed_at=NULL, updated_at=NOW()
                        WHERE url=%s""",
-                    (today, item["url"]),
+                    (item["category"], item["menu_order"], today, item["url"]),
                 )
 
         current_urls = [item["url"] for item in items]
         cursor.execute(
-            "UPDATE aliyun_solutions SET is_active=FALSE, updated_at=NOW() WHERE is_active=TRUE AND url <> ALL(%s)",
+            """UPDATE aliyun_solutions
+               SET is_active=FALSE, removed_at=NOW(), updated_at=NOW()
+               WHERE is_active=TRUE AND url <> ALL(%s)""",
             (current_urls,),
         )
         removed_count = cursor.rowcount
@@ -223,21 +244,43 @@ def get_aliyun_solutions() -> dict:
         cursor.execute(
             """
             SELECT id, title, url, category, source_description, summary,
-                   first_seen_date, last_seen_date, last_changed_date, updated_at
+                   first_seen_date, last_seen_date, last_changed_date,
+                   is_baseline, menu_order, updated_at
             FROM aliyun_solutions
             WHERE is_active=TRUE
-            ORDER BY last_changed_date DESC, category, title
+            ORDER BY menu_order, title
             """
         )
         items = [dict(row) for row in cursor.fetchall()]
     cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     for item in items:
-        item["is_recent"] = item["last_changed_date"] >= cutoff
-        item["change_type"] = "new" if item["first_seen_date"] == item["last_changed_date"] else "updated"
+        primary, _, secondary = item["category"].partition(" / ")
+        item["primary_category"] = primary
+        item["secondary_category"] = secondary or "分类入口"
+        item["is_recent"], item["change_type"] = _classify_change(item, cutoff)
+    items.sort(key=lambda item: (
+        0 if item["is_recent"] and item["change_type"] == "new" else
+        1 if item["is_recent"] else 2,
+        item["menu_order"], item["title"],
+    ))
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*)::int AS count FROM aliyun_solutions WHERE NOT is_active AND removed_at::date=CURRENT_DATE"
+        )
+        removed_today = cursor.fetchone()["count"]
+    new_today = sum(not item["is_baseline"] and item["first_seen_date"] == today for item in items)
+    updated_today = sum(
+        not item["is_baseline"] and item["last_changed_date"] == today
+        and item["first_seen_date"] != item["last_changed_date"] for item in items
+    )
     return {
         "items": items,
         "count": len(items),
         "recent_count": sum(item["is_recent"] for item in items),
+        "baseline_count": sum(item["is_baseline"] for item in items),
+        "daily_insight": {"date": today, "new": new_today, "updated": updated_today, "removed": removed_today},
         "last_checked": max((item["last_seen_date"] for item in items), default=None),
         "source": INDEX_URL,
     }
