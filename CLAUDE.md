@@ -22,29 +22,15 @@
 
 ### 部署步骤
 
-1. **后端部署**（如果修改了 `backend/` 下的代码）：
-   ```powershell
-   # 停止旧进程
-   Stop-Process -Id (netstat -ano | Select-String ":8000" | ForEach-Object { $_ -split '\s+' | Select-Object -Last 1 }) -Force -ErrorAction SilentlyContinue
-   # 启动新进程
-   cd C:\Users\Administrator\Desktop\Project\traeproject\insight-web\backend
-   .\venv\Scripts\python.exe main.py
-   ```
-
-2. **前端部署**（如果修改了 `frontend/` 下的代码）：
-   ```powershell
-   cd C:\Users\Administrator\Desktop\Project\traeproject\insight-web\frontend
-   npm run build
-   # 停止旧进程
-   Stop-Process -Id (netstat -ano | Select-String ":3000" | ForEach-Object { $_ -split '\s+' | Select-Object -Last 1 }) -Force -ErrorAction SilentlyContinue
-   # 启动新进程
-   npx.cmd next start -p 3000
-   ```
-
-3. **验证**：
+1. **提交已验证变更并部署 Docker 双容器**：
    ```bash
-   curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/   # 应返回 200
-   curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/   # 应返回 200
+   ./scripts/deploy-docker.sh
+   ```
+
+2. **验证**：
+   ```bash
+   ./scripts/health-check.sh full
+   docker ps --filter name=insight-
    ```
 
 ## 看门狗

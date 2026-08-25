@@ -37,6 +37,8 @@ interface SolutionResponse {
   source: string;
 }
 
+const PAGE_SIZE = 12;
+
 export default function SolutionInsightsPage() {
   const [data, setData] = useState<SolutionResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,7 @@ export default function SolutionInsightsPage() {
   const [error, setError] = useState("");
   const [selectedPrimary, setSelectedPrimary] = useState("");
   const [selectedSecondary, setSelectedSecondary] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,10 +101,25 @@ export default function SolutionInsightsPage() {
   const activePrimary = directory.find((group) => group.name === selectedPrimary) || directory[0];
   const activeSecondary = activePrimary?.secondary.find((group) => group.name === selectedSecondary) || activePrimary?.secondary[0];
   const newItems = (data?.items || []).filter((item) => item.is_recent && item.change_type === "new");
+  const totalPages = Math.max(1, Math.ceil((activeSecondary?.items.length || 0) / PAGE_SIZE));
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStart = (activePage - 1) * PAGE_SIZE;
+  const pageItems = activeSecondary?.items.slice(pageStart, pageStart + PAGE_SIZE) || [];
 
   const selectPrimary = (name: string) => {
     setSelectedPrimary(name);
     setSelectedSecondary("");
+    setCurrentPage(1);
+  };
+
+  const selectSecondary = (name: string) => {
+    setSelectedSecondary(name);
+    setCurrentPage(1);
+  };
+
+  const changePage = (page: number) => {
+    setCurrentPage(page);
+    requestAnimationFrame(() => document.getElementById("solution-page")?.scrollIntoView({ block: "start" }));
   };
 
   return (
@@ -163,7 +181,7 @@ export default function SolutionInsightsPage() {
           <>
             <div className="grid gap-3 bg-surface-subtle p-4 lg:hidden">
               <label className="block"><span className="swiss-kicker text-ink-muted">一级领域</span><select value={activePrimary.name} onChange={(event) => selectPrimary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{directory.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.count}）</option>)}</select></label>
-              <label className="block"><span className="swiss-kicker text-ink-muted">二级领域</span><select value={activeSecondary.name} onChange={(event) => setSelectedSecondary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{activePrimary.secondary.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.items.length}）</option>)}</select></label>
+              <label className="block"><span className="swiss-kicker text-ink-muted">二级领域</span><select value={activeSecondary.name} onChange={(event) => selectSecondary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{activePrimary.secondary.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.items.length}）</option>)}</select></label>
             </div>
 
             <div className="grid lg:grid-cols-[190px_230px_minmax(0,1fr)]">
@@ -179,17 +197,18 @@ export default function SolutionInsightsPage() {
                 <p className="px-3 pb-3 swiss-kicker text-primary">二级领域 · {activePrimary.secondary.length}</p>
                 <nav className="space-y-1">{activePrimary.secondary.map((group) => {
                   const active = group.name === activeSecondary.name;
-                  return <button key={group.name} type="button" onClick={() => setSelectedSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-white text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{group.name}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
+                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-white text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{group.name}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
                 })}</nav>
               </aside>
 
               <div className="min-w-0">
-                <header className="bg-primary-dark px-6 py-7 text-white">
+                <header id="solution-page" className="scroll-mt-20 bg-primary-dark px-6 py-7 text-white">
                   <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">{activePrimary.name} / Secondary domain</p>
                   <div className="mt-2 flex items-end justify-between gap-4"><h3 className="type-h2">{activeSecondary.name}</h3><span className="serif-stat text-4xl text-white/35">{activeSecondary.items.length}</span></div>
-                  <p className="mt-2 text-sm text-white/65">顺序与阿里云官方目录保持一致；新增优先、更新其次、普通方案随后。</p>
+                  <p className="mt-2 text-sm text-white/65">顺序与阿里云官方目录保持一致 · 第 {activePage}/{totalPages} 页 · 每页 {PAGE_SIZE} 项</p>
                 </header>
-                <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">{activeSecondary.items.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
+                <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">{pageItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
+                <Pagination page={activePage} totalPages={totalPages} totalItems={activeSecondary.items.length} start={pageStart} onChange={changePage} />
               </div>
             </div>
           </>
@@ -198,6 +217,22 @@ export default function SolutionInsightsPage() {
         )}
       </section>
     </div>
+  );
+}
+
+function Pagination({ page, totalPages, totalItems, start, onChange }: { page: number; totalPages: number; totalItems: number; start: number; onChange: (page: number) => void }) {
+  if (totalPages <= 1) return null;
+  return (
+    <nav aria-label="解决方案分页" className="flex flex-col gap-3 bg-surface-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-ink-muted">显示 {start + 1}–{Math.min(start + PAGE_SIZE, totalItems)} 项，共 {totalItems} 项</p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button type="button" disabled={page === 1} onClick={() => onChange(page - 1)} className="ui-button-secondary px-3 py-2 text-xs">上一页</button>
+        {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
+          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={`第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-white text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
+        ))}
+        <button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)} className="ui-button-secondary px-3 py-2 text-xs">下一页</button>
+      </div>
+    </nav>
   );
 }
 
