@@ -173,3 +173,50 @@ model AliyunSolution {
   @@index([lastChangedDate])
   @@map("aliyun_solutions")
 }
+
+model Requirement {
+  id          BigInt                @id @default(autoincrement())
+  userId      String                @db.Uuid @map("user_id")
+  title       String
+  description String                @default("")
+  status      String                @default("draft")
+  priority    String                @default("medium")
+  sourceType  String                @default("manual") @map("source_type")
+  sourceId    String?               @map("source_id")
+  sourceUrl   String?               @map("source_url")
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime              @default(now()) @map("updated_at") @db.Timestamptz
+  solutions   RequirementSolution[]
+
+  @@index([userId, status, updatedAt])
+  @@map("requirements")
+}
+
+model Solution {
+  id           BigInt                @id @default(autoincrement())
+  userId       String                @db.Uuid @map("user_id")
+  name         String
+  description  String                @default("")
+  category     String                @default("未分类")
+  status       String                @default("draft")
+  version      String                @default("v0.1.0")
+  referenceUrl String?               @map("reference_url")
+  createdAt    DateTime              @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime              @default(now()) @map("updated_at") @db.Timestamptz
+  requirements RequirementSolution[]
+
+  @@index([userId, status, updatedAt])
+  @@map("solutions")
+}
+
+model RequirementSolution {
+  requirementId BigInt      @map("requirement_id")
+  solutionId    BigInt      @map("solution_id")
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  requirement   Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  solution      Solution    @relation(fields: [solutionId], references: [id], onDelete: Cascade)
+
+  @@id([requirementId, solutionId])
+  @@index([solutionId])
+  @@map("requirement_solutions")
+}

@@ -16,7 +16,7 @@ from settings import settings
 INDEX_URL = "https://cn.aliyun.com/solution/tech-solution/"
 MENU_URL = "https://developer.aliyun.com/adc/api/skillBuilder/getMenuTree"
 DETAIL_URL = "https://help.aliyun.cn/help/json/document_detail.json"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; InsightPro/0.3)"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; InsightPro/0.4)"}
 
 
 def _clean(text: str) -> str:

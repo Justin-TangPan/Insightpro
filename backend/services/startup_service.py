@@ -46,6 +46,58 @@ def ensure_runtime_schema() -> None:
         )
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_seen ON aliyun_solutions(last_seen_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_changed ON aliyun_solutions(last_changed_date DESC)")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS requirements (
+                id BIGSERIAL PRIMARY KEY,
+                user_id UUID NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'active', 'planned', 'completed', 'archived')),
+                priority TEXT NOT NULL DEFAULT 'medium'
+                    CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+                source_type TEXT NOT NULL DEFAULT 'manual',
+                source_id TEXT,
+                source_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS solutions (
+                id BIGSERIAL PRIMARY KEY,
+                user_id UUID NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT '未分类',
+                status TEXT NOT NULL DEFAULT 'draft'
+                    CHECK (status IN ('draft', 'active', 'deprecated', 'archived')),
+                version TEXT NOT NULL DEFAULT 'v0.1.0',
+                reference_url TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS requirement_solutions (
+                requirement_id BIGINT NOT NULL REFERENCES requirements(id) ON DELETE CASCADE,
+                solution_id BIGINT NOT NULL REFERENCES solutions(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (requirement_id, solution_id)
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_requirements_user_status ON requirements(user_id, status, updated_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_solutions_user_status ON solutions(user_id, status, updated_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_requirement_solutions_solution ON requirement_solutions(solution_id)")
+        cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE solutions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE requirement_solutions ENABLE ROW LEVEL SECURITY")
 
 
 def _technical_summaries_missing() -> bool:

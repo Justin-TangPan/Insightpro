@@ -1,5 +1,28 @@
 # 版本日志
 
+## [0.4.0] - 2026-08-25
+
+### 新增
+- 新增 Requirements 工作台：支持创建、编辑、删除、列表、详情、状态筛选、优先级、来源追溯和关联 Solution。
+- 新增独立 Solutions 工作台：支持创建、编辑、删除、列表、详情、分类、状态、版本、参考链接和相关 Requirement 回查；不复用或修改 `aliyun_solutions`。
+- 新增 `requirements`、`solutions`、`requirement_solutions` 三张 PostgreSQL 表，启用 RLS，并按 `Router → Service → Repository → Database` 组织 Workbench 新代码。
+- 解决方案洞察条目增加“创建需求”，自动带入来源类型、原始数据 ID、原始链接和标题；Requirement 可关联已有 Solution，或创建并自动关联新 Solution。
+- 侧边栏新增工作台分组；首页增加 Requirement 数量、Solution 数量和最近 Requirement，原技术解决方案洞察保持主体位置。
+
+### 版本与资料
+- FastAPI、前端包和 Docker 镜像统一升级为 `v0.4.0`。
+- 同步更新助手知识、数据库契约、技术与业务架构清单、运维手册及页面入口。
+
+### 验证
+- 后端 33 项测试通过；新增 Workbench 业务规则检查和未登录 API 权限门禁。
+- 前端 ESLint、Prisma schema 校验和 Next.js 生产构建通过，共生成 18 个路由。
+- 在真实 Supabase PostgreSQL 完成 `Insight 来源 → Requirement → 自动关联 Solution → Solution 反查 Requirement` 双向闭环，并清理验收临时数据。
+- RLS 启用后验证 Repository 可正常访问，其他用户 ID 无法读取测试 Requirement。
+
+### 已知遗留
+- 当前环境未配置浏览器自动化，页面完成编译、静态生成和 API/数据库闭环验证，但尚未执行自动化点击级 UI 测试。
+- v0.4.0 代码尚未执行生产 Docker 重新部署。
+
 ## [0.0.39] - 2026-08-25
 
 ### 视觉系统

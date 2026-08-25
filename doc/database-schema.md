@@ -11,6 +11,7 @@
 - Supabase PostgreSQL 是唯一生产业务存储。
 - `frontend/prisma/schema.prisma` 用于记录 public 表契约；后端当前通过 `psycopg2` 直接访问数据库。
 - Supabase Auth 用户位于认证系统，不在 public schema 建模。
+- Workbench 三张表启用 RLS 且不开放 Supabase Data API policy；数据只经登录后的 FastAPI 访问，Repository 按 `user_id` 二次隔离。
 - 业务日期目前以 `TEXT` 保存 `YYYY-MM-DD`，时间计划以 `HH:MM` 保存。
 - 启动时 `ensure_runtime_schema()` 幂等补齐当前必要字段、表和索引。
 
@@ -21,6 +22,9 @@
 | `github_trending` | GitHub Trending 快照 | `scrape_date + category + repo_name` |
 | `trending_business_eval` | 项目用途摘要与价值评估 | `scrape_date + repo_name` |
 | `aliyun_solutions` | 阿里云方案目录及变化状态 | `url` |
+| `requirements` | 用户管理的技术需求 | 自增 `id`，按 `user_id` 隔离 |
+| `solutions` | 用户管理的自有技术方案 | 自增 `id`，按 `user_id` 隔离 |
+| `requirement_solutions` | Requirement 与 Solution 多对多关联 | `requirement_id + solution_id` |
 | `cloud_vendor_news` | 云厂商官网动态 | `crawl_date + vendor + title` |
 | `competitor_news` | 友商动态摘要 | `scrape_date + vendor + title` |
 | `baidu_hotsearch` | 辅助热搜快照 | `scrape_date + title` |
@@ -77,6 +81,39 @@
 | `created_at`、`updated_at` | timestamp | 否 | 创建与更新时间 |
 
 索引：`last_seen_date`、`last_changed_date`。
+
+### `requirements`
+
+| 字段 | 类型 | 空值 | 说明 |
+|---|---|---|---|
+| `id` | bigint | 否 | 主键 |
+| `user_id` | uuid | 否 | Supabase Auth 用户 ID，API 数据隔离键 |
+| `title`、`description` | text | 否 | 需求标题与描述 |
+| `status` | text | 否 | `draft` / `active` / `planned` / `completed` / `archived` |
+| `priority` | text | 否 | `low` / `medium` / `high` / `critical` |
+| `source_type` | text | 否 | `manual` 或洞察来源类型 |
+| `source_id`、`source_url` | text | 是 | 原始数据标识及可追溯链接 |
+| `created_at`、`updated_at` | timestamptz | 否 | 创建与更新时间 |
+
+索引：`user_id + status + updated_at`。
+
+### `solutions`
+
+| 字段 | 类型 | 空值 | 说明 |
+|---|---|---|---|
+| `id` | bigint | 否 | 主键 |
+| `user_id` | uuid | 否 | Supabase Auth 用户 ID，API 数据隔离键 |
+| `name`、`description`、`category` | text | 否 | 方案名称、描述和分类 |
+| `status` | text | 否 | `draft` / `active` / `deprecated` / `archived` |
+| `version` | text | 否 | 用户维护的方案版本 |
+| `reference_url` | text | 是 | 参考链接 |
+| `created_at`、`updated_at` | timestamptz | 否 | 创建与更新时间 |
+
+索引：`user_id + status + updated_at`。该表与外部洞察表 `aliyun_solutions` 无业务或数据复用关系。
+
+### `requirement_solutions`
+
+字段：`requirement_id bigint`、`solution_id bigint`、`created_at timestamptz`。两个 ID 分别外键关联 `requirements`、`solutions`，删除任一业务对象时级联删除关联；复合主键阻止重复关联。
 
 ### `cloud_vendor_news`
 

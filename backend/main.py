@@ -18,7 +18,7 @@ from crawlers import init_crawler_tables
 
 from routers import (
     auth, hotspots, solutions, competitors, reports, chat, crawling,
-    analytics, search, dashboard, email,
+    analytics, search, dashboard, email, workbench,
 )
 
 
@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="InsightPro API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="InsightPro API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -107,11 +107,12 @@ app.include_router(analytics.router, prefix="/api", tags=["Analytics"])
 app.include_router(search.router, prefix="/api", tags=["Search"])
 app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(email.router, prefix="/api", tags=["Email"])
+app.include_router(workbench.router, prefix="/api", tags=["Workbench"])
 
 
 @app.get("/")
 async def root():
-    return {"message": "InsightPro API is running", "version": "0.3.0"}
+    return {"message": "InsightPro API is running", "version": "0.4.0"}
 
 
 @app.get("/api/system/health/live")

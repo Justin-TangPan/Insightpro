@@ -6,6 +6,8 @@ import {
   BarChart3,
   Radio,
   Layers3,
+  Blocks,
+  ClipboardList,
   Settings,
   LogIn,
   LogOut,
@@ -25,6 +27,8 @@ const navItems: NavItem[] = [
   { href: "/", icon: BarChart3, label: "首页洞察", description: "技术方案简报" },
   { href: "/insights/hotspots", icon: Radio, label: "技术热点", description: "GitHub 项目" },
   { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "方案目录与变化" },
+  { href: "/workbench/solutions", icon: Blocks, label: "Solutions", description: "自有技术方案" },
+  { href: "/workbench/requirements", icon: ClipboardList, label: "Requirements", description: "需求与方案关联" },
   { href: "/settings", icon: Settings, label: "系统设置", description: "账号与配置" },
 ];
 
@@ -66,26 +70,28 @@ export function Sidebar() {
           {navItems.map((item, index) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${
-                  active
-                    ? "bg-white text-primary shadow-[var(--shadow-card)]"
-                    : "text-ink-muted hover:bg-white/70 hover:text-ink"
-                }`}
-              >
-                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary-soft text-primary" : "bg-white/60"}`}>
-                  <item.icon className="h-4 w-4" strokeWidth={1.5} />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="text-sm font-semibold">{item.label}</span>
+              <div key={item.href}>
+                {item.href === "/workbench/solutions" && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">工作台</p>}
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${
+                    active
+                      ? "bg-white text-primary shadow-[var(--shadow-card)]"
+                      : "text-ink-muted hover:bg-white/70 hover:text-ink"
+                  }`}
+                >
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary-soft text-primary" : "bg-white/60"}`}>
+                    <item.icon className="h-4 w-4" strokeWidth={1.5} />
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-ink-muted">{item.description}</p>
-                </div>
-              </Link>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="text-sm font-semibold">{item.label}</span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-ink-muted">{item.description}</p>
+                  </div>
+                </Link>
+              </div>
             );
           })}
         </div>

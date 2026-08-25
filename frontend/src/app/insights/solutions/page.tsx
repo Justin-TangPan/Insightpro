@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, ChevronRight, Clock3, Layers3, RefreshCw, Sparkles } from "lucide-react";
+import Link from "next/link";
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
@@ -252,17 +253,25 @@ export default function SolutionInsightsPage() {
                           {item.summary}
                         </p>
                         {item.source_description && <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-muted">{item.source_description}</p>}
-                        <div className="mt-6 flex items-center justify-between border-t border-grid pt-4">
+                        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
                           <span className="text-[11px] text-ink-muted">最近变化 {item.last_changed_date}</span>
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={`查看阿里云方案：${item.title}`}
-                            className="ui-link flex items-center gap-1.5 text-xs"
-                          >
-                            查看方案 <ArrowUpRight className="h-3.5 w-3.5" />
-                          </a>
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={{ pathname: "/workbench/requirements/new", query: { source_type: "aliyun_solution", source_id: String(item.id), source_url: item.url, title: item.title } }}
+                              className="ui-button-secondary px-3 py-2 text-xs"
+                            >
+                              创建需求
+                            </Link>
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              aria-label={`查看阿里云方案：${item.title}`}
+                              className="ui-link flex items-center gap-1.5 text-xs"
+                            >
+                              查看方案 <ArrowUpRight className="h-3.5 w-3.5" />
+                            </a>
+                          </div>
                         </div>
                       </article>
                     ))}

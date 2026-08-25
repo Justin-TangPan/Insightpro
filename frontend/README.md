@@ -24,7 +24,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 |---|---|
 | `src/app/` | 页面、根布局和全局样式 |
 | `src/components/` | 侧边栏、搜索、聊天助手和通用 UI |
-| `src/lib/` | API、认证和 Supabase 客户端 |
+| `src/lib/` | API、认证、Workbench 数据契约和 Supabase 客户端 |
 | `public/chat.js` | 全局聊天助手运行脚本与快捷问题 |
 | `prisma/schema.prisma` | 后端 public 表的数据契约镜像 |
 | `next.config.ts` | standalone 输出和 `/api` 同源代理 |

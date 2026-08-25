@@ -1,6 +1,6 @@
 # InsightPro 技术解决方案洞察平台
 
-InsightPro 面向解决方案架构师和技术决策团队，持续跟踪开源技术项目、云厂商解决方案与产品变化，通过 AI 生成价值评估、方案摘要和专题研报。
+InsightPro v0.4.0 面向解决方案架构师和技术决策团队，持续跟踪开源技术项目、云厂商解决方案与产品变化，并通过 Workbench 将洞察转化为可管理的 Requirement 和 Solution。
 
 ## 当前能力
 
@@ -9,6 +9,7 @@ InsightPro 面向解决方案架构师和技术决策团队，持续跟踪开源
 | 技术热点 | GitHub Trending 日/周/月榜、历史记录、项目用途速读和业务价值评估 |
 | 解决方案 | 阿里云技术解决方案目录、内容指纹、变化识别、20–30 字价值摘要 |
 | 友商动态 | AWS、Azure、阿里云、腾讯云、火山云的产品动态与能力对照 |
+| 工作台 | `Insight → Requirement → Solution`，支持需求、方案及关联关系管理 |
 | 分析交付 | 首页洞察、数据大屏、全局搜索、智能助手、深度研报和邮件简报 |
 | 平台治理 | Supabase Auth、分级权限、数据新鲜度、启动补跑、健康检查和访问分析 |
 
@@ -100,6 +101,8 @@ EMAIL_TO=recipient@example.com
 | `/insights/hotspots` | 技术热点与 AI 价值评估 | 公开；刷新需登录 |
 | `/insights/solutions` | 解决方案目录与变化记录 | 公开；刷新需登录 |
 | `/insights/competitors` | 云厂商产品动态与能力对照 | 公开；刷新需登录 |
+| `/workbench/requirements` | Requirement 列表、筛选、详情与方案关联 | 登录 |
+| `/workbench/solutions` | 自有 Solution 列表、详情与相关需求 | 登录 |
 | `/dashboard` | 核心数据和服务状态 | 公开 |
 | `/search`、`/history` | 跨域检索与历史回看 | 公开 |
 | `/reports` | AI 分析任务与报告归档 | 登录 |
@@ -112,7 +115,7 @@ EMAIL_TO=recipient@example.com
 
 ```text
 insight-web/
-├── backend/             # FastAPI、采集器、业务服务和测试
+├── backend/             # FastAPI、Router/Service/Repository、采集器和测试
 ├── frontend/            # Next.js 应用、Prisma 数据契约和静态资源
 ├── scripts/             # 发布、健康检查和故障恢复
 ├── deploy/systemd/      # Compose 守护及历史回退 unit
@@ -129,12 +132,12 @@ cd ../frontend && npm run lint && npx prisma validate && npm run build
 cd .. && ./scripts/health-check.sh full
 ```
 
-截至 2026-08-25，后端 26 项测试、前端 ESLint、Prisma 校验、Next.js 生产构建和 Docker 端到端健康检查均通过。
+截至 2026-08-25，后端 33 项测试、前端 ESLint、Prisma 校验及 Next.js 18 路由生产构建均通过；部署状态以健康检查结果为准。
 
 ## 文档索引
 
 - [技术架构与业务架构清单](doc/技术架构与业务架构清单.md)：产品边界、业务能力、系统组件、数据流、API、权限和风险。
-- [数据库契约](doc/database-schema.md)：10 张 public 业务表及约束。
+- [数据库契约](doc/database-schema.md)：13 张 public 业务表及约束。
 - [运维手册](doc/运维手册.md)：部署、发布、巡检、补跑和故障恢复。
 - [改进清单](doc/整改方案.md)：当前仍需处理的技术债及触发条件。
 - [版本日志](log/versions.md)：完整演进记录。
