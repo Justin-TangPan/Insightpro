@@ -18,10 +18,10 @@
 - 前端 ESLint、Prisma schema 校验和 Next.js 生产构建通过，共生成 18 个路由。
 - 在真实 Supabase PostgreSQL 完成 `Insight 来源 → Requirement → 自动关联 Solution → Solution 反查 Requirement` 双向闭环，并清理验收临时数据。
 - RLS 启用后验证 Repository 可正常访问，其他用户 ID 无法读取测试 Requirement。
+- Docker `0.4.0` 前后端镜像已于 2026-08-25 重新构建并部署；端到端健康检查通过，两个 Workbench 页面返回 200，未登录 API 返回 401。
 
 ### 已知遗留
 - 当前环境未配置浏览器自动化，页面完成编译、静态生成和 API/数据库闭环验证，但尚未执行自动化点击级 UI 测试。
-- v0.4.0 代码尚未执行生产 Docker 重新部署。
 
 ## [0.0.39] - 2026-08-25
 
