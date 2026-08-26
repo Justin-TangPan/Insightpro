@@ -45,6 +45,7 @@ bootstrap() {
   install -d -m 0750 \
     "$OPENCODE_DATA_ROOT/data" \
     "$OPENCODE_DATA_ROOT/config" \
+    "$OPENCODE_DATA_ROOT/config/tools" \
     "$OPENCODE_DATA_ROOT/cache" \
     "$OPENCODE_DATA_ROOT/state" \
     "$OPENCODE_DATA_ROOT/workspace"

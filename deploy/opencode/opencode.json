@@ -27,6 +27,7 @@
     "grep": "allow",
     "list": "allow",
     "edit": "allow",
+    "insight_public_data": "allow",
     "bash": "deny",
     "task": "deny",
     "external_directory": "deny",

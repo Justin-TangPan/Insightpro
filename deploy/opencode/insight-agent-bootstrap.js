@@ -29,4 +29,27 @@
       }))
       .catch(() => undefined);
   }
+
+  window.addEventListener("message", async (event) => {
+    const question = event.data?.type === "insight-agent-question" && event.data.question;
+    if (!question || (document.referrer && event.origin !== new URL(document.referrer).origin)) return;
+    try {
+      const session = await fetch(`/session?directory=${encodeURIComponent(workspace)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: question }),
+      }).then((response) => {
+        if (!response.ok) throw new Error("create session failed");
+        return response.json();
+      });
+      await fetch(`/session/${session.id}/message?directory=${encodeURIComponent(workspace)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parts: [{ type: "text", text: question }] }),
+      });
+      location.assign(`/L3dvcmtzcGFjZQ/session/${session.id}`);
+    } catch {
+      // Native UI remains usable if a prompt cannot be submitted.
+    }
+  });
 })();

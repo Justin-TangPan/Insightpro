@@ -13,6 +13,7 @@ services:
       XDG_CONFIG_HOME: /home/opencode/.config
       XDG_DATA_HOME: /home/opencode/.local/share
       XDG_STATE_HOME: /home/opencode/.local/state
+      INSIGHT_PUBLIC_API_URL: "${INSIGHT_PUBLIC_API_URL:-http://host.docker.internal:8000/api}"
     command: ["web", "--hostname", "0.0.0.0", "--port", "4096"]
     working_dir: /workspace
     expose:
@@ -24,6 +25,9 @@ services:
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/state:/home/opencode/.local/state/opencode"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace"
       - "./opencode.json:/home/opencode/.config/opencode/opencode.json:ro"
+      - "./tools/insight_public_data.ts:/home/opencode/.config/opencode/tools/insight_public_data.ts:ro"
+    extra_hosts:
+      - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     restart: unless-stopped
     read_only: true
     tmpfs:

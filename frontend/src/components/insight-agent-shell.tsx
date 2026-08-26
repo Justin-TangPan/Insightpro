@@ -12,6 +12,7 @@ export function InsightAgentShell() {
   const { user, loading } = useAuth();
   const full = pathname === "/insight-agent";
   const previousPath = useRef("/");
+  const iframe = useRef<HTMLIFrameElement>(null);
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [connection, setConnection] = useState({ userId: "", source: "" });
@@ -77,6 +78,7 @@ export function InsightAgentShell() {
 
   if (loading) return null;
   const visible = full || open;
+  const questions = ["今天有哪些技术热点？", "阿里云最近新增了哪些方案？", "搜索并对比 AI Agent 解决方案"];
 
   return (
     <>
@@ -110,9 +112,19 @@ export function InsightAgentShell() {
             <button type="button" onClick={close} className="rounded p-1.5 hover:bg-white/15" aria-label="关闭"><X className="h-4 w-4" /></button>
           </div>
         </header>
+        {!minimized && connection.source && (
+          <div className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-100 bg-slate-50 px-3 py-2">
+            <span className="shrink-0 py-1 text-xs text-ink-muted">可以问：</span>
+            {questions.map(question => (
+              <button key={question} type="button" onClick={() => iframe.current?.contentWindow?.postMessage({ type: "insight-agent-question", question }, new URL(connection.source).origin)} className="shrink-0 rounded-full bg-white px-3 py-1 text-xs text-ink-secondary shadow-sm transition hover:text-primary">
+                {question}
+              </button>
+            ))}
+          </div>
+        )}
         <div className={`min-h-0 flex-1 ${minimized ? "invisible" : "flex"}`}>
         {connection.source && connection.userId === user?.id ? (
-          <iframe src={connection.source} title="Insight-Agent 原生工作区" className="min-h-0 flex-1 border-0 bg-white" allow="clipboard-read; clipboard-write" />
+          <iframe ref={iframe} src={connection.source} title="Insight-Agent 原生工作区" className="min-h-0 flex-1 border-0 bg-white" allow="clipboard-read; clipboard-write" />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-ink-muted">
             <div><Bot className="mx-auto mb-3 h-7 w-7 text-primary" /><p>{error || "正在连接 Insight-Agent…"}</p>{error && <button type="button" onClick={() => { setError(""); setConnection({ userId: "retry", source: "" }); }} className="ui-button-secondary mt-4">重试</button>}</div>
