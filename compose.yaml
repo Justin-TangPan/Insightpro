@@ -37,6 +37,7 @@ services:
         API_PROXY_TARGET: http://backend:8000
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_OPENCODE_URL: ${NEXT_PUBLIC_OPENCODE_URL:-http://159.138.89.233:4096}
     environment:
       TZ: Asia/Shanghai
       API_PROXY_TARGET: http://backend:8000

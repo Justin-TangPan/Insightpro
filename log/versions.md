@@ -1,5 +1,23 @@
 # 版本日志
 
+## [0.0.43] - 2026-08-26
+
+### OpenCode 第一阶段
+- 固定 OpenCode `1.18.23`，使用独立 `insight-opencode` Compose project、独立网络、systemd unit 和管理脚本部署原生 Web UI。
+- Session、全局配置、缓存、状态及 Git Workspace 分别持久化到 `/var/lib/insight-opencode/`；Workspace 是当前 InsightPro 提交的独立 clone，不挂载生产目录、生产 `.env` 或 Docker Socket。
+- 容器使用 UID/GID 10002、只读根文件系统、移除全部 capabilities，并限制为 1.5 CPU、2 GiB 内存、512 PID、256 MiB 临时目录、30 MiB Docker 日志和 20 GiB 持久化预算监测。
+- OpenCode 启用独立 Basic Auth、禁用自动升级和 Session 分享；当前使用服务器 IP `4096` 端口作为临时验收入口。
+- InsightPro Sidebar 新增 `OpenCode / AI Agent` 外部入口，以新标签页打开原生 OpenCode，不接入 FastAPI、Supabase 或现有健康链路。
+
+### 验证
+- 匿名 OpenCode 健康请求返回 401；认证后的原生 Web 与 `/global/health` 返回 200，容器健康版本为 `1.18.23`。
+- 创建真实 Session 并通过现有模型得到“OpenCode 工作正常”回复；重启后 Session 和配置哈希保持一致。
+- OpenCode 容器安全边界、资源限制、挂载和独立网络均经 Docker inspect 核对。
+
+### 已知遗留
+- 当前没有可用域名和 HTTPS 反向代理，外部入口仅用于临时验收；正式开放前应迁移到独立 HTTPS 子域名。
+- 本阶段复用了现有模型服务凭据并存放在独立的 `0600` 运行时环境文件中；获得独立额度密钥后应单独轮换。
+
 ## [0.0.42] - 2026-08-25
 
 ### 搜索

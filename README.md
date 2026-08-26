@@ -31,6 +31,7 @@ docker-compose -p insight-web -f compose.yaml up --detach --build
 - Web：<http://localhost:3000>
 - API：<http://localhost:8000>
 - OpenAPI：<http://localhost:8000/docs>
+- OpenCode：由独立 `insight-opencode` Compose project 提供；当前验收入口为 <http://159.138.89.233:4096>，必须使用独立密码登录。
 
 生产服务器使用带测试、构建、切换和回滚门禁的发布脚本：
 
@@ -83,6 +84,7 @@ CHAT_MODEL=your-model
 BASE_URL=http://localhost:3000
 CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 STARTUP_CATCHUP_ENABLED=true
+NEXT_PUBLIC_OPENCODE_URL=http://your-server:4096
 
 # SMTP（可选）
 SMTP_HOST=smtp.qq.com
@@ -109,6 +111,8 @@ EMAIL_TO=recipient@example.com
 | `/settings` | 账号、服务状态和邮件管理 | 登录；邮件管理需管理员 |
 | `/auth/login`、`/auth/register` | Supabase 用户认证 | 公开 |
 
+侧边栏的 `OpenCode / AI Agent` 是新标签页外部入口。OpenCode 保留原生 Web UI、认证和 Session，不经过 InsightPro FastAPI，也不访问 InsightPro 数据库。
+
 完整 API 与权限矩阵见 [技术架构与业务架构清单](doc/技术架构与业务架构清单.md)，运行时契约以 FastAPI `/docs` 为准。
 
 ## 项目结构
@@ -119,10 +123,22 @@ insight-web/
 ├── frontend/            # Next.js 应用、Prisma 数据契约和静态资源
 ├── scripts/             # 发布、健康检查和故障恢复
 ├── deploy/systemd/      # Compose 守护及历史回退 unit
+├── deploy/opencode/     # 独立 OpenCode 镜像、Compose、配置与管理脚本
 ├── doc/                 # 架构、数据库、运维和改进清单
 ├── log/                 # 版本与已关闭问题记录
 └── compose.yaml         # 前后端生产编排
 ```
+
+OpenCode 使用独立启动链路，不加入根目录 `compose.yaml`：
+
+```bash
+sudo ./deploy/opencode/manage.sh start
+sudo ./deploy/opencode/manage.sh health
+sudo ./deploy/opencode/manage.sh stop
+sudo ./deploy/opencode/manage.sh upgrade
+```
+
+运行凭据位于 `/etc/insight-opencode/opencode.env`，持久化数据和隔离 Workspace 位于 `/var/lib/insight-opencode/`。二者均不得提交到 Git。
 
 ## 验证
 

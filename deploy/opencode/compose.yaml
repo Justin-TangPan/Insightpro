@@ -1,0 +1,58 @@
+services:
+  opencode:
+    container_name: insight-opencode
+    image: insight-opencode:1.18.23
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - /etc/insight-opencode/opencode.env
+    environment:
+      HOME: /home/opencode
+      XDG_CACHE_HOME: /home/opencode/.cache
+      XDG_CONFIG_HOME: /home/opencode/.config
+      XDG_DATA_HOME: /home/opencode/.local/share
+      XDG_STATE_HOME: /home/opencode/.local/state
+    command: ["web", "--hostname", "0.0.0.0", "--port", "4096"]
+    working_dir: /workspace
+    ports:
+      - "${OPENCODE_BIND_ADDRESS:-0.0.0.0}:${OPENCODE_PORT:-4096}:4096"
+    volumes:
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/data:/home/opencode/.local/share/opencode"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/config:/home/opencode/.config/opencode"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/cache:/home/opencode/.cache"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/state:/home/opencode/.local/state/opencode"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,nosuid,nodev
+      - /run:size=16m,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: "1.5"
+    mem_limit: 2g
+    mem_reservation: 512m
+    pids_limit: 512
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "const a=Buffer.from(process.env.OPENCODE_SERVER_USERNAME+':'+process.env.OPENCODE_SERVER_PASSWORD).toString('base64');fetch('http://127.0.0.1:4096/global/health',{headers:{authorization:'Basic '+a}}).then(async r=>{const j=await r.json();if(!r.ok||!j.healthy)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - opencode-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  opencode-network:
+    name: insight-opencode-network

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "autoupdate": false,
+  "share": "disabled",
+  "model": "insight-provider/glm-5.2",
+  "provider": {
+    "insight-provider": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "InsightPro Model Provider",
+      "options": {
+        "baseURL": "{env:OPENCODE_PROVIDER_BASE_URL}",
+        "apiKey": "{env:OPENCODE_PROVIDER_API_KEY}"
+      },
+      "models": {
+        "glm-5.2": {
+          "name": "GLM 5.2",
+          "tool_call": true,
+          "temperature": true
+        }
+      }
+    }
+  },
+  "permission": {
+    "external_directory": "deny"
+  }
+}
