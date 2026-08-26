@@ -1,5 +1,19 @@
 # 版本日志
 
+## [0.0.46] - 2026-08-26
+
+### Insight-Agent 工作区体验
+- 修复 620px 浮窗触发 OpenCode 项目选择/响应式布局异常：默认浮窗调整为 900×720，并继续支持拖动和缩放。
+- Gateway 在原生应用启动前初始化其同源项目注册表，固定打开 `/workspace`；SSO callback 直接进入该 Workspace 的 Session 页面，用户不再手动选择项目。
+- 浮窗标题移除只读提示，产品界面只保留 Insight-Agent 名称。
+
+### 写入边界
+- 独立 Workspace 改为可写并开放 OpenCode `edit`，支持在副本中修改代码。
+- 继续禁用 bash、task、外部目录和 web 工具；生产仓库、生产 `.env`、Docker Socket 与业务数据库仍不挂载。
+
+### 验证
+- 待发布后补充项目自动初始化、Workspace 实际写入、权限边界、前端构建和健康检查结果。
+
 ## [0.0.45] - 2026-08-26
 
 ### Insight-Agent 产品集成

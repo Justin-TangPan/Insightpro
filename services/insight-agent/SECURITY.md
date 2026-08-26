@@ -1,20 +1,20 @@
 # Insight-Agent Security
 
-## 默认只读
+## 隔离的可写 Workspace
 
-本阶段只需要理解项目并提供建议，不需要生产写权限。只读由多层共同保证，而不是依赖提示词：
+Insight-Agent 可以修改独立 Workspace，但没有生产写权限。边界由多层共同保证，而不是依赖提示词：
 
-1. 独立 Workspace 不包含 `.env`，并以 Docker `:ro` 挂载。
-2. OpenCode 配置拒绝 `edit`、`bash`、`task`、`external_directory`、`webfetch` 和 `websearch`。
+1. 独立 Workspace 不包含 `.env`，也不是生产部署目录。
+2. OpenCode 只开放 Workspace 内 `edit`，拒绝 `bash`、`task`、`external_directory`、`webfetch` 和 `websearch`。
 3. OpenCode 容器使用非 root UID 10002、只读根文件系统、移除全部 Linux capabilities，且不挂载 Docker Socket。
 4. 不挂载 InsightPro PostgreSQL、生产目录、Service Role、SMTP 或生产 `.env`。
 5. Gateway 是唯一发布端口，未授权请求不能直达 OpenCode。
 
-允许的能力是读取、列举、grep/glob 和分析 Workspace 内非敏感项目资料。虽然 Provider API Key 是 Runtime 调用模型所必需的进程凭据，但 Agent 没有 Shell，也不能读取 Workspace 外路径，无法通过正常工具取得它。
+允许的能力是读取、列举、grep/glob、分析和修改 Workspace 内非敏感项目资料。虽然 Provider API Key 是 Runtime 调用模型所必需的进程凭据，但 Agent 没有 Shell，也不能读取 Workspace 外路径，无法通过正常工具取得它。
 
 ## API 与 Terminal
 
-Insight-Agent 不获得 InsightPro API Token，不调用业务 API，因此不能写 Solution、Requirement 或数据库。OpenCode 的 Bash/Terminal Agent 工具完全禁用；仅把命令设为“ask”并不安全，因为用户批准后仍可绕过只读边界。
+Insight-Agent 不获得 InsightPro API Token，不调用业务 API，因此不能写 Solution、Requirement 或数据库。Bash/Terminal Agent 工具继续禁用；仅把命令设为“ask”并不安全，因为用户批准后仍可能读取 Runtime Secret 或越过 Workspace 边界。
 
 ## 身份和点击劫持
 

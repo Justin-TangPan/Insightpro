@@ -22,7 +22,7 @@ services:
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/config:/home/opencode/.config/opencode"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/cache:/home/opencode/.cache"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/state:/home/opencode/.local/state/opencode"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace:ro"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace"
       - "./opencode.json:/home/opencode/.config/opencode/opencode.json:ro"
     restart: unless-stopped
     read_only: true
@@ -72,6 +72,7 @@ services:
       - "${OPENCODE_BIND_ADDRESS:-0.0.0.0}:${OPENCODE_PORT:-4096}:8080"
     volumes:
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - ./insight-agent-bootstrap.js:/etc/nginx/insight-agent/bootstrap.js:ro
     depends_on:
       opencode:
         condition: service_healthy

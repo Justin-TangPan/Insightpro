@@ -8,4 +8,4 @@ InsightPro 是技术解决方案洞察平台，核心闭环为 Insight → Requi
 
 `aliyun_solutions` 是外部厂商洞察数据；`solutions` 是按 `user_id` 隔离的用户自有方案；Requirements 可以从洞察创建并关联自有 Solution。
 
-产品不包含行业洞察、政策雷达和招标信息。Insight-Agent 当前只读，不执行代码、写业务数据、提交 Git 或部署。
+产品不包含行业洞察、政策雷达和招标信息。Insight-Agent 只允许修改隔离 Workspace，不执行 Shell、不写业务数据、不提交 Git、不部署。

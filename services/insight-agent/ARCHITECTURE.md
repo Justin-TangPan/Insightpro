@@ -6,7 +6,7 @@ Browser / InsightPro shell
        └─ Auth Gateway :4096
             ├─ InsightPro FastAPI SSO verification
             └─ OpenCode Web :4096 (internal only)
-                 └─ read-only InsightPro Git Workspace
+                 └─ isolated writable InsightPro Git Workspace
 ```
 
 ## 服务和网络
@@ -23,9 +23,9 @@ Supabase Auth 是唯一身份源。前端以 Supabase access token向同源 Insi
 
 ## 数据与安全边界
 
-- `/workspace`：独立 Git Workspace，只读挂载，不包含生产 `.env`。
+- `/workspace`：独立、可写的 Git Workspace，不包含生产 `.env`；修改不会直接作用于生产仓库。
 - OpenCode data/state/cache：独立持久化，允许 Runtime 保存 Session。
-- OpenCode config：固定只读配置文件；拒绝 edit、bash、task、external directory 和 web 工具。
+- OpenCode config：固定只读配置文件；允许 Workspace 内 edit，拒绝 bash、task、external directory 和 web 工具。
 - InsightPro PostgreSQL、Docker Socket、生产目录和生产 `.env`：不挂载、不联网授权。
 - OpenCode 与 InsightPro 业务 API/数据库无调用关系。
 

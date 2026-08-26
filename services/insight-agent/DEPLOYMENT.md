@@ -3,10 +3,10 @@
 ## 组成
 
 - `deploy/opencode/Dockerfile`：固定 OpenCode 版本的非 root Runtime。
-- `deploy/opencode/compose.yaml`：独立 Compose、资源限制、只读 Workspace 和健康检查。
+- `deploy/opencode/compose.yaml`：独立 Compose、资源限制、隔离 Workspace 和健康检查。
 - `deploy/opencode/nginx.conf.template`：SSO Gateway 与 iframe 来源限制。
 - `deploy/opencode/manage.sh`：bootstrap/start/stop/upgrade/health/logs。
-- `deploy/opencode/opencode.json`：模型与只读工具权限。
+- `deploy/opencode/opencode.json`：模型与 Workspace 写入工具权限。
 
 systemd unit 是 `insight-opencode.service`；内部名称暂保留以避免无收益的生产 unit 迁移，产品界面不暴露该名称。
 
@@ -21,7 +21,7 @@ systemd unit 是 `insight-opencode.service`；内部名称暂保留以避免无�
 - `data/`：Session 和消息；
 - `state/`、`cache/`：Runtime 状态；
 - `config/`：运行配置副本；
-- `workspace/`：无 Secret 的独立 Git Workspace，在容器内只读。
+- `workspace/`：无 Secret 的独立可写 Git Workspace，与生产仓库隔离。
 
 ## 发布与验证
 
@@ -31,6 +31,6 @@ sudo ./deploy/opencode/manage.sh health
 ./scripts/health-check.sh full
 ```
 
-验证匿名 Gateway 请求被拦截、合法 SSO 可进入、iframe 响应带正确 `frame-ancestors`、Workspace 写入失败、`.env` 不存在、OpenCode 重启后 Session 仍存在。Insight-Agent 停止后，InsightPro full health 仍应通过。
+验证匿名 Gateway 请求被拦截、合法 SSO 可进入、iframe 响应带正确 `frame-ancestors`、Workspace 可写但生产目录未挂载、`.env` 不存在、OpenCode 重启后 Session 仍存在。Insight-Agent 停止后，InsightPro full health 仍应通过。
 
 升级失败时保持 InsightPro 不动，使用固定镜像版本回退 `Dockerfile`/Compose 并重新执行 `upgrade`。持久化目录不要随容器回滚删除；回滚前先备份 data/state。OpenCode Core 不做本地 Patch。

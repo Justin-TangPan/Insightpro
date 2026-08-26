@@ -150,7 +150,7 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
     if not user_id:
         raise HTTPException(status_code=401, detail="SSO ticket 无效、已过期或已使用")
     session = await asyncio.to_thread(opencode_sso_service.create_gateway_session, user_id)
-    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/", status_code=303)
+    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/L3dvcmtzcGFjZQ/session", status_code=303)
     response.set_cookie(
         "insight_opencode_session",
         session,

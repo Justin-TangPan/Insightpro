@@ -26,6 +26,12 @@ server {
         proxy_set_header X-Insight-SSO-Ticket $sso_ticket;
     }
 
+    location = /insight-agent-bootstrap.js {
+        default_type application/javascript;
+        alias /etc/nginx/insight-agent/bootstrap.js;
+        add_header Cache-Control "no-store";
+    }
+
     location / {
         auth_request /_insight_auth;
         error_page 401 = @insight_login;
@@ -41,6 +47,8 @@ server {
         proxy_read_timeout 300s;
         proxy_hide_header WWW-Authenticate;
         add_header Content-Security-Policy "frame-ancestors ${INSIGHT_APP_ORIGIN}" always;
+        sub_filter '</head>' '<script src="/insight-agent-bootstrap.js"></script></head>';
+        sub_filter_once on;
     }
 
     location @insight_login {

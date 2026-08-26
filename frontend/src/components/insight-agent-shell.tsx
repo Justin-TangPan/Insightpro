@@ -95,15 +95,15 @@ export function InsightAgentShell() {
           top: position?.top,
           right: position ? undefined : 24,
           bottom: position ? undefined : 24,
-          width: minimized ? 320 : 620,
-          height: minimized ? 48 : 680,
+          width: minimized ? 320 : 900,
+          height: minimized ? 48 : 720,
           maxWidth: "calc(100vw - 24px)",
           maxHeight: "calc(100vh - 80px)",
           resize: minimized ? "none" : "both",
         }}
       >
         <header onPointerDown={startDrag} className="flex h-12 shrink-0 cursor-move items-center justify-between bg-primary-dark px-4 text-white">
-          <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4" /> Insight-Agent <span className="text-xs font-normal text-white/60">只读工作区</span></div>
+          <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4" /> Insight-Agent</div>
           <div className="flex items-center gap-1">
             {!full && <button type="button" onClick={() => setMinimized(value => !value)} className="rounded p-1.5 hover:bg-white/15" aria-label={minimized ? "展开" : "最小化"}>{minimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button>}
             <button type="button" onClick={() => full ? restore() : router.push("/insight-agent")} className="rounded p-1.5 hover:bg-white/15" aria-label={full ? "还原浮窗" : "最大化"}>{full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
