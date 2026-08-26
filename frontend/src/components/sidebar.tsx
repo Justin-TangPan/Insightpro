@@ -98,20 +98,18 @@ export function Sidebar() {
           <div>
             <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">AI 工作区</p>
             <Link
-              href="/auth/opencode"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-ink-muted transition-all hover:bg-white/70 hover:text-ink"
+              href="/insight-agent"
+              className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${pathname === "/insight-agent" ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/60">
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${pathname === "/insight-agent" ? "bg-primary-soft text-primary" : "bg-white/60"}`}>
                 <Bot className="h-4 w-4" strokeWidth={1.5} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-[10px] font-semibold text-ink-muted">07</span>
-                  <span className="text-sm font-semibold">OpenCode / AI Agent</span>
+                  <span className="text-sm font-semibold">Insight-Agent</span>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-ink-muted">AI 工作执行环境</p>
+                <p className="mt-0.5 truncate text-xs text-ink-muted">AI 智能工作区</p>
               </div>
             </Link>
           </div>

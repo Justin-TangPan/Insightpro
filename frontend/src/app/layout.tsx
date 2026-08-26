@@ -6,8 +6,8 @@ import { SearchBar } from "@/components/search-bar";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNavTrigger } from "@/components/mobile-nav";
 import { PageTracker } from "@/components/page-tracker";
-import Script from "next/script";
 import { AuthProvider } from "@/components/auth-provider";
+import { InsightAgentShell } from "@/components/insight-agent-shell";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -58,11 +58,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="page-shell">{children}</div>
           </main>
           </div>
+          <InsightAgentShell />
         </AuthProvider>
-        <Script src="/chat.js" strategy="afterInteractive" />
-        <Script id="chat-api-config" strategy="beforeInteractive">
-          {`window.__CHAT_API_URL__=window.location.origin;`}
-        </Script>
       </body>
     </html>
   );

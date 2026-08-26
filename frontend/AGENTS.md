@@ -7,7 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 After any verified remediation, dependency change, build/lint/test fix, or architecture migration, update `../log/versions.md` with the next internal patch version, validation results, and known remaining risks.
 
-## Global Chat Assistant
+## Insight-Agent
 
-The InsightPro chat assistant must remain globally mounted from `src/app/layout.tsx` through `public/chat.js`. Production builds must not fall back to `localhost`; the assistant API URL must come from `window.__CHAT_API_URL__`. When navigation labels, core modules, or routes change, update the assistant knowledge base in `../backend/routers/chat.py` and quick questions in `public/chat.js` in the same change.
+Interactive AI is provided only by the globally mounted `InsightAgentShell`; do not restore `public/chat.js` or create a second chat UI. Background AI pipelines and their APIs are separate business capabilities and must not be removed when changing Insight-Agent.
 <!-- END:nextjs-agent-rules -->

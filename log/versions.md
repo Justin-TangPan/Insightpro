@@ -1,5 +1,24 @@
 # 版本日志
 
+## [0.0.45] - 2026-08-26
+
+### Insight-Agent 产品集成
+- 产品层统一更名为 Insight-Agent；Sidebar 改为站内完整工作区，根布局新增可拖动、缩放、最小化、关闭、最大化/还原的浮窗。
+- 浮窗与完整工作区复用一个持久 iframe，路由切换不重建底层页面和 Session；旧 `chat.js` 不再挂载，后台 AI Pipeline 与 Legacy Chat API 保留。
+- 新增 `services/insight-agent/` 子项目文档，集中说明产品关系、架构、安全、部署和项目上下文。
+
+### 只读安全边界
+- InsightPro 独立 Git Workspace 改为只读挂载，固定配置文件也只读；OpenCode 权限拒绝 edit、bash、task、外部目录及 web 工具，只保留项目内读取、搜索和分析。
+- Gateway 嵌入响应增加 `frame-ancestors` 来源限制；继续使用 Supabase 一次性 Ticket 与短时可撤销 Session，仅授权唯一管理员。
+
+### 验证
+- 前端 ESLint 与 Next.js 20 路由生产构建通过。
+- 待完成部署后补充后端、Docker、SSO、只读、Session 连续性和 InsightPro 回归结果。
+
+### 已知限制
+- 底层单实例仍共享 Session、Workspace、配置和 Provider 凭据，尚不具备多用户隔离，不能向第二位用户开放。
+- 当前 IP + HTTP 环境无法启用 Secure Cookie，正式使用前仍需 HTTPS 域名。
+
 ## [0.0.44] - 2026-08-26
 
 ### 用户系统与 OpenCode SSO

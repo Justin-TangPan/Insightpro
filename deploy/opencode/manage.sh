@@ -50,9 +50,7 @@ bootstrap() {
     "$OPENCODE_DATA_ROOT/state" \
     "$OPENCODE_DATA_ROOT/workspace"
 
-  if [[ ! -f "$OPENCODE_DATA_ROOT/config/opencode.json" ]]; then
-    install -m 0640 "$DEPLOY_DIR/opencode.json" "$OPENCODE_DATA_ROOT/config/opencode.json"
-  fi
+  install -m 0640 "$DEPLOY_DIR/opencode.json" "$OPENCODE_DATA_ROOT/config/opencode.json"
 
   if [[ ! -d "$OPENCODE_DATA_ROOT/workspace/.git" ]]; then
     rmdir "$OPENCODE_DATA_ROOT/workspace"

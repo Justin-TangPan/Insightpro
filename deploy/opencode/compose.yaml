@@ -22,7 +22,8 @@ services:
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/config:/home/opencode/.config/opencode"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/cache:/home/opencode/.cache"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/state:/home/opencode/.local/state/opencode"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace:ro"
+      - "./opencode.json:/home/opencode/.config/opencode/opencode.json:ro"
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -58,10 +59,11 @@ services:
     image: nginxinc/nginx-unprivileged:1.29.4-alpine
     user: "101:101"
     environment:
-      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|OPENCODE_GATEWAY_SECRET|OPENCODE_BASIC_AUTH)$"
+      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|INSIGHT_APP_ORIGIN|OPENCODE_GATEWAY_SECRET|OPENCODE_BASIC_AUTH)$"
       INSIGHT_AUTH_VERIFY_URL: "${INSIGHT_AUTH_VERIFY_URL:-http://host.docker.internal:8000/api/auth/opencode/verify}"
       INSIGHT_AUTH_CALLBACK_URL: "${INSIGHT_AUTH_CALLBACK_URL:-http://host.docker.internal:8000/api/auth/opencode/callback}"
       INSIGHT_LOGIN_URL: "${INSIGHT_LOGIN_URL:-http://159.138.89.233:3000/auth/login}"
+      INSIGHT_APP_ORIGIN: "${INSIGHT_APP_ORIGIN:-http://159.138.89.233:3000}"
       OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
       OPENCODE_BASIC_AUTH: "${OPENCODE_BASIC_AUTH:?missing OPENCODE_BASIC_AUTH}"
     extra_hosts:

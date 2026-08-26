@@ -1,4 +1,4 @@
-"""认证路由 — 登录/注册/登出/用户信息/OpenCode SSO"""
+"""认证路由 — 登录/注册/登出/用户信息/Insight-Agent SSO"""
 import asyncio
 import hmac
 from urllib.parse import urlencode
@@ -59,7 +59,7 @@ class RegisterRequest(BaseModel):
 
 def _require_opencode_user(user) -> None:
     if not user.email or user.email.lower() != settings.OPENCODE_ALLOWED_EMAIL:
-        raise HTTPException(status_code=403, detail="当前 OpenCode 单实例仅授权指定管理员使用")
+        raise HTTPException(status_code=403, detail="当前 Insight-Agent 单实例仅授权指定管理员使用")
 
 
 def _gateway_secret() -> str:
