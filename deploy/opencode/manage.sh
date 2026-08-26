@@ -4,7 +4,6 @@ set -Eeuo pipefail
 DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$DEPLOY_DIR/../.." && pwd)"
 ENV_FILE="/etc/insight-opencode/opencode.env"
-export DOCKER_API_VERSION="${DOCKER_API_VERSION:-1.39}"
 
 load_env() {
   [[ -f "$ENV_FILE" ]] || { echo "Missing $ENV_FILE" >&2; exit 1; }

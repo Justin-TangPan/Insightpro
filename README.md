@@ -39,7 +39,7 @@ docker-compose -p insight-web -f compose.yaml up --detach --build
 sudo ./scripts/deploy-docker.sh
 ```
 
-旧 Docker Engine 18.09 环境需设置 `DOCKER_API_VERSION=1.39`，详见 [运维手册](doc/运维手册.md)。
+生产服务器当前使用 Docker Engine 28.5.2；安装与回滚说明见 [运维手册](doc/运维手册.md)。
 
 ## 本地开发
 

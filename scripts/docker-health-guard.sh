@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export DOCKER_API_VERSION="${DOCKER_API_VERSION:-1.39}"
 HEALTH_CHECK="$PROJECT_ROOT/scripts/health-check.sh"
 LOCK_FILE="/run/lock/insight-web-docker-health-guard.lock"
 REPAIR_STAMP="/run/insight-web-docker-health-guard.last-repair"

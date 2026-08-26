@@ -13,7 +13,14 @@
 
 ### 验证
 - 前端 ESLint 与 Next.js 20 路由生产构建通过。
-- 待完成部署后补充后端、Docker、SSO、只读、Session 连续性和 InsightPro 回归结果。
+- 后端 39 项测试、Prisma 校验、主/Agent Compose 健康检查和 InsightPro full health 通过。
+- 真实 Supabase SSO、一次性 Ticket、防重放、登出撤销和 iframe `frame-ancestors` 通过。
+- 容器内实际写 Workspace 失败，权限配置确认 edit/bash/task/外部目录均拒绝，Workspace 未发现 `.env`。
+- Agent 重启前后 Session ID 集合一致；停止整个 Agent Compose 时 InsightPro full health 仍通过，随后 Agent 独立恢复健康。
+
+### Docker 运行时
+- Huawei Cloud EulerOS 2.0 系统仓库仅提供 Docker 18.09，已使用官方稳定静态二进制升级到 Docker 28.5.2 / API 1.51，并保留原 RPM 与数据目录作为回滚路径。
+- 移除项目脚本和 systemd unit 中遗留的 API 1.39 强制降级；Docker 升级后主栈重新发布成功。
 
 ### 已知限制
 - 底层单实例仍共享 Session、Workspace、配置和 Provider 凭据，尚不具备多用户隔离，不能向第二位用户开放。

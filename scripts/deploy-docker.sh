@@ -2,7 +2,6 @@
 set -Eeuo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export DOCKER_API_VERSION="${DOCKER_API_VERSION:-1.39}"
 VENV_DIR="${INSIGHT_VENV_DIR:-/opt/insight-web-venv}"
 LOCK_FILE="/run/lock/insight-web-docker-deploy.lock"
 SWITCHED=false

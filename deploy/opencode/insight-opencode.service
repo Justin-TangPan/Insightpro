@@ -8,7 +8,6 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/AIProject/insight-web
-Environment=DOCKER_API_VERSION=1.39
 ExecStart=/root/AIProject/insight-web/deploy/opencode/manage.sh start
 ExecStop=/root/AIProject/insight-web/deploy/opencode/manage.sh stop
 ExecReload=/root/AIProject/insight-web/deploy/opencode/manage.sh upgrade
