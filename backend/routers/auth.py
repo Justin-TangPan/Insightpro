@@ -1,7 +1,7 @@
 """认证路由 — 登录/注册/登出/用户信息/Insight-Agent SSO"""
 import asyncio
 import hmac
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -160,6 +160,21 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
         samesite="lax",
         path="/",
     )
+    try:
+        account = await asyncio.to_thread(supabase.auth.admin.get_user_by_id, user_id)
+        account_user = account.user
+        display_name = ((account_user.user_metadata or {}).get("name") or (account_user.email or "").split("@")[0]).strip()[:80]
+        if display_name:
+            response.set_cookie(
+                "insight_agent_name",
+                quote(display_name, safe=""),
+                max_age=opencode_sso_service.SESSION_TTL_SECONDS,
+                secure=settings.OPENCODE_COOKIE_SECURE,
+                samesite="lax",
+                path="/",
+            )
+    except Exception:
+        pass
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -182,4 +197,7 @@ async def verify_opencode_gateway(
 @router.post("/auth/opencode/revoke", status_code=204)
 async def revoke_opencode_sessions(user=Depends(require_auth)):
     await asyncio.to_thread(opencode_sso_service.revoke_gateway_sessions, str(user.id))
-    return Response(status_code=204)
+    response = Response(status_code=204)
+    response.delete_cookie("insight_opencode_session", path="/")
+    response.delete_cookie("insight_agent_name", path="/")
+    return response

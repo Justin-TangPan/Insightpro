@@ -1,5 +1,15 @@
 # 版本日志
 
+## [0.0.48] - 2026-08-26
+
+### Insight-Agent 工作区命名
+- SSO callback 自动读取当前 Supabase 用户姓名，缺失时使用邮箱前缀，并通过非敏感展示 Cookie 传给 Agent 启动脚本。
+- 启动脚本自动更新 `/workspace` 的本地项目注册信息与 OpenCode 项目显示名；用户无需创建或命名 Workspace。
+- InsightPro 登出时同时清理 Gateway Session Cookie 和工作区显示名 Cookie。
+
+### 验证
+- 待部署后补充中文用户名编码、项目名称更新、Cookie 清理和完整健康结果。
+
 ## [0.0.47] - 2026-08-26
 
 ### Insight-Agent 会话修复
