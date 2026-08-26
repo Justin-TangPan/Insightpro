@@ -8,7 +8,8 @@
 - InsightPro 登出时同时清理 Gateway Session Cookie 和工作区显示名 Cookie。
 
 ### 验证
-- 待部署后补充中文用户名编码、项目名称更新、Cookie 清理和完整健康结果。
+- 真实 Supabase 用户完成 SSO；展示名 Cookie 编解码、`/workspace` 项目名称更新、30 天 Max-Age、会话创建/删除及登出 Cookie 清理全部通过。
+- InsightPro full health 与 Insight-Agent 独立健康检查通过。
 
 ## [0.0.47] - 2026-08-26
 
@@ -17,7 +18,7 @@
 - InsightPro 退出登录仍会立即撤销该用户的全部 Agent Gateway Session；一次性 SSO Ticket 仍保持 60 秒有效。
 
 ### 验证
-- 待部署后补充 SSO Cookie、数据库到期时间、登出撤销和 Agent 消息链路结果。
+- 真实 SSO Cookie 的 Max-Age 为 2592000 秒；通过 Gateway 创建并删除测试 Session 成功，登出后授权和展示 Cookie 均清理。
 
 ## [0.0.46] - 2026-08-26
 
