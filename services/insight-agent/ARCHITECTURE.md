@@ -19,7 +19,7 @@ InsightPro 前后端继续由根 Compose 管理。Insight-Agent Runtime 与 Gate
 
 ## 用户和认证
 
-Supabase Auth 是唯一身份源。前端以 Supabase access token向同源 InsightPro API 换取 60 秒一次性 Ticket；Gateway callback 消费 Ticket 后建立 5 分钟 HttpOnly Session。Gateway 对每个请求向 FastAPI 验证 Session，并在内部注入 OpenCode 服务级 Basic Auth。Supabase Token、Basic Auth 和 Provider 密钥都不会进入 URL或下发给 Agent。
+Supabase Auth 是唯一身份源。前端以 Supabase access token向同源 InsightPro API 换取 60 秒一次性 Ticket；Gateway callback 消费 Ticket 后建立 30 天 HttpOnly Session，避免工作过程中断。Gateway 对每个请求向 FastAPI 验证 Session，并在内部注入 OpenCode 服务级 Basic Auth；用户退出 InsightPro 时立即撤销。Supabase Token、Basic Auth 和 Provider 密钥都不会进入 URL或下发给 Agent。
 
 ## 数据与安全边界
 

@@ -7,7 +7,7 @@ import secrets
 from repositories import opencode_sso_repository as repository
 
 TICKET_TTL_SECONDS = 60
-SESSION_TTL_SECONDS = 300
+SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
 def issue_ticket(user_id: str) -> str:

@@ -1,5 +1,14 @@
 # 版本日志
 
+## [0.0.47] - 2026-08-26
+
+### Insight-Agent 会话修复
+- Gateway Session 从 5 分钟延长到 30 天，避免用户工作过程中 OpenCode API 被 302 重定向并显示“没有对话”。
+- InsightPro 退出登录仍会立即撤销该用户的全部 Agent Gateway Session；一次性 SSO Ticket 仍保持 60 秒有效。
+
+### 验证
+- 待部署后补充 SSO Cookie、数据库到期时间、登出撤销和 Agent 消息链路结果。
+
 ## [0.0.46] - 2026-08-26
 
 ### Insight-Agent 工作区体验
