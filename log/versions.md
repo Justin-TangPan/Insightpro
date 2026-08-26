@@ -12,7 +12,9 @@
 - 继续禁用 bash、task、外部目录和 web 工具；生产仓库、生产 `.env`、Docker Socket 与业务数据库仍不挂载。
 
 ### 验证
-- 待发布后补充项目自动初始化、Workspace 实际写入、权限边界、前端构建和健康检查结果。
+- 项目注册启动脚本通过幂等自检；真实 Supabase SSO callback 直接进入 `/workspace` Session 路由，返回页面已注入启动脚本。
+- 容器挂载确认 `workspace_rw=true`，实际创建、读取并清理测试文件通过；edit 允许，bash/task/外部目录仍拒绝，Workspace 未发现 `.env`。
+- 前端 ESLint、20 路由生产构建、Prisma、后端 39 项测试、InsightPro full health 和 Insight-Agent 独立健康检查全部通过。
 
 ## [0.0.45] - 2026-08-26
 
