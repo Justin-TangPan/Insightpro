@@ -1,5 +1,26 @@
 # 版本日志
 
+## [0.0.44] - 2026-08-26
+
+### 用户系统与 OpenCode SSO
+- 将分散的 `useAuth` 状态合并为全局 `AuthProvider`，新增 Next.js Proxy 统一保护 Workbench、设置和 OpenCode 启动页；登录支持安全的站内 `next` 回跳。
+- 新增 OpenCode Auth Gateway：Supabase 登录用户以 Bearer Token 向 InsightPro 换取 60 秒一次性 ticket，Gateway callback 创建 5 分钟 HttpOnly Session，服务端注入 OpenCode Basic Auth。
+- ticket 和 Gateway Session 仅以 SHA-256 摘要存储；ticket 原子单次消费，退出 InsightPro 时立即撤销该用户全部 Gateway Session。
+- OpenCode 不再直接发布端口，仅 Gateway 暴露 `4096`；匿名访问跳转 InsightPro 登录，OpenCode 服务密码、Supabase Service Role 和模型密钥均不下发浏览器。
+
+### 多用户安全边界
+- 实测 OpenCode `session`、`message`、`permission`、Workspace 和 Provider 均无 InsightPro `user_id` 所有权，单实例不能安全承载相互隔离的用户。
+- 当前只允许唯一指定管理员进入共享实例；普通 InsightPro 用户返回 403。正式多用户开放必须按 `user_id` 路由到独立 OpenCode 实例、数据目录和 Workspace。
+
+### 验证
+- 后端 39 项测试、前端 ESLint、Next.js 生产构建、Prisma schema 与两个 Compose 配置通过。
+- 真实 Supabase 管理员完成 ticket 换取并进入 OpenCode 原生 Web；匿名访问跳转登录，非法/过期/重放 ticket 均返回 401，ticket URL 不含 Supabase Token。
+- 退出撤销后原 Gateway Cookie 立即失效；OpenCode 服务重建前创建的 Session 仍可读取，InsightPro full health 与 OpenCode 独立健康检查均通过。
+
+### 已知遗留
+- 当前仍是 HTTP IP+端口临时验收，Cookie 暂不能启用 `Secure`；正式环境必须使用独立 HTTPS 子域名。
+- 尚未实施一用户一实例，因此不能向第二位 InsightPro 用户开放 OpenCode。
+
 ## [0.0.43] - 2026-08-26
 
 ### OpenCode 第一阶段

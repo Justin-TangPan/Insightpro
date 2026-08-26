@@ -39,6 +39,8 @@ class TestAPIEndpoints:
         ("POST", "/api/workbench/requirements"),
         ("GET", "/api/workbench/solutions"),
         ("POST", "/api/workbench/solutions"),
+        ("POST", "/api/auth/opencode/ticket"),
+        ("POST", "/api/auth/opencode/revoke"),
     ])
     def test_sensitive_endpoints_require_auth(self, method, path):
         response = client.request(method, path)

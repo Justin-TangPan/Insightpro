@@ -1,20 +1,25 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
 import type { User } from "@supabase/supabase-js"
 
-/**
- * 独立的 auth hook — 不需要 AuthProvider 包裹
- * 每个客户端组件调用 useAuth() 独立获取 Supabase auth 状态
- */
-export function useAuth() {
+interface AuthState {
+  user: User | null
+  loading: boolean
+  signIn: (username: string, password: string) => Promise<{ error: string | null }>
+  signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>
+  signOut: () => Promise<void>
+}
+
+const AuthContext = createContext<AuthState | null>(null)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
+  const [supabase] = useState(createClient)
 
   useEffect(() => {
-    const supabase = createClient()
-
     supabase.auth.getUser().then(({ data: { user } }) => {
       setUser(user)
       setLoading(false)
@@ -22,20 +27,19 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      setLoading(false)
     })
 
     return () => subscription.unsubscribe()
-  }, [])
+  }, [supabase])
 
   const signIn = async (username: string, password: string) => {
-    const supabase = createClient()
     const email = username === "admin" ? "admin@insightpro.local" : username
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     return { error: error?.message ?? null }
   }
 
   const signUp = async (email: string, password: string, name: string) => {
-    const supabase = createClient()
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -45,10 +49,22 @@ export function useAuth() {
   }
 
   const signOut = async () => {
-    const supabase = createClient()
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) {
+      await fetch("/api/auth/opencode/revoke", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }).catch(() => undefined)
+    }
     await supabase.auth.signOut()
     setUser(null)
   }
 
-  return { user, loading, signIn, signUp, signOut }
+  return <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const value = useContext(AuthContext)
+  if (!value) throw new Error("useAuth must be used inside AuthProvider")
+  return value
 }

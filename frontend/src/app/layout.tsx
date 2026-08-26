@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/sidebar";
 import { MobileNavTrigger } from "@/components/mobile-nav";
 import { PageTracker } from "@/components/page-tracker";
 import Script from "next/script";
+import { AuthProvider } from "@/components/auth-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -24,8 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="zh" className={inter.variable}>
       <body className="bg-paper text-ink antialiased">
-        <PageTracker />
-        <div className="flex min-h-screen">
+        <AuthProvider>
+          <PageTracker />
+          <div className="flex min-h-screen">
           <Sidebar />
 
           {/* Overlay for mobile */}
@@ -55,7 +57,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
             <div className="page-shell">{children}</div>
           </main>
-        </div>
+          </div>
+        </AuthProvider>
         <Script src="/chat.js" strategy="afterInteractive" />
         <Script id="chat-api-config" strategy="beforeInteractive">
           {`window.__CHAT_API_URL__=window.location.origin;`}

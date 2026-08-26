@@ -31,7 +31,7 @@ docker-compose -p insight-web -f compose.yaml up --detach --build
 - Web：<http://localhost:3000>
 - API：<http://localhost:8000>
 - OpenAPI：<http://localhost:8000/docs>
-- OpenCode：由独立 `insight-opencode` Compose project 提供；当前验收入口为 <http://159.138.89.233:4096>，必须使用独立密码登录。
+- OpenCode：由独立 `insight-opencode` Compose project 提供；当前验收入口为 <http://159.138.89.233:4096>，通过 InsightPro Supabase 身份单点进入。
 
 生产服务器使用带测试、构建、切换和回滚门禁的发布脚本：
 
@@ -105,13 +105,14 @@ EMAIL_TO=recipient@example.com
 | `/insights/competitors` | 云厂商产品动态与能力对照 | 公开；刷新需登录 |
 | `/workbench/requirements` | Requirement 列表、筛选、详情与方案关联 | 登录 |
 | `/workbench/solutions` | 自有 Solution 列表、详情与相关需求 | 登录 |
+| `/auth/opencode` | 以 InsightPro 身份换取 OpenCode 短时授权 | 登录；当前仅指定管理员 |
 | `/dashboard` | 核心数据和服务状态 | 公开 |
 | `/search`、`/history` | 跨域检索与历史回看；登录后搜索个人 Workbench | 公开/可选登录 |
 | `/reports` | AI 分析任务与报告归档 | 登录 |
 | `/settings` | 账号、服务状态和邮件管理 | 登录；邮件管理需管理员 |
 | `/auth/login`、`/auth/register` | Supabase 用户认证 | 公开 |
 
-侧边栏的 `OpenCode / AI Agent` 是新标签页外部入口。OpenCode 保留原生 Web UI、认证和 Session，不经过 InsightPro FastAPI，也不访问 InsightPro 数据库。
+侧边栏的 `OpenCode / AI Agent` 以新标签页打开站内授权页，使用一次性 ticket 进入原生 Web。Gateway 只复用 InsightPro 身份，不让 OpenCode 访问业务数据库；当前单实例仅授权指定管理员，不能作为多用户隔离方案。
 
 完整 API 与权限矩阵见 [技术架构与业务架构清单](doc/技术架构与业务架构清单.md)，运行时契约以 FastAPI `/docs` 为准。
 
@@ -153,7 +154,7 @@ cd .. && ./scripts/health-check.sh full
 ## 文档索引
 
 - [技术架构与业务架构清单](doc/技术架构与业务架构清单.md)：产品边界、业务能力、系统组件、数据流、API、权限和风险。
-- [数据库契约](doc/database-schema.md)：13 张 public 业务表及约束。
+- [数据库契约](doc/database-schema.md)：15 张 public 业务表及约束。
 - [运维手册](doc/运维手册.md)：部署、发布、巡检、补跑和故障恢复。
 - [改进清单](doc/整改方案.md)：当前仍需处理的技术债及触发条件。
 - [版本日志](log/versions.md)：完整演进记录。

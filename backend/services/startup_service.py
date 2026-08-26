@@ -104,6 +104,32 @@ def ensure_runtime_schema() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_requirements_user_status ON requirements(user_id, status, updated_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_solutions_user_status ON solutions(user_id, status, updated_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_requirement_solutions_solution ON requirement_solutions(solution_id)")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS opencode_sso_tickets (
+                token_hash TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                used_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_tickets_expiry ON opencode_sso_tickets(expires_at)")
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS opencode_sso_sessions (
+                token_hash TEXT PRIMARY KEY,
+                user_id UUID NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                revoked_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_user ON opencode_sso_sessions(user_id, expires_at)")
+        cursor.execute("ALTER TABLE opencode_sso_tickets ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirement_solutions ENABLE ROW LEVEL SECURITY")

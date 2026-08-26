@@ -10,6 +10,9 @@ services:
     environment:
       TZ: Asia/Shanghai
       STARTUP_CATCHUP_ENABLED: "true"
+      OPENCODE_SSO_SECRET_FILE: /run/secrets/opencode_sso_secret
+    volumes:
+      - /etc/insight-opencode/backend-gateway.secret:/run/secrets/opencode_sso_secret:ro
     ports:
       - "0.0.0.0:8000:8000"
     restart: unless-stopped

@@ -15,8 +15,8 @@ services:
       XDG_STATE_HOME: /home/opencode/.local/state
     command: ["web", "--hostname", "0.0.0.0", "--port", "4096"]
     working_dir: /workspace
-    ports:
-      - "${OPENCODE_BIND_ADDRESS:-0.0.0.0}:${OPENCODE_PORT:-4096}:4096"
+    expose:
+      - "4096"
     volumes:
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/data:/home/opencode/.local/share/opencode"
       - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/config:/home/opencode/.config/opencode"
@@ -45,6 +45,55 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      - opencode-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  gateway:
+    container_name: insight-opencode-gateway
+    image: nginxinc/nginx-unprivileged:1.29.4-alpine
+    user: "101:101"
+    environment:
+      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|OPENCODE_GATEWAY_SECRET|OPENCODE_BASIC_AUTH)$"
+      INSIGHT_AUTH_VERIFY_URL: "${INSIGHT_AUTH_VERIFY_URL:-http://host.docker.internal:8000/api/auth/opencode/verify}"
+      INSIGHT_AUTH_CALLBACK_URL: "${INSIGHT_AUTH_CALLBACK_URL:-http://host.docker.internal:8000/api/auth/opencode/callback}"
+      INSIGHT_LOGIN_URL: "${INSIGHT_LOGIN_URL:-http://159.138.89.233:3000/auth/login}"
+      OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
+      OPENCODE_BASIC_AUTH: "${OPENCODE_BASIC_AUTH:?missing OPENCODE_BASIC_AUTH}"
+    extra_hosts:
+      - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
+    ports:
+      - "${OPENCODE_BIND_ADDRESS:-0.0.0.0}:${OPENCODE_PORT:-4096}:8080"
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    depends_on:
+      opencode:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,nosuid,nodev
+      - /var/cache/nginx:size=16m,nosuid,nodev,uid=101,gid=101
+      - /var/run:size=1m,nosuid,nodev,uid=101,gid=101
+      - /etc/nginx/conf.d:size=1m,nosuid,nodev,uid=101,gid=101
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    cpus: "0.25"
+    mem_limit: 128m
+    mem_reservation: 32m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     networks:
       - opencode-network
     logging:

@@ -1,15 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import Link from "next/link"
 
 export default function LoginPage() {
-  const { signIn } = useAuth()
+  const { user, loading: authLoading, signIn } = useAuth()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!authLoading && user) window.location.replace(returnPath())
+  }, [authLoading, user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,7 +24,7 @@ export default function LoginPage() {
     if (err) {
       setError(err)
     } else {
-      window.location.href = "/"
+      window.location.href = returnPath()
     }
   }
 
@@ -83,4 +87,9 @@ export default function LoginPage() {
       </div>
     </div>
   )
+}
+
+function returnPath() {
+  const requested = new URLSearchParams(window.location.search).get("next")
+  return requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/"
 }

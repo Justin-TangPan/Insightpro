@@ -36,7 +36,6 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
-  const openCodeUrl = process.env.NEXT_PUBLIC_OPENCODE_URL || "http://159.138.89.233:4096";
   const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "";
   const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "??";
 
@@ -98,8 +97,8 @@ export function Sidebar() {
           })}
           <div>
             <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">AI 工作区</p>
-            <a
-              href={openCodeUrl}
+            <Link
+              href="/auth/opencode"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-ink-muted transition-all hover:bg-white/70 hover:text-ink"
@@ -114,7 +113,7 @@ export function Sidebar() {
                 </div>
                 <p className="mt-0.5 truncate text-xs text-ink-muted">AI 工作执行环境</p>
               </div>
-            </a>
+            </Link>
           </div>
         </div>
       </nav>
