@@ -206,6 +206,20 @@ function upstreamHeaders(req, port) {
   return headers
 }
 
+function workspacePath(requestUrl, workspace) {
+  const target = new URL(requestUrl || "/", "http://runtime")
+  if (target.searchParams.has("directory")) target.searchParams.set("directory", workspace)
+  const parts = target.pathname.split("/")
+  if (parts[1]) {
+    try {
+      const decoded = Buffer.from(parts[1], "base64url").toString("utf8")
+      if (decoded.startsWith("/") && decoded !== workspace) parts[1] = Buffer.from(workspace).toString("base64url")
+    } catch {}
+  }
+  target.pathname = parts.join("/")
+  return `${target.pathname}${target.search}`
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.url === "/healthz") return void res.end("healthy\n")
   const current = identity(req)
@@ -221,7 +235,7 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     const instance = await ensureInstance(current)
-    const upstream = http.request({ hostname: "127.0.0.1", port: instance.port, path: req.url, method: req.method, headers: upstreamHeaders(req, instance.port) }, response => {
+    const upstream = http.request({ hostname: "127.0.0.1", port: instance.port, path: workspacePath(req.url, instance.workspace), method: req.method, headers: upstreamHeaders(req, instance.port) }, response => {
       res.writeHead(response.statusCode || 502, response.headers)
       response.pipe(res)
     })
@@ -241,7 +255,7 @@ server.on("upgrade", async (req, socket, head) => {
     const instance = await ensureInstance(current)
     const upstream = net.connect(instance.port, "127.0.0.1", () => {
       const headers = upstreamHeaders(req, instance.port)
-      upstream.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n${Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\r\n")}\r\n\r\n`)
+      upstream.write(`${req.method} ${workspacePath(req.url, instance.workspace)} HTTP/${req.httpVersion}\r\n${Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\r\n")}\r\n\r\n`)
       if (head.length) upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
@@ -265,6 +279,8 @@ if (process.argv.includes("--self-test")) {
   const id = "00000000-0000-4000-8000-000000000001"
   if (!identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": id } })) process.exit(1)
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
+  const workspace = `/srv/insight-agent/spaces/${id}/workspace`
+  if (workspacePath("/L3RtcC9taXNzaW5n/session?directory=%2Ftmp%2Fmissing", workspace) !== `/${Buffer.from(workspace).toString("base64url")}/session?directory=${encodeURIComponent(workspace)}`) process.exit(1)
   process.exit(0)
 }
 

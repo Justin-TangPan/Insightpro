@@ -47,7 +47,8 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ parts: [{ type: "text", text: question }] }),
       });
-      location.assign(`/L3dvcmtzcGFjZQ/session/${session.id}`);
+      const workspaceKey = btoa(workspace).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+      location.assign(`/${workspaceKey}/session/${session.id}`);
     } catch {
       // Native UI remains usable if a prompt cannot be submitted.
     }
