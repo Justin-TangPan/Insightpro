@@ -82,7 +82,7 @@ def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
 
 
 def build_daily_digest_html() -> str:
-    """构建技术解决方案日报：方案变化 + 技术热点 + 厂商动态。"""
+    """构建技术解决方案日报：方案变化 + 技术热点 + 价值评估。"""
     BASE_URL = settings.BASE_URL
     today = datetime.now().strftime("%Y-%m-%d")
     today_cn = datetime.now().strftime("%Y年%m月%d日")
@@ -90,7 +90,6 @@ def build_daily_digest_html() -> str:
 
     github_items = []
     eval_items = []
-    comp_news = []
     solution_items = []
     solution_total = 0
     solution_new = 0
@@ -102,8 +101,6 @@ def build_daily_digest_html() -> str:
             github_items = [dict(r) for r in c.fetchall()]
             c.execute("SELECT * FROM trending_business_eval WHERE scrape_date = %s ORDER BY total DESC LIMIT 5", (today,))
             eval_items = [dict(r) for r in c.fetchall()]
-            c.execute("SELECT * FROM competitor_news WHERE scrape_date = %s ORDER BY id", (today,))
-            comp_news = [dict(r) for r in c.fetchall()]
             c.execute("SELECT COUNT(*)::int AS count FROM aliyun_solutions WHERE is_active=TRUE")
             solution_total = c.fetchone()["count"]
             c.execute(
@@ -126,19 +123,6 @@ def build_daily_digest_html() -> str:
             solution_items = [dict(r) for r in c.fetchall()]
     except Exception:
         pass
-
-    if not comp_news:
-        from main_legacy import refresh_competitor_news
-        comp_news = refresh_competitor_news()
-
-    vendor_order = ["AWS", "Azure", "阿里云", "腾讯云", "火山云"]
-    vendor_colors = {"AWS": "#FF6B00", "Azure": "#0078d4", "阿里云": "#F5D300", "腾讯云": "#84CC16", "火山云": "#3b82f6"}
-    comp_by_vendor = {}
-    for item in comp_news:
-        v = item.get("vendor", "")
-        if v not in comp_by_vendor:
-            comp_by_vendor[v] = []
-        comp_by_vendor[v].append(item)
 
     INK = "#183028"
     PAPER = "#F3F7F4"
@@ -165,39 +149,6 @@ def build_daily_digest_html() -> str:
             </td>
           </tr>"""
     solution_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日官方目录暂无新增或更新</td></tr>' if not solution_cards else ""
-
-    # ── 友商动态卡片 ──
-    comp_cards = ""
-    for vendor in vendor_order:
-        items = comp_by_vendor.get(vendor, [])
-        if not items:
-            continue
-        color = vendor_colors.get(vendor, MUTED)
-        news_rows = ""
-        for item in items:
-            badge_text_color = INK if color in ("#F5D300", "#84CC16") else "#FFFFFF"
-            cat_badge = f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;background:{color};color:{badge_text_color};margin-right:8px;">{item.get("category","")}</span>' if item.get("category") else ""
-            news_rows += f"""\
-              <tr>
-                <td style="padding:12px 18px;border-bottom:1px solid {GRID};">
-                  {cat_badge}
-                  <a href="{item.get('link','#')}" style="color:{INK};text-decoration:none;font-size:13px;font-weight:600;">{item.get('title','')}</a>
-                  <p style="margin:5px 0 0;font-size:12px;color:{MUTED};line-height:1.55;">{item.get('summary','')}</p>
-                </td>
-              </tr>"""
-        comp_cards += f"""\
-          <tr>
-            <td style="padding:0 0 14px;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {GRID};border-radius:14px;overflow:hidden;">
-                <tr>
-                  <td style="padding:11px 18px;border-bottom:1px solid {GRID};border-left:3px solid {color};">
-                    <span style="font-size:13px;font-weight:700;color:{INK};letter-spacing:-0.01em;">{vendor}</span>
-                  </td>
-                </tr>
-                {news_rows}
-              </table>
-            </td>
-          </tr>"""
 
     # ── GitHub 趋势榜 ──
     github_cards = ""
@@ -248,7 +199,6 @@ def build_daily_digest_html() -> str:
 
     github_empty = f'<tr><td colspan="3" style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日数据抓取中</td></tr>' if not github_cards else ""
     eval_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日 AI 评估生成中</td></tr>' if not eval_cards else ""
-    comp_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">暂无友商动态</td></tr>' if not comp_cards else ""
 
     html = f"""<!DOCTYPE html>
 <html lang="zh">
@@ -358,27 +308,11 @@ def build_daily_digest_html() -> str:
           </td>
         </tr>
 
-        <!-- ════ 友商动态 ════ -->
-        <tr>
-          <td style="padding:28px 40px 0;" class="email-pad">
-            <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">Competitor News</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">云厂商最新动态</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 40px 0;" class="email-pad">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              {comp_cards}
-              {comp_empty}
-            </table>
-          </td>
-        </tr>
-
         <!-- ════ CTA ════ -->
         <tr>
           <td style="padding:32px 40px;text-align:center;" class="email-pad">
             <a href="{BASE_URL}/insights/solutions" style="display:inline-block;padding:13px 40px;border-radius:999px;background:{PRIMARY};color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.04em;text-decoration:none;">查看完整解决方案洞察 →</a>
-            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 云厂商动态</p>
+            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 技术价值评估</p>
           </td>
         </tr>
 
