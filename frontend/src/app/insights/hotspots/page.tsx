@@ -1,12 +1,15 @@
 "use client";
 
 import { SectionHeader } from "@/components/section-header";
+import { useAuth } from "@/components/auth-provider";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { Requirement, workbenchFetch } from "@/lib/workbench";
 import {
   Star, GitFork, TrendingUp, CalendarDays, RefreshCw,
-  ExternalLink, Activity, Zap, Clock, ArrowUpRight
+  ExternalLink, Activity, Zap, Clock, ArrowUpRight, BookmarkPlus, Check
 } from "lucide-react";
 
 interface TrendingItem {
@@ -91,6 +94,8 @@ const langColors: Record<string, string> = {
 };
 
 export default function HotspotsPage() {
+  const router = useRouter();
+  const { user } = useAuth();
   const [period, setPeriod] = useState("daily");
   const [data, setData] = useState<TrendingItem[]>([]);
   const [source, setSource] = useState("");
@@ -105,6 +110,31 @@ export default function HotspotsPage() {
   const [evalSummary, setEvalSummary] = useState<EvalResponse["summary"] | null>(null);
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalRefreshing, setEvalRefreshing] = useState(false);
+  const [savingRepo, setSavingRepo] = useState("");
+  const [savedRepos, setSavedRepos] = useState<Set<string>>(new Set());
+  const [saveError, setSaveError] = useState("");
+
+  const saveRequirement = async (item: TrendingItem) => {
+    if (!user) return router.push("/auth/login?next=/insights/hotspots");
+    setSavingRepo(item.repo_url);
+    setSaveError("");
+    try {
+      await workbenchFetch<Requirement>("/requirements", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `评估 GitHub 项目：${item.repo_name}`,
+          description: item.description || "评估该项目的技术能力、适用场景与落地价值。",
+          status: "draft", priority: "medium", source_type: "github_trending",
+          source_id: item.repo_name, source_url: item.repo_url,
+        }),
+      });
+      setSavedRepos((current) => new Set(current).add(item.repo_url));
+    } catch (reason) {
+      setSaveError(reason instanceof Error ? reason.message : "暂存需求失败");
+    } finally {
+      setSavingRepo("");
+    }
+  };
 
   const fetchTrending = useCallback(async (p: string) => {
     setLoading(true);
@@ -320,6 +350,7 @@ export default function HotspotsPage() {
       )}
 
       {/* Trending Projects Grid */}
+      {saveError && <div role="alert" className="rounded-xl bg-warning-soft px-4 py-3 text-sm text-warning">{saveError}</div>}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[...Array(8)].map((_, i) => (
@@ -344,11 +375,8 @@ export default function HotspotsPage() {
           {displayData.map((item, i) => {
             const summary = displayEvaluations.find((ev) => ev.repo_name === item.repo_name)?.summary;
             return (
-            <a
+            <article
               key={item.repo_url || i}
-              href={item.repo_url}
-              target="_blank"
-              rel="noopener noreferrer"
               className="group ui-card hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 transition-all duration-300"
             >
               <div className="flex items-start justify-between mb-2.5">
@@ -357,9 +385,7 @@ export default function HotspotsPage() {
                     <span className="flex h-6 w-6 items-center justify-center rounded-md gradient-primary text-white text-[10px] font-bold shrink-0">
                       {i + 1}
                     </span>
-                    <h4 className="serif-heading text-sm text-ink group-hover:text-primary transition-colors truncate">
-                      {item.repo_name}
-                    </h4>
+                    <a href={item.repo_url} target="_blank" rel="noopener noreferrer" className="serif-heading truncate text-sm text-ink transition-colors group-hover:text-primary">{item.repo_name}</a>
                   </div>
                   <p className="text-xs text-ink-secondary leading-relaxed line-clamp-2 ml-8 min-h-[2rem]">
                     {item.description || "暂无描述"}
@@ -371,7 +397,7 @@ export default function HotspotsPage() {
                     </div>
                   )}
                 </div>
-                <ExternalLink className="h-4 w-4 text-ink-muted group-hover:text-primary shrink-0 ml-3 transition-colors" />
+                <a href={item.repo_url} target="_blank" rel="noopener noreferrer" aria-label={`查看 ${item.repo_name}`}><ExternalLink className="h-4 w-4 text-ink-muted group-hover:text-primary shrink-0 ml-3 transition-colors" /></a>
               </div>
               <div className="flex flex-wrap items-center gap-3 ml-8 mt-2.5">
                 {item.language && item.language !== "N/A" && (
@@ -391,8 +417,12 @@ export default function HotspotsPage() {
                     <TrendingUp className="h-3 w-3" /> {item.today_stars}
                   </span>
                 )}
+                <button type="button" disabled={savingRepo === item.repo_url || savedRepos.has(item.repo_url)} onClick={() => saveRequirement(item)} className="ui-button-secondary ml-auto px-3 py-1.5 text-xs">
+                  {savedRepos.has(item.repo_url) ? <Check className="h-3.5 w-3.5" /> : <BookmarkPlus className="h-3.5 w-3.5" />}
+                  {savingRepo === item.repo_url ? "暂存中" : savedRepos.has(item.repo_url) ? "已暂存" : "暂存需求"}
+                </button>
               </div>
-            </a>
+            </article>
             );
           })}
         </div>
