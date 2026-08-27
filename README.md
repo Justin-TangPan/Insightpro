@@ -2,6 +2,12 @@
 
 > 技术解决方案洞察平台 · `v0.4.0`
 
+[![Version](https://img.shields.io/badge/version-0.4.0-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](compose.yaml)
+
 InsightPro 面向解决方案架构师、技术负责人和技术决策团队，持续发现值得关注的技术项目与官方解决方案，并将分散的信息转化为可跟踪的技术需求和可复用的解决方案。
 
 ## 核心价值
@@ -13,6 +19,16 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队，
 ```text
 Insight → Requirement → Solution
 ```
+
+## 产品预览
+
+### 技术热点追踪
+
+![InsightPro 技术热点追踪](doc/assets/readme/hotspots.png)
+
+### 解决方案洞察
+
+![InsightPro 解决方案洞察](doc/assets/readme/solutions.png)
 
 ## 核心能力
 
