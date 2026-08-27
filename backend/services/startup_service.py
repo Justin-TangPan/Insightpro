@@ -109,6 +109,7 @@ def ensure_runtime_schema() -> None:
             CREATE TABLE IF NOT EXISTS opencode_sso_tickets (
                 token_hash TEXT PRIMARY KEY,
                 user_id UUID NOT NULL,
+                target_user_id UUID,
                 expires_at TIMESTAMPTZ NOT NULL,
                 used_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -121,13 +122,25 @@ def ensure_runtime_schema() -> None:
             CREATE TABLE IF NOT EXISTS opencode_sso_sessions (
                 token_hash TEXT PRIMARY KEY,
                 user_id UUID NOT NULL,
+                agent_user_id UUID NOT NULL,
+                auth_role TEXT NOT NULL DEFAULT 'user',
+                agent_role TEXT NOT NULL DEFAULT 'user',
+                display_name TEXT NOT NULL DEFAULT '',
                 expires_at TIMESTAMPTZ NOT NULL,
                 revoked_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             """
         )
+        cursor.execute("ALTER TABLE opencode_sso_tickets ADD COLUMN IF NOT EXISTS target_user_id UUID")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_user_id UUID")
+        cursor.execute("UPDATE opencode_sso_sessions SET agent_user_id=user_id WHERE agent_user_id IS NULL")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ALTER COLUMN agent_user_id SET NOT NULL")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS auth_role TEXT NOT NULL DEFAULT 'user'")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_role TEXT NOT NULL DEFAULT 'user'")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_user ON opencode_sso_sessions(user_id, expires_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_agent_user ON opencode_sso_sessions(agent_user_id, expires_at)")
         cursor.execute("ALTER TABLE opencode_sso_tickets ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE opencode_sso_sessions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")

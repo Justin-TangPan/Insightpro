@@ -6,7 +6,7 @@ Insight-Agent 可以修改独立 Workspace，但没有生产写权限。边界�
 
 1. 独立 Workspace 不包含 `.env`，也不是生产部署目录。
 2. OpenCode 只开放 Workspace 内 `edit`，拒绝 `bash`、`task`、`external_directory`、`webfetch` 和 `websearch`。
-3. OpenCode 容器使用非 root UID 10002、只读根文件系统、移除全部 Linux capabilities，且不挂载 Docker Socket。
+3. OpenCode 子进程按用户使用独立非 root UID；Runtime Manager 仅保留创建和切换这些 UID 所需的文件权限 capability，根文件系统只读且不挂载 Docker Socket。
 4. 不挂载 InsightPro PostgreSQL、生产目录、Service Role、SMTP 或生产 `.env`。
 5. Gateway 是唯一发布端口，未授权请求不能直达 OpenCode。
 
@@ -20,8 +20,8 @@ Insight-Agent 不获得 InsightPro API Token，不调用业务 API，因此不�
 
 Gateway 使用短时一次性 Ticket、可撤销 HttpOnly Cookie 和服务端验证。嵌入响应通过 CSP `frame-ancestors` 只允许配置的 InsightPro Origin。退出 InsightPro 会撤销该用户全部 Gateway Session。
 
-## 多用户现状
+## 多用户隔离
 
-认证已经完成，但多租户隔离没有完成。OpenCode 单实例会共享 Session、Workspace、配置和凭据，因此当前只允许一个指定管理员。不得通过扩大邮箱名单开放第二位用户。
+Gateway 不能自行提供数据隔离，因此 Runtime Manager 为每个稳定 `user_id` 启动独立 OpenCode 子进程，并分配独立 Linux UID、端口、Workspace、XDG data/state/cache/config。普通用户目录为所有者可写、管理组可管理，其他 UID 无访问权；公共知识库由管理员 UID 持有，普通用户只有读取权限。
 
-未来开放写权限或多用户前必须同时具备：每用户独立 Runtime/持久化/Workspace、用户级配额和回收、独立凭据或安全凭据代理、API 最小权限、写操作审计、可恢复快照、明确审批流程，以及针对跨用户 Session/文件访问的自动化隔离测试。
+管理员的最高权限只存在于该容器已挂载的 AI 空间目录中，不代表宿主机 root。当前 Provider 凭据仍由同一受限 Runtime 服务管理；若未来允许用户自带 Provider Key，应增加独立凭据代理或每用户加密存储。当前尚无面向管理员的 Session 删除专用面板，管理员通过目标用户的原生工作区管理其 Session。

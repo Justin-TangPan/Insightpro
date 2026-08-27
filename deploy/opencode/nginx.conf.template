@@ -32,17 +32,41 @@ server {
         add_header Cache-Control "no-store";
     }
 
+    location = /__insight/context {
+        auth_request /_insight_auth;
+        auth_request_set $agent_user_id $upstream_http_x_insight_user_id;
+        auth_request_set $agent_role $upstream_http_x_insight_agent_role;
+        auth_request_set $auth_role $upstream_http_x_insight_auth_role;
+        auth_request_set $display_name $upstream_http_x_insight_display_name;
+
+        proxy_pass http://opencode:4096;
+        proxy_set_header X-Insight-User-Id $agent_user_id;
+        proxy_set_header X-Insight-Agent-Role $agent_role;
+        proxy_set_header X-Insight-Auth-Role $auth_role;
+        proxy_set_header X-Insight-Display-Name $display_name;
+        proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
+    }
+
     location / {
         auth_request /_insight_auth;
         error_page 401 = @insight_login;
+        auth_request_set $agent_user_id $upstream_http_x_insight_user_id;
+        auth_request_set $agent_role $upstream_http_x_insight_agent_role;
+        auth_request_set $auth_role $upstream_http_x_insight_auth_role;
+        auth_request_set $display_name $upstream_http_x_insight_display_name;
 
         proxy_pass http://opencode:4096;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection $connection_upgrade;
-        proxy_set_header Authorization "Basic ${OPENCODE_BASIC_AUTH}";
+        proxy_set_header Authorization "";
         proxy_set_header Cookie "";
+        proxy_set_header X-Insight-User-Id $agent_user_id;
+        proxy_set_header X-Insight-Agent-Role $agent_role;
+        proxy_set_header X-Insight-Auth-Role $auth_role;
+        proxy_set_header X-Insight-Display-Name $display_name;
+        proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
         proxy_buffering off;
         proxy_read_timeout 300s;
         proxy_hide_header WWW-Authenticate;

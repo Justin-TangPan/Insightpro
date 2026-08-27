@@ -14,18 +14,18 @@ services:
       XDG_DATA_HOME: /home/opencode/.local/share
       XDG_STATE_HOME: /home/opencode/.local/state
       INSIGHT_PUBLIC_API_URL: "${INSIGHT_PUBLIC_API_URL:-http://host.docker.internal:8000/api}"
-    command: ["web", "--hostname", "0.0.0.0", "--port", "4096"]
-    working_dir: /workspace
+      INSIGHT_AGENT_DATA_ROOT: /srv/insight-agent
+      OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
+      OPENCODE_MAX_ACTIVE: "${OPENCODE_MAX_ACTIVE:-6}"
+      OPENCODE_IDLE_SECONDS: "${OPENCODE_IDLE_SECONDS:-1800}"
+    command: ["node", "/opt/insight-agent/runtime-manager.mjs"]
+    working_dir: /srv/insight-agent
     expose:
       - "4096"
     volumes:
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/data:/home/opencode/.local/share/opencode"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/config:/home/opencode/.config/opencode"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/cache:/home/opencode/.cache"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/state:/home/opencode/.local/state/opencode"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/workspace:/workspace"
-      - "./opencode.json:/home/opencode/.config/opencode/opencode.json:ro"
-      - "./tools/insight_public_data.ts:/home/opencode/.config/opencode/tools/insight_public_data.ts:ro"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}:/srv/insight-agent"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/template:/template:ro"
+      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/knowledge:/knowledge/public"
     extra_hosts:
       - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     restart: unless-stopped
@@ -33,19 +33,18 @@ services:
     tmpfs:
       - /tmp:size=256m,nosuid,nodev
       - /run:size=16m,nosuid,nodev
-    cap_drop:
-      - ALL
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, FSETID]
     security_opt:
       - no-new-privileges:true
-    cpus: "1.5"
-    mem_limit: 2g
-    mem_reservation: 512m
-    pids_limit: 512
+    cpus: "2.0"
+    mem_limit: 4g
+    mem_reservation: 768m
+    pids_limit: 1024
     healthcheck:
       test:
         - CMD-SHELL
-        - >-
-          node -e "const a=Buffer.from(process.env.OPENCODE_SERVER_USERNAME+':'+process.env.OPENCODE_SERVER_PASSWORD).toString('base64');fetch('http://127.0.0.1:4096/global/health',{headers:{authorization:'Basic '+a}}).then(async r=>{const j=await r.json();if(!r.ok||!j.healthy)process.exit(1)}).catch(()=>process.exit(1))"
+        - node -e "fetch('http://127.0.0.1:4096/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       retries: 3
@@ -63,13 +62,12 @@ services:
     image: nginxinc/nginx-unprivileged:1.29.4-alpine
     user: "101:101"
     environment:
-      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|INSIGHT_APP_ORIGIN|OPENCODE_GATEWAY_SECRET|OPENCODE_BASIC_AUTH)$"
+      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|INSIGHT_APP_ORIGIN|OPENCODE_GATEWAY_SECRET)$"
       INSIGHT_AUTH_VERIFY_URL: "${INSIGHT_AUTH_VERIFY_URL:-http://host.docker.internal:8000/api/auth/opencode/verify}"
       INSIGHT_AUTH_CALLBACK_URL: "${INSIGHT_AUTH_CALLBACK_URL:-http://host.docker.internal:8000/api/auth/opencode/callback}"
       INSIGHT_LOGIN_URL: "${INSIGHT_LOGIN_URL:-http://159.138.89.233:3000/auth/login}"
       INSIGHT_APP_ORIGIN: "${INSIGHT_APP_ORIGIN:-http://159.138.89.233:3000}"
       OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
-      OPENCODE_BASIC_AUTH: "${OPENCODE_BASIC_AUTH:?missing OPENCODE_BASIC_AUTH}"
     extra_hosts:
       - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     ports:

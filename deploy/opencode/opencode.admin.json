@@ -12,11 +12,7 @@
         "apiKey": "{env:OPENCODE_PROVIDER_API_KEY}"
       },
       "models": {
-        "glm-5.2": {
-          "name": "GLM 5.2",
-          "tool_call": true,
-          "temperature": true
-        }
+        "glm-5.2": { "name": "GLM 5.2", "tool_call": true, "temperature": true }
       }
     }
   },
@@ -30,7 +26,11 @@
     "insight_public_data": "allow",
     "bash": "deny",
     "task": "deny",
-    "external_directory": "deny",
+    "external_directory": {
+      "*": "deny",
+      "/srv/insight-agent/spaces/**": "allow",
+      "/knowledge/public/**": "allow"
+    },
     "webfetch": "deny",
     "websearch": "deny"
   }

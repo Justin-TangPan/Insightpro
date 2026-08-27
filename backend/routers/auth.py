@@ -1,7 +1,11 @@
 """认证路由 — 登录/注册/登出/用户信息/Insight-Agent SSO"""
+from __future__ import annotations
 import asyncio
+import base64
 import hmac
 from urllib.parse import quote, urlencode
+from uuid import UUID
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -57,9 +61,8 @@ class RegisterRequest(BaseModel):
     name: str = ""
 
 
-def _require_opencode_user(user) -> None:
-    if not user.email or user.email.lower() != settings.OPENCODE_ALLOWED_EMAIL:
-        raise HTTPException(status_code=403, detail="当前 Insight-Agent 单实例仅授权指定管理员使用")
+class AgentTicketRequest(BaseModel):
+    target_user_id: Optional[UUID] = None
 
 
 def _gateway_secret() -> str:
@@ -151,20 +154,42 @@ async def auth_logout(user=Depends(get_current_user)):
 
 
 @router.post("/auth/opencode/ticket")
-async def create_opencode_ticket(user=Depends(require_auth)):
-    _require_opencode_user(user)
-    ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id))
+async def create_opencode_ticket(req: Optional[AgentTicketRequest] = None, user=Depends(require_auth)):
+    target_user_id = str(req.target_user_id) if req and req.target_user_id else None
+    if target_user_id and target_user_id != str(user.id):
+        if (user.app_metadata or {}).get("role") != "admin":
+            raise HTTPException(status_code=403, detail="只有管理员可以进入其他用户的 AI 空间")
+        try:
+            await asyncio.to_thread(supabase.auth.admin.get_user_by_id, target_user_id)
+        except Exception:
+            raise HTTPException(status_code=404, detail="目标用户不存在")
+    ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id), target_user_id)
     query = urlencode({"ticket": ticket})
     return {"redirect_url": f"{settings.OPENCODE_PUBLIC_URL}/auth/callback?{query}"}
 
 
 @router.get("/auth/opencode/callback")
 async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
-    user_id = await asyncio.to_thread(opencode_sso_service.consume_ticket, x_insight_sso_ticket)
-    if not user_id:
+    ticket = await asyncio.to_thread(opencode_sso_service.consume_ticket, x_insight_sso_ticket)
+    if not ticket:
         raise HTTPException(status_code=401, detail="SSO ticket 无效、已过期或已使用")
-    session = await asyncio.to_thread(opencode_sso_service.create_gateway_session, user_id)
-    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/L3dvcmtzcGFjZQ/session", status_code=303)
+    try:
+        auth_account = (await asyncio.to_thread(supabase.auth.admin.get_user_by_id, ticket["user_id"])).user
+        agent_account = auth_account if ticket["agent_user_id"] == ticket["user_id"] else (
+            await asyncio.to_thread(supabase.auth.admin.get_user_by_id, ticket["agent_user_id"])
+        ).user
+    except Exception:
+        raise HTTPException(status_code=401, detail="SSO 用户已失效")
+    auth_role = (auth_account.app_metadata or {}).get("role", "user")
+    agent_role = (agent_account.app_metadata or {}).get("role", "user")
+    display_name = ((agent_account.user_metadata or {}).get("name") or (agent_account.email or "").split("@")[0]).strip()[:80]
+    session = await asyncio.to_thread(
+        opencode_sso_service.create_gateway_session,
+        ticket["user_id"], ticket["agent_user_id"], auth_role, agent_role, display_name,
+    )
+    workspace = f'/srv/insight-agent/spaces/{ticket["agent_user_id"]}/workspace'
+    workspace_key = base64.urlsafe_b64encode(workspace.encode()).decode().rstrip("=")
+    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/{workspace_key}/session", status_code=303)
     response.set_cookie(
         "insight_opencode_session",
         session,
@@ -174,21 +199,12 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
         samesite="lax",
         path="/",
     )
-    try:
-        account = await asyncio.to_thread(supabase.auth.admin.get_user_by_id, user_id)
-        account_user = account.user
-        display_name = ((account_user.user_metadata or {}).get("name") or (account_user.email or "").split("@")[0]).strip()[:80]
-        if display_name:
-            response.set_cookie(
-                "insight_agent_name",
-                quote(display_name, safe=""),
-                max_age=opencode_sso_service.SESSION_TTL_SECONDS,
-                secure=settings.OPENCODE_COOKIE_SECURE,
-                samesite="lax",
-                path="/",
-            )
-    except Exception:
-        pass
+    if display_name:
+        response.set_cookie(
+            "insight_agent_name", quote(display_name, safe=""),
+            max_age=opencode_sso_service.SESSION_TTL_SECONDS,
+            secure=settings.OPENCODE_COOKIE_SECURE, samesite="lax", path="/",
+        )
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -202,10 +218,16 @@ async def verify_opencode_gateway(
     if not hmac.compare_digest(x_insight_gateway_secret, secret):
         raise HTTPException(status_code=403, detail="Gateway 验证失败")
     token = request.cookies.get("insight_opencode_session", "")
-    user_id = await asyncio.to_thread(opencode_sso_service.verify_gateway_session, token)
-    if not user_id:
+    session = await asyncio.to_thread(opencode_sso_service.verify_gateway_session, token)
+    if not session:
         raise HTTPException(status_code=401, detail="OpenCode 授权已过期")
-    return Response(status_code=204, headers={"X-Insight-User-Id": user_id, "Cache-Control": "no-store"})
+    return Response(status_code=204, headers={
+        "X-Insight-User-Id": session["agent_user_id"],
+        "X-Insight-Agent-Role": session["agent_role"],
+        "X-Insight-Auth-Role": session["auth_role"],
+        "X-Insight-Display-Name": quote(session["display_name"], safe=""),
+        "Cache-Control": "no-store",
+    })
 
 
 @router.post("/auth/opencode/revoke", status_code=204)

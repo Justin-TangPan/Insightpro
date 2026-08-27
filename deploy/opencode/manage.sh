@@ -18,10 +18,11 @@ load_env() {
   OPENCODE_DATA_ROOT="${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}"
   OPENCODE_PORT="${OPENCODE_PORT:-4096}"
   OPENCODE_DISK_BUDGET_MB="${OPENCODE_DISK_BUDGET_MB:-20480}"
+  OPENCODE_MAX_ACTIVE="${OPENCODE_MAX_ACTIVE:-6}"
+  OPENCODE_IDLE_SECONDS="${OPENCODE_IDLE_SECONDS:-1800}"
   if [[ -f /etc/insight-opencode/gateway.secret ]]; then
     OPENCODE_GATEWAY_SECRET="$(</etc/insight-opencode/gateway.secret)"
-    OPENCODE_BASIC_AUTH="$(printf '%s' "$OPENCODE_SERVER_USERNAME:$OPENCODE_SERVER_PASSWORD" | base64 -w0)"
-    export OPENCODE_GATEWAY_SECRET OPENCODE_BASIC_AUTH
+    export OPENCODE_GATEWAY_SECRET
   fi
 }
 
@@ -33,47 +34,40 @@ bootstrap() {
   load_env
   install -d -m 0750 /etc/insight-opencode
   if [[ ! -f /etc/insight-opencode/gateway.secret ]]; then
-    local gateway_secret
-    gateway_secret="$(sed -n 's/^NEXTAUTH_SECRET=//p' "$PROJECT_ROOT/.env" | tail -1)"
-    if [[ ${#gateway_secret} -lt 32 ]]; then
-      gateway_secret="$(openssl rand -hex 32)"
-    fi
+    local gateway_secret="$(openssl rand -hex 32)"
     printf '%s' "$gateway_secret" | install -m 0600 /dev/stdin /etc/insight-opencode/gateway.secret
   fi
   install -o 10001 -g 10001 -m 0400 /etc/insight-opencode/gateway.secret /etc/insight-opencode/backend-gateway.secret
   load_env
   install -d -m 0750 \
-    "$OPENCODE_DATA_ROOT/data" \
-    "$OPENCODE_DATA_ROOT/config" \
-    "$OPENCODE_DATA_ROOT/config/tools" \
-    "$OPENCODE_DATA_ROOT/cache" \
-    "$OPENCODE_DATA_ROOT/state" \
-    "$OPENCODE_DATA_ROOT/workspace"
+    "$OPENCODE_DATA_ROOT/spaces" \
+    "$OPENCODE_DATA_ROOT/knowledge"
 
-  install -m 0640 "$DEPLOY_DIR/opencode.json" "$OPENCODE_DATA_ROOT/config/opencode.json"
-
-  if [[ ! -d "$OPENCODE_DATA_ROOT/workspace/.git" ]]; then
-    rmdir "$OPENCODE_DATA_ROOT/workspace"
-    git clone --no-hardlinks "$PROJECT_ROOT" "$OPENCODE_DATA_ROOT/workspace"
-    git -C "$OPENCODE_DATA_ROOT/workspace" remote set-url origin "$(git -C "$PROJECT_ROOT" remote get-url origin)"
+  if [[ ! -d "$OPENCODE_DATA_ROOT/template/.git" ]]; then
+    git clone --no-hardlinks "$PROJECT_ROOT" "$OPENCODE_DATA_ROOT/template"
+    git -C "$OPENCODE_DATA_ROOT/template" remote set-url origin "$(git -C "$PROJECT_ROOT" remote get-url origin)"
   fi
 
-  if find "$OPENCODE_DATA_ROOT/workspace" -path '*/.git' -prune -o -type f -name '.env' -print -quit | grep -q .; then
-    echo "Refusing to start: workspace contains a .env file" >&2
+  if find "$OPENCODE_DATA_ROOT/template" -path '*/.git' -prune -o -type f -name '.env' -print -quit | grep -q .; then
+    echo "Refusing to start: workspace template contains a .env file" >&2
     exit 1
   fi
 
-  chown -R 10002:10002 "$OPENCODE_DATA_ROOT"
-  chmod 0750 "$OPENCODE_DATA_ROOT" "$OPENCODE_DATA_ROOT"/*
-  chmod 0640 "$OPENCODE_DATA_ROOT/config/opencode.json"
+  if [[ ! -f "$OPENCODE_DATA_ROOT/knowledge/README.md" ]]; then
+    install -o 10002 -g 10002 -m 0644 "$DEPLOY_DIR/public-knowledge/README.md" "$OPENCODE_DATA_ROOT/knowledge/README.md"
+  fi
+  chmod 0750 "$OPENCODE_DATA_ROOT"
+  chmod 0711 "$OPENCODE_DATA_ROOT/spaces"
+  chmod -R a-w "$OPENCODE_DATA_ROOT/template"
+  chown -R 10002:10002 "$OPENCODE_DATA_ROOT/knowledge"
+  chmod 0755 "$OPENCODE_DATA_ROOT/knowledge"
 }
 
 health() {
   load_env
   local response used_mb
-  response="$(docker exec insight-opencode node -e \
-    'const a=Buffer.from(process.env.OPENCODE_SERVER_USERNAME+":"+process.env.OPENCODE_SERVER_PASSWORD).toString("base64");fetch("http://127.0.0.1:4096/global/health",{headers:{authorization:"Basic "+a}}).then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text())}).catch(()=>process.exit(1))')"
-  python3 -c 'import json,sys; data=json.loads(sys.argv[1]); assert data.get("healthy") is True, data; print("OpenCode", data.get("version", "unknown"), "is healthy")' "$response"
+  response="$(docker exec insight-opencode node -e 'fetch("http://127.0.0.1:4096/healthz").then(async r=>{if(!r.ok)process.exit(1);process.stdout.write(await r.text())}).catch(()=>process.exit(1))')"
+  [[ "$response" == "healthy" ]] && echo "Insight-Agent Runtime Manager is healthy"
   [[ "$(docker inspect insight-opencode --format '{{.State.Health.Status}}')" == "healthy" ]]
   [[ "$(docker inspect insight-opencode-gateway --format '{{.State.Health.Status}}')" == "healthy" ]]
   curl --fail --silent --show-error --max-time 5 "http://127.0.0.1:$OPENCODE_PORT/healthz" >/dev/null

@@ -10,30 +10,49 @@ from routers import auth
 def test_ticket_and_gateway_session_are_one_time_and_revocable(monkeypatch):
     stored = {}
     sessions = {}
-    monkeypatch.setattr(sso.repository, "create_ticket", lambda token_hash, user_id, ttl: stored.update({token_hash: user_id}))
+    monkeypatch.setattr(sso.repository, "create_ticket", lambda token_hash, user_id, target_user_id, ttl: stored.update({token_hash: {"user_id": user_id, "agent_user_id": target_user_id or user_id}}))
     monkeypatch.setattr(sso.repository, "consume_ticket", lambda token_hash: stored.pop(token_hash, None))
 
     ticket = sso.issue_ticket("user-1")
-    assert sso.consume_ticket(ticket) == "user-1"
+    assert sso.consume_ticket(ticket) == {"user_id": "user-1", "agent_user_id": "user-1"}
     assert sso.consume_ticket(ticket) is None
 
-    monkeypatch.setattr(sso.repository, "create_session", lambda token_hash, user_id, ttl: sessions.update({token_hash: user_id}))
+    monkeypatch.setattr(sso.repository, "create_session", lambda token_hash, user_id, agent_user_id, auth_role, agent_role, display_name, ttl: sessions.update({token_hash: {
+        "user_id": user_id, "agent_user_id": agent_user_id, "auth_role": auth_role,
+        "agent_role": agent_role, "display_name": display_name,
+    }}))
     monkeypatch.setattr(sso.repository, "get_session_user", lambda token_hash: sessions.get(token_hash))
     monkeypatch.setattr(sso.repository, "revoke_user_sessions", lambda user_id: sessions.clear())
 
-    session = sso.create_gateway_session("user-1")
-    assert sso.verify_gateway_session(session) == "user-1"
+    session = sso.create_gateway_session("user-1", "user-1", "user", "user", "User")
+    assert sso.verify_gateway_session(session)["agent_user_id"] == "user-1"
     assert sso.verify_gateway_session(session + "tampered") is None
     sso.revoke_gateway_sessions("user-1")
     assert sso.verify_gateway_session(session) is None
 
 
-def test_single_instance_only_allows_configured_user(monkeypatch):
-    monkeypatch.setattr(auth.settings, "OPENCODE_ALLOWED_EMAIL", "admin@example.com")
-    auth._require_opencode_user(SimpleNamespace(email="ADMIN@example.com"))
+def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
+    user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user"})
+    issued = []
+    monkeypatch.setattr(auth.opencode_sso_service, "issue_ticket", lambda user_id, target: issued.append((user_id, target)) or "ticket")
+    result = asyncio.run(auth.create_opencode_ticket(None, user))
+    assert result["redirect_url"].endswith("ticket=ticket")
+    assert issued == [(str(user.id), None)]
     with pytest.raises(HTTPException) as error:
-        auth._require_opencode_user(SimpleNamespace(email="user@example.com"))
+        asyncio.run(auth.create_opencode_ticket(
+            auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), user,
+        ))
     assert error.value.status_code == 403
+
+
+def test_admin_can_target_another_agent_identity(monkeypatch):
+    admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
+    monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda user_id: SimpleNamespace(user=SimpleNamespace(id=user_id)))
+    monkeypatch.setattr(auth.opencode_sso_service, "issue_ticket", lambda user_id, target: f"{user_id}:{target}")
+    result = asyncio.run(auth.create_opencode_ticket(
+        auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), admin,
+    ))
+    assert "00000000-0000-4000-8000-000000000002" in result["redirect_url"]
 
 
 def test_admin_user_directory_exposes_no_credentials(monkeypatch):

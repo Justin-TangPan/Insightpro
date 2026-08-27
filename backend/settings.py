@@ -44,7 +44,6 @@ class Settings:
     # ── App ──
     BASE_URL: str = os.getenv("BASE_URL", "http://localhost:3000")
     OPENCODE_PUBLIC_URL: str = os.getenv("OPENCODE_PUBLIC_URL", "http://159.138.89.233:4096").rstrip("/")
-    OPENCODE_ALLOWED_EMAIL: str = os.getenv("OPENCODE_ALLOWED_EMAIL", "admin@insightpro.local").lower()
     OPENCODE_SSO_SECRET: str = _secret_file(os.getenv("OPENCODE_SSO_SECRET_FILE", "")) or os.getenv("NEXTAUTH_SECRET", "")
     OPENCODE_COOKIE_SECURE: bool = os.getenv("OPENCODE_COOKIE_SECURE", "false").lower() in {"1", "true", "yes", "on"}
     PUBLIC_IP: str = os.getenv("PUBLIC_IP", "localhost")

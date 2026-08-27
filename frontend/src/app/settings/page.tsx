@@ -6,7 +6,8 @@ import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { useAuth } from "@/components/auth-provider";
 import { usePreferences, type Preferences } from "@/lib/preferences";
-import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, X, Clock3, Palette, Languages, Users, SlidersHorizontal } from "lucide-react";
+import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, X, Clock3, Palette, Languages, Users, SlidersHorizontal, Bot } from "lucide-react";
+import Link from "next/link";
 
 interface Subscriber {
   id: number;
@@ -512,8 +513,8 @@ export default function SettingsPage() {
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">用户</th><th className="px-3 py-2 font-semibold">角色</th><th className="px-3 py-2 font-semibold">注册时间</th><th className="px-3 py-2 font-semibold">最近登录</th></tr></thead>
-              <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3"><span className="ui-tag">{account.role === "admin" ? "管理员" : "用户"}</span></td><td className="px-3 py-3 text-ink-secondary">{new Date(account.created_at).toLocaleDateString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString("zh-CN") : "尚未登录"}</td></tr>)}</tbody>
+              <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">用户</th><th className="px-3 py-2 font-semibold">角色</th><th className="px-3 py-2 font-semibold">注册时间</th><th className="px-3 py-2 font-semibold">最近登录</th><th className="px-3 py-2 font-semibold">AI 空间</th></tr></thead>
+              <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3"><span className="ui-tag">{account.role === "admin" ? "管理员" : "用户"}</span></td><td className="px-3 py-3 text-ink-secondary">{new Date(account.created_at).toLocaleDateString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString("zh-CN") : "尚未登录"}</td><td className="px-3 py-3"><Link href={`/insight-agent?target=${account.id}`} className="ui-link inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" />管理空间</Link></td></tr>)}</tbody>
             </table>
             {!users.length && <p className="py-8 text-center text-sm text-ink-muted">暂无用户数据</p>}
           </div>

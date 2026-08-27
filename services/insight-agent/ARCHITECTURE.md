@@ -5,13 +5,15 @@ Browser / InsightPro shell
   └─ persistent Insight-Agent iframe
        └─ Auth Gateway :4096
             ├─ InsightPro FastAPI SSO verification
-            └─ OpenCode Web :4096 (internal only)
-                 └─ isolated writable InsightPro Git Workspace
+            └─ Runtime Manager :4096 (internal only)
+                 └─ OpenCode child process / user_id
+                      ├─ private Workspace + Session store
+                      └─ shared public knowledge
 ```
 
 ## 服务和网络
 
-InsightPro 前后端继续由根 Compose 管理。Insight-Agent Runtime 与 Gateway 使用独立 `insight-opencode` Compose project 和 Docker network；主系统部署、`--remove-orphans`、readiness 与 full health 不管理它。宿主机只发布 Gateway，OpenCode 只在内部网络暴露。
+InsightPro 前后端继续由根 Compose 管理。Insight-Agent Runtime Manager 与 Gateway 使用独立 `insight-opencode` Compose project 和 Docker network；主系统部署、`--remove-orphans`、readiness 与 full health 不管理它。宿主机只发布 Gateway，各用户 OpenCode 子进程仅监听 Runtime 容器回环地址。
 
 ## UI 和 Session
 
@@ -19,14 +21,15 @@ InsightPro 前后端继续由根 Compose 管理。Insight-Agent Runtime 与 Gate
 
 ## 用户和认证
 
-Supabase Auth 是唯一身份源。前端以 Supabase access token向同源 InsightPro API 换取 60 秒一次性 Ticket；Gateway callback 消费 Ticket 后建立 30 天 HttpOnly Session，避免工作过程中断。Gateway 对每个请求向 FastAPI 验证 Session，并在内部注入 OpenCode 服务级 Basic Auth；用户退出 InsightPro 时立即撤销。Supabase Token、Basic Auth 和 Provider 密钥都不会进入 URL或下发给 Agent。
+Supabase Auth 是唯一身份源。前端以 Supabase access token 向同源 InsightPro API 换取 60 秒一次性 Ticket；Gateway callback 消费 Ticket 后建立可撤销 HttpOnly Session。Gateway 每次请求向 FastAPI 验证并取得可信 `user_id`、身份角色和目标空间，Runtime Manager 再按 `user_id` 路由。用户退出 InsightPro 时立即撤销。只有管理员可签发指向其他用户空间的 Ticket。
 
 ## 数据与安全边界
 
-- `/workspace`：独立、可写的 Git Workspace，不包含生产 `.env`；修改不会直接作用于生产仓库。
-- OpenCode data/state/cache：独立持久化，允许 Runtime 保存 Session。
-- OpenCode config：固定只读配置文件；允许 Workspace 内 edit，拒绝 bash、task、external directory 和 web 工具。
+- `spaces/<user_id>/workspace`：用户独立、可写的 Git Workspace，不包含生产 `.env`。
+- `spaces/<user_id>/{data,state,cache,config}`：独立持久化的 Session 和运行状态。
+- `/knowledge/public`：公共知识库；普通用户只读，管理员读写。
+- OpenCode config：按普通用户/管理员生成；允许授权目录内 edit，拒绝 bash、task 和 web 工具。
 - InsightPro PostgreSQL、Docker Socket、生产目录和生产 `.env`：不挂载、不联网授权。
 - OpenCode 与 InsightPro 业务 API/数据库无调用关系。
 
-单 OpenCode 实例的 Session、Workspace、配置和 Provider 凭据没有 InsightPro `user_id` 所有权。本阶段仅允许配置中的唯一管理员。正式多用户需要 Gateway 按 `user_id` 路由到独立 Runtime、数据目录和 Workspace。
+普通用户子进程使用独立 Linux UID；用户目录不可被其他普通 UID 遍历。管理员子进程使用受限管理 UID，可维护所有空间，但容器未挂载生产目录、Docker Socket 或生产 Secret。Runtime Manager 只承担目录配置、子进程生命周期和代理，不访问 InsightPro 数据库。

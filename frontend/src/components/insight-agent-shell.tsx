@@ -2,39 +2,45 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Bot, Maximize2, Minimize2, Minus, X } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { useAuth } from "@/components/auth-provider";
 
 export function InsightAgentShell() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading } = useAuth();
   const full = pathname === "/insight-agent";
   const previousPath = useRef("/");
   const iframe = useRef<HTMLIFrameElement>(null);
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
-  const [connection, setConnection] = useState({ userId: "", source: "" });
+  const [connection, setConnection] = useState({ key: "", source: "" });
   const [error, setError] = useState("");
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+  const targetUserId = full ? searchParams.get("target") || "" : "";
+  const connectionKey = user ? `${user.id}:${targetUserId || user.id}` : "";
 
   useEffect(() => {
     if (!full && !pathname.startsWith("/auth/")) previousPath.current = pathname;
   }, [full, pathname]);
 
   useEffect(() => {
-    if ((!full && !open) || !user || connection.userId === user.id) return;
+    if ((!full && !open) || !user || connection.key === connectionKey) return;
     let cancelled = false;
-    void authenticatedFetch("/api/auth/opencode/ticket", { method: "POST" })
+    void authenticatedFetch("/api/auth/opencode/ticket", {
+      method: "POST",
+      ...(targetUserId && { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_user_id: targetUserId }) }),
+    })
       .then(async response => {
         if (!response.ok) throw new Error(response.status === 403 ? "当前账号未获 Insight-Agent 访问权限" : "Insight-Agent 授权失败");
         return response.json() as Promise<{ redirect_url: string }>;
       })
-      .then(data => { if (!cancelled) setConnection({ userId: user.id, source: data.redirect_url }); })
+      .then(data => { if (!cancelled) setConnection({ key: connectionKey, source: data.redirect_url }); })
       .catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Insight-Agent 授权失败"); });
     return () => { cancelled = true; };
-  }, [connection.userId, full, open, user]);
+  }, [connection.key, connectionKey, full, open, targetUserId, user]);
 
   const show = () => {
     if (!user) {
@@ -123,11 +129,11 @@ export function InsightAgentShell() {
           </div>
         )}
         <div className={`min-h-0 flex-1 ${minimized ? "invisible" : "flex"}`}>
-        {connection.source && connection.userId === user?.id ? (
+        {connection.source && connection.key === connectionKey ? (
           <iframe ref={iframe} src={connection.source} title="Insight-Agent 原生工作区" className="min-h-0 flex-1 border-0 bg-white" allow="clipboard-read; clipboard-write" />
         ) : (
           <div className="flex flex-1 items-center justify-center p-6 text-center text-sm text-ink-muted">
-            <div><Bot className="mx-auto mb-3 h-7 w-7 text-primary" /><p>{error || "正在连接 Insight-Agent…"}</p>{error && <button type="button" onClick={() => { setError(""); setConnection({ userId: "retry", source: "" }); }} className="ui-button-secondary mt-4">重试</button>}</div>
+            <div><Bot className="mx-auto mb-3 h-7 w-7 text-primary" /><p>{error || "正在连接 Insight-Agent…"}</p>{error && <button type="button" onClick={() => { setError(""); setConnection({ key: "retry", source: "" }); }} className="ui-button-secondary mt-4">重试</button>}</div>
           </div>
         )}
         </div>
