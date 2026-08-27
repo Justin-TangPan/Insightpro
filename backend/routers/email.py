@@ -90,7 +90,7 @@ async def unsubscribe_email(email: str, _=Depends(require_admin)):
 async def test_email(req: EmailRequest, _=Depends(require_admin)):
     html = build_daily_digest_html()
     today = datetime.now().strftime("%Y-%m-%d")
-    subject = f"[测试] InsightPro · 每日商业洞察 ({today})"
+    subject = f"[测试] InsightPro · 技术解决方案日报 ({today})"
     try:
         if send_email(req.email, subject, html):
             return {"status": "success", "message": f"测试邮件已发送至 {req.email}"}
@@ -105,7 +105,7 @@ async def send_to_subscriber(subscriber_id: int, _=Depends(require_admin)):
     if not subscriber:
         raise HTTPException(status_code=404, detail="订阅者不存在")
     html = build_daily_digest_html()
-    subject = f"InsightPro · 每日商业洞察 ({datetime.now():%Y-%m-%d})"
+    subject = f"InsightPro · 技术解决方案日报 ({datetime.now():%Y-%m-%d})"
     if not send_email(subscriber["email"], subject, html):
         raise HTTPException(status_code=500, detail="邮件发送失败")
     return {"status": "success", "message": f"邮件已发送至 {subscriber['email']}"}

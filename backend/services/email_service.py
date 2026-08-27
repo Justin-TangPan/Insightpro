@@ -82,7 +82,7 @@ def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
 
 
 def build_daily_digest_html() -> str:
-    """构建每日洞察邮件 HTML：技术热点 + AI 价值评估 + 友商动态。"""
+    """构建技术解决方案日报：方案变化 + 技术热点 + 厂商动态。"""
     BASE_URL = settings.BASE_URL
     today = datetime.now().strftime("%Y-%m-%d")
     today_cn = datetime.now().strftime("%Y年%m月%d日")
@@ -91,6 +91,10 @@ def build_daily_digest_html() -> str:
     github_items = []
     eval_items = []
     comp_news = []
+    solution_items = []
+    solution_total = 0
+    solution_new = 0
+    solution_updated = 0
     try:
         with get_db() as conn:
             c = conn.cursor()
@@ -100,6 +104,26 @@ def build_daily_digest_html() -> str:
             eval_items = [dict(r) for r in c.fetchall()]
             c.execute("SELECT * FROM competitor_news WHERE scrape_date = %s ORDER BY id", (today,))
             comp_news = [dict(r) for r in c.fetchall()]
+            c.execute("SELECT COUNT(*)::int AS count FROM aliyun_solutions WHERE is_active=TRUE")
+            solution_total = c.fetchone()["count"]
+            c.execute(
+                """SELECT
+                     COUNT(*) FILTER (WHERE first_seen_date=%s)::int AS new_count,
+                     COUNT(*) FILTER (WHERE last_changed_date=%s AND first_seen_date<>last_changed_date)::int AS updated_count
+                   FROM aliyun_solutions WHERE is_active=TRUE AND NOT is_baseline""",
+                (today, today),
+            )
+            solution_changes = c.fetchone()
+            solution_new = solution_changes["new_count"]
+            solution_updated = solution_changes["updated_count"]
+            c.execute(
+                """SELECT title, url, category, summary, first_seen_date, last_changed_date
+                   FROM aliyun_solutions
+                   WHERE is_active=TRUE AND NOT is_baseline AND last_changed_date=%s
+                   ORDER BY CASE WHEN first_seen_date=%s THEN 0 ELSE 1 END, menu_order, id LIMIT 8""",
+                (today, today),
+            )
+            solution_items = [dict(r) for r in c.fetchall()]
     except Exception:
         pass
 
@@ -123,6 +147,24 @@ def build_daily_digest_html() -> str:
     SECONDARY = "#385146"
     PRIMARY = "#3F8062"
     SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+
+    # ── 阿里云官方解决方案变化 ──
+    solution_cards = ""
+    for item in solution_items:
+        is_new = item.get("first_seen_date") == today
+        badge = "新增" if is_new else "更新"
+        primary, _, secondary = (item.get("category") or "未分类").partition(" / ")
+        category = f"{primary} · {secondary}" if secondary else primary
+        solution_cards += f"""\
+          <tr>
+            <td style="padding:13px 16px;border-bottom:1px solid {GRID};">
+              <span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:700;background:{'#DFF3E7' if is_new else PAPER};color:{PRIMARY};margin-right:7px;">{badge}</span>
+              <span style="font-size:10px;color:{MUTED};">{escape(category)}</span>
+              <a href="{escape(str(item.get('url') or '#'), quote=True)}" style="display:block;margin-top:7px;color:{INK};text-decoration:none;font-size:13px;font-weight:700;">{escape(str(item.get('title') or ''))}</a>
+              <p style="margin:5px 0 0;font-size:11px;color:{SECONDARY};line-height:1.55;">{escape(str(item.get('summary') or '暂无摘要'))}</p>
+            </td>
+          </tr>"""
+    solution_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日官方目录暂无新增或更新</td></tr>' if not solution_cards else ""
 
     # ── 友商动态卡片 ──
     comp_cards = ""
@@ -236,8 +278,8 @@ def build_daily_digest_html() -> str:
         <!-- ════ Header ════ -->
         <tr>
           <td style="background:{INK};padding:36px 40px;" class="email-pad">
-            <p style="margin:0 0 8px;font-size:10px;font-weight:600;color:#A9E5C4;letter-spacing:0.22em;text-transform:uppercase;">Daily Business Intelligence</p>
-            <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">InsightPro · 每日洞察简报</h1>
+            <p style="margin:0 0 8px;font-size:10px;font-weight:600;color:#A9E5C4;letter-spacing:0.22em;text-transform:uppercase;">Technology Solution Intelligence</p>
+            <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">InsightPro · 技术解决方案日报</h1>
             <p style="margin:0;font-size:12px;color:#A0B5AA;">{today_cn} {weekday}</p>
           </td>
         </tr>
@@ -248,20 +290,37 @@ def build_daily_digest_html() -> str:
             <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:14px;overflow:hidden;">
               <tr>
                 <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">技术热点</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{len(github_items)} 个</span>
+                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">官方方案库</span>
+                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{solution_total} 项</span>
                 </td>
                 <td class="stat-gap" width="6" style="font-size:1px;line-height:1px;">&nbsp;</td>
                 <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">AI 评估</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{len(eval_items)} 项</span>
+                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">今日新增</span>
+                  <span style="display:block;font-size:18px;font-weight:700;color:{PRIMARY};margin-top:3px;">{solution_new} 项</span>
                 </td>
                 <td class="stat-gap" width="6" style="font-size:1px;line-height:1px;">&nbsp;</td>
                 <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">友商动态</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{len(comp_news)} 条</span>
+                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">今日更新</span>
+                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{solution_updated} 项</span>
                 </td>
               </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ════ 解决方案变化 ════ -->
+        <tr>
+          <td style="padding:28px 40px 0;" class="email-pad">
+            <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">Solution Updates</span>
+            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">阿里云官方解决方案变化</span>
+            <span style="display:block;font-size:11px;color:{MUTED};margin-top:5px;">每日对比官方目录，仅标记当天真实新增与更新</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:12px 40px 0;" class="email-pad">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {GRID};border-radius:14px;overflow:hidden;">
+              {solution_cards}
+              {solution_empty}
             </table>
           </td>
         </tr>
@@ -286,7 +345,7 @@ def build_daily_digest_html() -> str:
         <tr>
           <td style="padding:28px 40px 0;" class="email-pad">
             <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">AI Value Assessment</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">AI 业务价值评估</span>
+            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">技术价值评估</span>
             <span style="display:block;font-size:11px;color:{MUTED};margin-top:5px;">服务端 · 营销 · 场景 · 云上部署四维分析</span>
           </td>
         </tr>
@@ -303,7 +362,7 @@ def build_daily_digest_html() -> str:
         <tr>
           <td style="padding:28px 40px 0;" class="email-pad">
             <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">Competitor News</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">友商最新动态</span>
+            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">云厂商最新动态</span>
           </td>
         </tr>
         <tr>
@@ -318,8 +377,8 @@ def build_daily_digest_html() -> str:
         <!-- ════ CTA ════ -->
         <tr>
           <td style="padding:32px 40px;text-align:center;" class="email-pad">
-            <a href="{BASE_URL}" style="display:inline-block;padding:13px 40px;border-radius:999px;background:{PRIMARY};color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.04em;text-decoration:none;">查看完整洞察报告 →</a>
-            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 友商洞察</p>
+            <a href="{BASE_URL}/insights/solutions" style="display:inline-block;padding:13px 40px;border-radius:999px;background:{PRIMARY};color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.04em;text-decoration:none;">查看完整解决方案洞察 →</a>
+            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 云厂商动态</p>
           </td>
         </tr>
 
@@ -373,7 +432,7 @@ def send_daily_digest():
 
     html = build_daily_digest_html()
     today = datetime.now().strftime("%Y-%m-%d")
-    subject = f"InsightPro · 每日商业洞察 ({today})"
+    subject = f"InsightPro · 技术解决方案日报 ({today})"
     success = 0
     for sub in subscribers:
         if send_email(sub["email"], subject, html):
@@ -390,7 +449,7 @@ def send_scheduled_digests(now: Optional[datetime] = None):
         return {"sent": 0, "total": 0}
 
     html = build_daily_digest_html()
-    subject = f"InsightPro · 每日商业洞察 ({now:%Y-%m-%d})"
+    subject = f"InsightPro · 技术解决方案日报 ({now:%Y-%m-%d})"
     success = 0
     for subscriber in due:
         if not send_email(subscriber["email"], subject, html):
