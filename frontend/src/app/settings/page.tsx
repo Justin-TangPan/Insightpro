@@ -4,7 +4,9 @@ import { SectionHeader } from "@/components/section-header";
 import { useState, useEffect } from "react";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
-import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, X, Clock3 } from "lucide-react";
+import { useAuth } from "@/components/auth-provider";
+import { usePreferences, type Preferences } from "@/lib/preferences";
+import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, X, Clock3, Palette, Languages, Users, SlidersHorizontal } from "lucide-react";
 
 interface Subscriber {
   id: number;
@@ -15,9 +17,23 @@ interface Subscriber {
   send_time: string;
 }
 
+interface AccountUser {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  created_at: string;
+  last_sign_in_at: string | null;
+}
+
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
 export default function SettingsPage() {
+  const { user, loading: authLoading, updateProfile } = useAuth();
+  const isAdmin = user?.app_metadata?.role === "admin";
+  const { preferences, updatePreferences } = usePreferences();
+  const [profileName, setProfileName] = useState("");
+  const [users, setUsers] = useState<AccountUser[]>([]);
   const [saved, setSaved] = useState(false);
   const [toggles, setToggles] = useState(() => {
     if (typeof window !== "undefined") {
@@ -42,7 +58,8 @@ export default function SettingsPage() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewing, setPreviewing] = useState(false);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (user && profileName !== (user.user_metadata?.name || "")) await updateProfile(profileName);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -74,12 +91,19 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
+    void Promise.resolve().then(() => setProfileName(user?.user_metadata?.name || ""));
+    if (!isAdmin) return;
     void Promise.resolve().then(fetchSubscribers);
+    void authenticatedFetch(`${API}/api/auth/users`)
+      .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+      .then(data => setUsers(data.users || []))
+      .catch(() => setUsers([]));
     fetch(`${API}/api/system/health/ready`)
       .then((res) => res.json())
       .then((report) => setDatabaseConnected(report.checks?.database === true))
       .catch(() => setDatabaseConnected(false));
-  }, []);
+  }, [authLoading, isAdmin, user]);
 
   // Add subscriber
   const handleSubscribe = async () => {
@@ -201,8 +225,8 @@ export default function SettingsPage() {
     <div className="page-stack">
       <SectionHeader
         badge="Settings"
-        title="系统设置"
-        subtitle="管理平台配置、通知偏好、邮件订阅和数据源连接"
+        title={preferences.language === "en" ? "System Settings" : "系统设置"}
+        subtitle={preferences.language === "en" ? "Manage your account, appearance and preferences" : "管理账号、外观与使用偏好"}
       />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -215,17 +239,17 @@ export default function SettingsPage() {
           <div className="space-y-3.5">
             <div>
               <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">用户名</label>
-              <input type="text" defaultValue="Justin Tang" className="ui-input w-full px-3.5 py-2 text-sm" />
+              <input type="text" value={profileName} onChange={event => setProfileName(event.target.value)} className="ui-input w-full px-3.5 py-2 text-sm" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">邮箱</label>
-              <input type="email" defaultValue="1315304560@qq.com" className="ui-input w-full px-3.5 py-2 text-[13px]" />
+              <input type="email" value={user?.email || ""} disabled className="ui-input w-full bg-surface-subtle px-3.5 py-2 text-[13px]" />
             </div>
             <div>
               <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">套餐</label>
               <div className="px-3.5 py-2 rounded-lg border border-grid bg-surface-subtle text-[13px] font-semibold text-ink flex items-center gap-2">
-                Premium Plan
-                <span className="ui-tag">Active</span>
+                InsightPro
+                <span className="ui-tag">{isAdmin ? "Admin" : "User"}</span>
               </div>
             </div>
           </div>
@@ -256,7 +280,35 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Appearance */}
+        <div className="ui-card lg:col-span-2">
+          <div className="ui-card-header">
+            <div className="flex items-center gap-2.5"><Palette className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">{preferences.language === "en" ? "Appearance & Preferences" : "外观与偏好"}</h3></div>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-xs font-semibold text-ink-muted"><Palette className="h-3.5 w-3.5" />{preferences.language === "en" ? "Theme color" : "主题色"}</label>
+              <div className="flex flex-wrap gap-2">
+                {([[
+                  "green", "经典绿", "#176b46"
+                ], ["mono", "极简黑白", "#18181b"], ["orange", "暖橙", "#c15f2b"], ["blue", "商务蓝", "#2563eb"], ["purple", "科技紫", "#7c3aed"]] as [Preferences["theme"], string, string][]).map(([value, label, color]) => (
+                  <button key={value} type="button" aria-pressed={preferences.theme === value} onClick={() => updatePreferences({ theme: value })} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${preferences.theme === value ? "bg-primary-soft text-primary ring-1 ring-primary/30" : "bg-surface-subtle text-ink-secondary"}`}>
+                    <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: color }} />{label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <label className="text-xs font-semibold text-ink-muted"><span className="mb-2 flex items-center gap-2"><Languages className="h-3.5 w-3.5" />{preferences.language === "en" ? "Language" : "语言"}</span><select value={preferences.language} onChange={event => updatePreferences({ language: event.target.value as Preferences["language"] })} className="ui-input w-full px-3 text-sm"><option value="zh">简体中文</option><option value="en">English</option></select></label>
+              <label className="text-xs font-semibold text-ink-muted"><span className="mb-2 flex items-center gap-2"><SlidersHorizontal className="h-3.5 w-3.5" />{preferences.language === "en" ? "Density" : "界面密度"}</span><select value={preferences.density} onChange={event => updatePreferences({ density: event.target.value as Preferences["density"] })} className="ui-input w-full px-3 text-sm"><option value="comfortable">舒适</option><option value="compact">紧凑</option></select></label>
+              <label className="flex items-end gap-2 pb-2 text-xs font-semibold text-ink-muted"><input type="checkbox" checked={preferences.motion} onChange={event => updatePreferences({ motion: event.target.checked })} className="accent-primary" />{preferences.language === "en" ? "Animations" : "界面动效"}</label>
+            </div>
+          </div>
+        </div>
+
         {/* Email Subscription */}
+        {isAdmin && <>
+        <div className="lg:col-span-2 flex items-center gap-3 pt-2"><Shield className="h-5 w-5 text-primary" /><div><h2 className="type-h2 text-ink">管理员设置</h2><p className="text-xs text-ink-muted">仅管理员可见和操作</p></div></div>
         <div className="ui-card lg:col-span-2">
           <div className="ui-card-header flex-col sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
@@ -451,6 +503,22 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {/* Users */}
+        <div className="ui-card lg:col-span-2">
+          <div className="ui-card-header">
+            <div className="flex items-center gap-2.5"><Users className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">用户系统</h3></div>
+            <span className="ui-tag">{users.length} 位用户</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">用户</th><th className="px-3 py-2 font-semibold">角色</th><th className="px-3 py-2 font-semibold">注册时间</th><th className="px-3 py-2 font-semibold">最近登录</th></tr></thead>
+              <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3"><span className="ui-tag">{account.role === "admin" ? "管理员" : "用户"}</span></td><td className="px-3 py-3 text-ink-secondary">{new Date(account.created_at).toLocaleDateString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString("zh-CN") : "尚未登录"}</td></tr>)}</tbody>
+            </table>
+            {!users.length && <p className="py-8 text-center text-sm text-ink-muted">暂无用户数据</p>}
+          </div>
+        </div>
+        </>}
       </div>
 
       {previewHtml && (

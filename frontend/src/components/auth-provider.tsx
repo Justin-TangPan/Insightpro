@@ -9,6 +9,7 @@ interface AuthState {
   loading: boolean
   signIn: (username: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>
+  updateProfile: (name: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -60,7 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>{children}</AuthContext.Provider>
+  const updateProfile = async (name: string) => {
+    const { data, error } = await supabase.auth.updateUser({ data: { name: name.trim().slice(0, 80) } })
+    if (data.user) setUser(data.user)
+    return { error: error?.message ?? null }
+  }
+
+  return <AuthContext.Provider value={{ user, loading, signIn, signUp, updateProfile, signOut }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

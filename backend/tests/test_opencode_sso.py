@@ -1,5 +1,6 @@
 from services import opencode_sso_service as sso
 from types import SimpleNamespace
+import asyncio
 
 import pytest
 from fastapi import HTTPException
@@ -33,3 +34,16 @@ def test_single_instance_only_allows_configured_user(monkeypatch):
     with pytest.raises(HTTPException) as error:
         auth._require_opencode_user(SimpleNamespace(email="user@example.com"))
     assert error.value.status_code == 403
+
+
+def test_admin_user_directory_exposes_no_credentials(monkeypatch):
+    account = SimpleNamespace(
+        id="user-1", email="user@example.com", user_metadata={"name": "User"},
+        app_metadata={"role": "user"}, created_at="2026-01-01", last_sign_in_at=None,
+    )
+    monkeypatch.setattr(auth.supabase.auth.admin, "list_users", lambda page, per_page: [account])
+    result = asyncio.run(auth.auth_users())
+    assert result["users"] == [{
+        "id": "user-1", "email": "user@example.com", "name": "User", "role": "user",
+        "created_at": "2026-01-01", "last_sign_in_at": None,
+    }]

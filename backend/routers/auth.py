@@ -126,6 +126,20 @@ async def auth_me(user=Depends(get_current_user)):
     }
 
 
+@router.get("/auth/users")
+async def auth_users(_=Depends(require_admin)):
+    # ponytail: one admin page covers the current small user base; paginate when it exceeds 200.
+    users = await asyncio.to_thread(supabase.auth.admin.list_users, 1, 200)
+    return {"users": [{
+        "id": str(item.id),
+        "email": item.email,
+        "name": (item.user_metadata or {}).get("name", ""),
+        "role": (item.app_metadata or {}).get("role", "user"),
+        "created_at": item.created_at,
+        "last_sign_in_at": item.last_sign_in_at,
+    } for item in users], "total": len(users)}
+
+
 @router.post("/auth/logout")
 async def auth_logout(user=Depends(get_current_user)):
     if supabase and user:

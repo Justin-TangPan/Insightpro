@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import type { LucideIcon } from "lucide-react";
+import { usePreferences } from "@/lib/preferences";
 
 interface NavItem {
   href: string;
@@ -36,6 +37,8 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const pathname = usePathname();
   const { user, loading, signOut } = useAuth();
+  const { preferences } = usePreferences();
+  const english = preferences.language === "en";
   const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "";
   const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "??";
 
@@ -72,7 +75,7 @@ export function Sidebar() {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <div key={item.href}>
-                {item.href === "/workbench/solutions" && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">工作台</p>}
+                {item.href === "/workbench/solutions" && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">{english ? "Workbench" : "工作台"}</p>}
                 <Link
                   href={item.href}
                   className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${
@@ -87,16 +90,16 @@ export function Sidebar() {
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
-                      <span className="text-sm font-semibold">{item.label}</span>
+                      <span className="text-sm font-semibold">{english ? ({ "首页洞察": "Home", "技术热点": "Tech Trends", "解决方案洞察": "Solution Insights", "系统设置": "Settings" }[item.label] || item.label) : item.label}</span>
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-ink-muted">{item.description}</p>
+                    <p className="mt-0.5 truncate text-xs text-ink-muted">{english ? ({ "技术方案简报": "Solution brief", "GitHub 项目": "GitHub projects", "方案目录与变化": "Catalog and changes", "自有技术方案": "Managed solutions", "需求与方案关联": "Requirements and links", "账号与配置": "Account and preferences" }[item.description] || item.description) : item.description}</p>
                   </div>
                 </Link>
               </div>
             );
           })}
           <div>
-            <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">AI 工作区</p>
+            <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">{english ? "AI Workspace" : "AI 工作区"}</p>
             <Link
               href="/insight-agent"
               className={`flex items-center gap-3 rounded-xl px-3 py-3 transition-all ${pathname === "/insight-agent" ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}
@@ -109,7 +112,7 @@ export function Sidebar() {
                   <span className="font-mono text-[10px] font-semibold text-ink-muted">07</span>
                   <span className="text-sm font-semibold">Insight-Agent</span>
                 </div>
-                <p className="mt-0.5 truncate text-xs text-ink-muted">AI 智能工作区</p>
+                <p className="mt-0.5 truncate text-xs text-ink-muted">{english ? "AI workspace" : "AI 智能工作区"}</p>
               </div>
             </Link>
           </div>
