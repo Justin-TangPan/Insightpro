@@ -100,7 +100,10 @@ async def auth_register(req: RegisterRequest):
         result = supabase_anon.auth.sign_up({
             "email": req.email,
             "password": req.password,
-            "options": {"data": {"name": req.name}},
+            "options": {
+                "data": {"name": req.name},
+                "email_redirect_to": f"{settings.BASE_URL.rstrip('/')}/auth/login",
+            },
         })
         return {
             "access_token": result.session.access_token if result.session else None,
