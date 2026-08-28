@@ -6,7 +6,7 @@ from urllib.parse import quote, urlencode
 from uuid import UUID
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Depends, Header, Request
+from fastapi import APIRouter, HTTPException, Depends, File, Header, Request, UploadFile
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
@@ -265,6 +265,35 @@ async def stop_agent_space(user_id: UUID, _=Depends(require_admin)):
         await agent_runtime_service.stop(str(user_id))
     except Exception:
         raise HTTPException(status_code=503, detail="Insight-Agent Runtime 当前不可用")
+    return Response(status_code=204)
+
+
+@router.get("/auth/public-knowledge")
+async def public_knowledge(query: str = "", _=Depends(require_auth)):
+    try:
+        return await agent_runtime_service.knowledge_list(query)
+    except Exception:
+        raise HTTPException(status_code=503, detail="公共知识库当前不可用")
+
+
+@router.post("/auth/public-knowledge", status_code=201)
+async def upload_public_knowledge(file: UploadFile = File(...), category: str = "", _=Depends(require_admin)):
+    content = await file.read(10 * 1024 * 1024 + 1)
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="文件不能超过 10 MB")
+    try:
+        await agent_runtime_service.knowledge_upload(file.filename or "", category, content)
+    except Exception:
+        raise HTTPException(status_code=400, detail="上传失败")
+    return Response(status_code=201)
+
+
+@router.delete("/auth/public-knowledge")
+async def delete_public_knowledge(path: str, _=Depends(require_admin)):
+    try:
+        await agent_runtime_service.knowledge_delete(path)
+    except Exception:
+        raise HTTPException(status_code=400, detail="删除失败或文件受保护")
     return Response(status_code=204)
 
 

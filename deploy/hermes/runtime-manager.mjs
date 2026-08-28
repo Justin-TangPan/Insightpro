@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { spawn } from "node:child_process"
-import { cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
+import { cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
 import http from "node:http"
 import https from "node:https"
 import net from "node:net"
@@ -237,6 +237,41 @@ function managementRequest(req, res) {
     res.writeHead(403); res.end("forbidden"); return true
   }
   const url = new URL(req.url, "http://runtime")
+  const safePart = value => String(value || "").split("/").filter(part => /^[\w.\-\u4e00-\u9fff ]{1,120}$/.test(part)).join("/")
+  const knowledgeFiles = (dir = knowledgeRoot, prefix = "") => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+    const relative = `${prefix}${entry.name}`
+    if (entry.isDirectory()) return knowledgeFiles(path.join(dir, entry.name), `${relative}/`)
+    if (!entry.isFile()) return []
+    const stat = lstatSync(path.join(dir, entry.name))
+    return [{ path: relative, size: stat.size, updated_at: stat.mtime.toISOString(), managed: relative === "insight-public-data.json" }]
+  })
+  if (url.pathname === "/_insight/knowledge/list" && req.method === "GET") {
+    const query = String(url.searchParams.get("q") || "").toLowerCase()
+    const files = knowledgeFiles().filter(item => !query || item.path.toLowerCase().includes(query))
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify({ files })); return true
+  }
+  if (url.pathname === "/_insight/knowledge/upload" && req.method === "POST") {
+    const filename = safePart(req.headers["x-insight-knowledge-name"])
+    const category = safePart(url.searchParams.get("category"))
+    if (!filename || filename === "insight-public-data.json") { res.writeHead(422); res.end("invalid file name"); return true }
+    const destination = path.join(knowledgeRoot, category, filename)
+    if (!destination.startsWith(`${knowledgeRoot}/`)) { res.writeHead(422); res.end("invalid path"); return true }
+    mkdirSync(path.dirname(destination), { recursive: true, mode: 0o2775 })
+    const chunks = []; let size = 0
+    req.on("data", chunk => { size += chunk.length; if (size <= 10 * 1024 * 1024) chunks.push(chunk) })
+    req.on("end", () => {
+      if (size > 10 * 1024 * 1024) { res.writeHead(413); res.end("file too large"); return }
+      writeFileSync(destination, Buffer.concat(chunks), { mode: 0o664 }); chownSync(destination, 0, adminGid); chmodSync(destination, 0o664)
+      res.writeHead(201); res.end()
+    }); return true
+  }
+  if (url.pathname === "/_insight/knowledge/delete" && req.method === "POST") {
+    const relative = safePart(url.searchParams.get("path"))
+    if (!relative || relative === "insight-public-data.json") { res.writeHead(422); res.end("protected file"); return true }
+    const target = path.join(knowledgeRoot, relative)
+    try { unlinkSync(target); res.writeHead(204); res.end() } catch { res.writeHead(404); res.end("not found") }
+    return true
+  }
   if (url.pathname === "/_insight/runtime/overview" && req.method === "GET") {
     const spaces = Object.entries(registry.users).map(([userId, record]) => spaceStatus(userId, record))
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
@@ -268,7 +303,7 @@ function managementRequest(req, res) {
   res.writeHead(404); res.end("not found"); return true
 }
 
-function childEnvironment(space, workspace, dashboardToken) {
+function childEnvironment(space, workspace, dashboardToken, role) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
     if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name) || name.startsWith("OPENCODE_")) delete env[name]
@@ -277,7 +312,7 @@ function childEnvironment(space, workspace, dashboardToken) {
     ...env,
     HOME: path.join(space, "home"),
     HERMES_HOME: path.join(space, "hermes"),
-    HERMES_WRITE_SAFE_ROOT: `${workspace}:${knowledgeRoot}`,
+    HERMES_WRITE_SAFE_ROOT: role === "admin" ? `${workspace}:${knowledgeRoot}` : workspace,
     HERMES_DASHBOARD_SESSION_TOKEN: dashboardToken,
     OPENAI_BASE_URL: "http://127.0.0.1:4199/v1",
     OPENAI_API_KEY: "runtime-proxy",
@@ -313,7 +348,7 @@ async function ensureInstance(identityValue) {
       cwd: workspace,
       uid: record.uid,
       gid: identityValue.role === "admin" ? adminGid : record.uid,
-      env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId)),
+      env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId), identityValue.role),
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
