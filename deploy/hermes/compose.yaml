@@ -1,31 +1,27 @@
 services:
-  opencode:
-    container_name: insight-opencode
-    image: insight-opencode:1.18.23
+  hermes:
+    container_name: insight-hermes
+    image: insight-hermes:v2026.8.19
     build:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - /etc/insight-opencode/opencode.env
+      - /etc/insight-hermes/hermes.env
     environment:
-      HOME: /home/opencode
-      XDG_CACHE_HOME: /home/opencode/.cache
-      XDG_CONFIG_HOME: /home/opencode/.config
-      XDG_DATA_HOME: /home/opencode/.local/share
-      XDG_STATE_HOME: /home/opencode/.local/state
       INSIGHT_PUBLIC_API_URL: "${INSIGHT_PUBLIC_API_URL:-http://host.docker.internal:8000/api}"
       INSIGHT_AGENT_DATA_ROOT: /srv/insight-agent
       OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
-      OPENCODE_MAX_ACTIVE: "${OPENCODE_MAX_ACTIVE:-6}"
-      OPENCODE_IDLE_SECONDS: "${OPENCODE_IDLE_SECONDS:-1800}"
-    command: ["node", "/opt/insight-agent/runtime-manager.mjs"]
+      HERMES_PROVIDER_BASE_URL: "${HERMES_PROVIDER_BASE_URL:?missing HERMES_PROVIDER_BASE_URL}"
+      HERMES_PROVIDER_API_KEY: "${HERMES_PROVIDER_API_KEY:?missing HERMES_PROVIDER_API_KEY}"
+      OPENCODE_MAX_ACTIVE: "${HERMES_MAX_ACTIVE:-6}"
+      OPENCODE_IDLE_SECONDS: "${HERMES_IDLE_SECONDS:-1800}"
     working_dir: /srv/insight-agent
     expose:
       - "4096"
     volumes:
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}:/srv/insight-agent"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/template:/template:ro"
-      - "${OPENCODE_DATA_ROOT:-/var/lib/insight-opencode}/knowledge:/knowledge/public"
+      - "${HERMES_DATA_ROOT:-/var/lib/insight-hermes}:/srv/insight-agent"
+      - "${HERMES_DATA_ROOT:-/var/lib/insight-hermes}/template:/template:ro"
+      - "${HERMES_DATA_ROOT:-/var/lib/insight-hermes}/knowledge:/knowledge/public"
     extra_hosts:
       - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     restart: unless-stopped
@@ -34,7 +30,7 @@ services:
       - /tmp:size=256m,nosuid,nodev
       - /run:size=16m,nosuid,nodev
     cap_drop: [ALL]
-    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, FSETID]
+    cap_add: [CHOWN, SETUID, SETGID, DAC_OVERRIDE, FOWNER, FSETID, KILL]
     security_opt:
       - no-new-privileges:true
     cpus: "2.0"
@@ -50,7 +46,7 @@ services:
       retries: 3
       start_period: 30s
     networks:
-      - opencode-network
+      - hermes-network
     logging:
       driver: json-file
       options:
@@ -58,7 +54,7 @@ services:
         max-file: "3"
 
   gateway:
-    container_name: insight-opencode-gateway
+    container_name: insight-hermes-gateway
     image: nginxinc/nginx-unprivileged:1.29.4-alpine
     user: "101:101"
     environment:
@@ -71,12 +67,11 @@ services:
     extra_hosts:
       - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     ports:
-      - "${OPENCODE_BIND_ADDRESS:-0.0.0.0}:${OPENCODE_PORT:-4096}:8080"
+      - "${HERMES_BIND_ADDRESS:-0.0.0.0}:${HERMES_PORT:-4096}:8080"
     volumes:
       - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
-      - ./insight-agent-bootstrap.js:/etc/nginx/insight-agent/bootstrap.js:ro
     depends_on:
-      opencode:
+      hermes:
         condition: service_healthy
     restart: unless-stopped
     read_only: true
@@ -100,7 +95,7 @@ services:
       retries: 3
       start_period: 10s
     networks:
-      - opencode-network
+      - hermes-network
     logging:
       driver: json-file
       options:
@@ -108,5 +103,5 @@ services:
         max-file: "3"
 
 networks:
-  opencode-network:
-    name: insight-opencode-network
+  hermes-network:
+    name: insight-hermes-network

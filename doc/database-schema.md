@@ -26,8 +26,8 @@
 | `requirements` | 用户管理的技术需求 | 自增 `id`，按 `user_id` 隔离 |
 | `solutions` | 用户管理的自有技术方案 | 自增 `id`，按 `user_id` 隔离 |
 | `requirement_solutions` | Requirement 与 Solution 多对多关联 | `requirement_id + solution_id` |
-| `opencode_sso_tickets` | OpenCode 60 秒一次性 SSO ticket | SHA-256 `token_hash` |
-| `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session | SHA-256 `token_hash` |
+| `opencode_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
+| `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
 | `cloud_vendor_news` | 云厂商官网动态 | `crawl_date + vendor + title` |
 | `competitor_news` | 友商动态摘要 | `scrape_date + vendor + title` |
 | `baidu_hotsearch` | 辅助热搜快照 | `scrape_date + title` |
@@ -123,7 +123,7 @@
 
 ### `opencode_sso_tickets` / `opencode_sso_sessions`
 
-两表启用 RLS 且只保存随机凭据的 SHA-256 摘要，不保存 Supabase Access Token、OpenCode Basic Auth 或模型密钥。ticket 有效期 60 秒并由原子更新保证只消费一次；Gateway Session 使用 HttpOnly Cookie、有效期 30 天，InsightPro 退出登录时按 `user_id` 立即撤销。
+两表启用 RLS 且只保存随机凭据的 SHA-256 摘要，不保存 Supabase Access Token 或模型密钥。表名为兼容已有数据暂不迁移；当前底层 Runtime 已替换为 Hermes Agent。
 
 ### `cloud_vendor_news`
 

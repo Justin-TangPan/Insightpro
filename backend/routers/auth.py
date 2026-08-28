@@ -1,7 +1,6 @@
 """认证路由 — 登录/注册/登出/用户信息/Insight-Agent SSO"""
 from __future__ import annotations
 import asyncio
-import base64
 import hmac
 from urllib.parse import quote, urlencode
 from uuid import UUID
@@ -67,7 +66,7 @@ class AgentTicketRequest(BaseModel):
 
 def _gateway_secret() -> str:
     if len(settings.OPENCODE_SSO_SECRET) < 32:
-        raise HTTPException(status_code=503, detail="OpenCode SSO 尚未配置")
+        raise HTTPException(status_code=503, detail="Insight-Agent SSO 尚未配置")
     return settings.OPENCODE_SSO_SECRET
 
 
@@ -187,9 +186,7 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
         opencode_sso_service.create_gateway_session,
         ticket["user_id"], ticket["agent_user_id"], auth_role, agent_role, display_name,
     )
-    workspace = f'/srv/insight-agent/spaces/{ticket["agent_user_id"]}/workspace'
-    workspace_key = base64.urlsafe_b64encode(workspace.encode()).decode().rstrip("=")
-    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/{workspace_key}/session", status_code=303)
+    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/chat", status_code=303)
     response.set_cookie(
         "insight_opencode_session",
         session,
@@ -220,7 +217,7 @@ async def verify_opencode_gateway(
     token = request.cookies.get("insight_opencode_session", "")
     session = await asyncio.to_thread(opencode_sso_service.verify_gateway_session, token)
     if not session:
-        raise HTTPException(status_code=401, detail="OpenCode 授权已过期")
+        raise HTTPException(status_code=401, detail="Insight-Agent 授权已过期")
     return Response(status_code=204, headers={
         "X-Insight-User-Id": session["agent_user_id"],
         "X-Insight-Agent-Role": session["agent_role"],

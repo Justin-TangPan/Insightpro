@@ -4,6 +4,6 @@
 
 - 普通用户：只读。
 - InsightPro Admin：可在自己的 Insight-Agent 空间中维护。
-- 公共平台实时数据：通过 `insight_public_data` 工具读取。
+- `insight-public-data.json`：Runtime Manager 每五分钟从 InsightPro 公共 API 刷新，包含首页模块、技术热点和解决方案洞察；所有用户只读。
 
 不得在此保存 `.env`、Token、密码、生产密钥或其他敏感信息。

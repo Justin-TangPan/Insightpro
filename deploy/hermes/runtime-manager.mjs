@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto"
 import { spawn } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
 import http from "node:http"
+import https from "node:https"
 import net from "node:net"
 import path from "node:path"
 
@@ -16,11 +17,30 @@ const firstPort = 12000
 const maxActive = Number(process.env.OPENCODE_MAX_ACTIVE || 6)
 const idleMs = Number(process.env.OPENCODE_IDLE_SECONDS || 1800) * 1000
 const internalSecret = process.env.OPENCODE_GATEWAY_SECRET || ""
-const basicAuth = `Basic ${Buffer.from(`${process.env.OPENCODE_SERVER_USERNAME}:${process.env.OPENCODE_SERVER_PASSWORD}`).toString("base64")}`
+const providerUrl = new URL(process.env.HERMES_PROVIDER_BASE_URL || "http://127.0.0.1:9")
+const providerKey = process.env.HERMES_PROVIDER_API_KEY || ""
+const publicApi = process.env.INSIGHT_PUBLIC_API_URL || "http://host.docker.internal:8000/api"
 const active = new Map()
 const starting = new Map()
 
 process.umask(0o007)
+
+async function refreshPublicKnowledge() {
+  try {
+    const routes = { homepage: "/homepage/modules", hotspots: "/github-trending?since=daily", solutions: "/solutions/aliyun" }
+    const entries = await Promise.all(Object.entries(routes).map(async ([name, route]) => {
+      const response = await fetch(publicApi + route, { signal: AbortSignal.timeout(15000) })
+      if (!response.ok) throw new Error(`${route}: ${response.status}`)
+      return [name, await response.json()]
+    }))
+    const destination = path.join(knowledgeRoot, "insight-public-data.json")
+    writeFileSync(destination, JSON.stringify({ refreshedAt: new Date().toISOString(), ...Object.fromEntries(entries) }, null, 2), { mode: 0o644 })
+    chownSync(destination, adminUid, adminUid)
+    chmodSync(destination, 0o644)
+  } catch (error) {
+    console.error("Public knowledge refresh failed", error)
+  }
+}
 
 mkdirSync(spacesRoot, { recursive: true, mode: 0o711 })
 mkdirSync(knowledgeRoot, { recursive: true, mode: 0o755 })
@@ -100,14 +120,21 @@ function ownTree(target, uid, gid, directoryMode = 0o2770) {
   }
 }
 
-function copyConfig(space, role) {
-  const configRoot = path.join(space, "config", "opencode")
-  mkdirSync(path.join(configRoot, "tools"), { recursive: true, mode: 0o755 })
-  cpSync(role === "admin" ? "/opt/insight-agent/opencode.admin.json" : "/opt/insight-agent/opencode.user.json", path.join(configRoot, "opencode.json"))
-  cpSync("/opt/insight-agent/tools/insight_public_data.ts", path.join(configRoot, "tools", "insight_public_data.ts"))
-  ownTree(path.join(space, "config"), 0, adminUid, 0o755)
-  chmodSync(path.join(configRoot, "opencode.json"), 0o444)
-  chmodSync(path.join(configRoot, "tools", "insight_public_data.ts"), 0o444)
+function copyConfig(space, role, uid) {
+  const hermesRoot = path.join(space, "hermes")
+  mkdirSync(hermesRoot, { recursive: true, mode: 0o2770 })
+  const config = `_config_version: 38
+model:
+  default: glm-5.2
+  provider: custom
+  base_url: http://127.0.0.1:4199/v1
+platform_toolsets:
+  cli: [file]
+agent:
+  disabled_toolsets: [terminal, web, browser, cronjob, skills_hub, send_message]
+`
+  writeFileSync(path.join(hermesRoot, "config.yaml"), config, { mode: 0o640 })
+  ownTree(hermesRoot, uid, adminUid)
 }
 
 function ensureSpace(identityValue, record) {
@@ -116,25 +143,25 @@ function ensureSpace(identityValue, record) {
   const ownershipRole = existsSync(ownershipMarker) ? readFileSync(ownershipMarker, "utf8") : ""
   mkdirSync(space, { recursive: true, mode: 0o2770 })
   adoptLegacy(space, identityValue.role)
-  for (const name of ["data", "cache", "state", "home"]) mkdirSync(path.join(space, name), { recursive: true, mode: 0o2770 })
+  for (const name of ["hermes", "home"]) mkdirSync(path.join(space, name), { recursive: true, mode: 0o2770 })
   const workspace = path.join(space, "workspace")
   if (!existsSync(workspace)) cpSync(templateRoot, workspace, { recursive: true })
   if (!existsSync(path.join(workspace, "public-knowledge"))) symlinkSync(knowledgeRoot, path.join(workspace, "public-knowledge"), "dir")
   if (ownershipRole !== identityValue.role) {
-    for (const name of ["data", "cache", "state", "home", "workspace"]) ownTree(path.join(space, name), record.uid, adminUid)
+    for (const name of ["hermes", "home", "workspace"]) ownTree(path.join(space, name), record.uid, adminUid)
     chownSync(space, record.uid, adminUid)
     chmodSync(space, 0o2770)
     writeFileSync(ownershipMarker, identityValue.role, { mode: 0o660 })
     chownSync(ownershipMarker, record.uid, adminUid)
   }
-  copyConfig(space, identityValue.role)
+  copyConfig(space, identityValue.role, record.uid)
   return { space, workspace }
 }
 
 async function processHealthy(port) {
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/global/health`, { headers: { Authorization: basicAuth }, signal: AbortSignal.timeout(500) })
-    return response.ok && (await response.json()).healthy === true
+    const response = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) })
+    return response.ok
   } catch {
     return false
   }
@@ -145,6 +172,21 @@ function stopInstance(userId) {
   if (!instance) return
   instance.child.kill("SIGTERM")
   active.delete(userId)
+}
+
+function childEnvironment(space, workspace) {
+  const env = { ...process.env }
+  for (const name of Object.keys(env)) {
+    if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name) || name.startsWith("OPENCODE_")) delete env[name]
+  }
+  return {
+    ...env,
+    HOME: path.join(space, "home"),
+    HERMES_HOME: path.join(space, "hermes"),
+    HERMES_WRITE_SAFE_ROOT: `${workspace}:${knowledgeRoot}`,
+    OPENAI_BASE_URL: "http://127.0.0.1:4199/v1",
+    OPENAI_API_KEY: "runtime-proxy",
+  }
 }
 
 async function ensureInstance(identityValue) {
@@ -170,54 +212,33 @@ async function ensureInstance(identityValue) {
     const record = recordFor(identityValue)
     const { space, workspace } = ensureSpace(identityValue, record)
     const log = openSync(path.join(space, "runtime.log"), "a")
-    const child = spawn("opencode", ["web", "--hostname", "127.0.0.1", "--port", String(record.port)], {
+    const child = spawn("hermes", ["dashboard", "--host", "127.0.0.1", "--port", String(record.port), "--no-open", "--skip-build", "--isolated"], {
       cwd: workspace,
       uid: record.uid,
       gid: identityValue.role === "admin" ? adminUid : record.uid,
-      env: {
-        ...process.env,
-        HOME: path.join(space, "home"),
-        XDG_CACHE_HOME: path.join(space, "cache"),
-        XDG_CONFIG_HOME: path.join(space, "config"),
-        XDG_DATA_HOME: path.join(space, "data"),
-        XDG_STATE_HOME: path.join(space, "state"),
-      },
+      env: childEnvironment(space, workspace),
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
     const instance = { child, port: record.port, workspace, role: identityValue.role, lastUsed: Date.now() }
     active.set(identityValue.userId, instance)
-    for (let attempt = 0; attempt < 100; attempt += 1) {
+    for (let attempt = 0; attempt < 300; attempt += 1) {
       if (await processHealthy(record.port)) return instance
-      if (child.exitCode !== null) throw new Error(`OpenCode process exited for ${identityValue.userId}`)
+      if (child.exitCode !== null) throw new Error(`Hermes process exited for ${identityValue.userId}`)
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     stopInstance(identityValue.userId)
-    throw new Error(`OpenCode startup timeout for ${identityValue.userId}`)
+    throw new Error(`Hermes startup timeout for ${identityValue.userId}`)
   })().finally(() => starting.delete(identityValue.userId))
   starting.set(identityValue.userId, promise)
   return promise
 }
 
 function upstreamHeaders(req, port) {
-  const headers = { ...req.headers, host: `127.0.0.1:${port}`, authorization: basicAuth }
+  const headers = { ...req.headers, host: `127.0.0.1:${port}` }
   for (const name of Object.keys(headers)) if (name.startsWith("x-insight-")) delete headers[name]
   delete headers.cookie
   return headers
-}
-
-function workspacePath(requestUrl, workspace) {
-  const target = new URL(requestUrl || "/", "http://runtime")
-  if (target.searchParams.has("directory")) target.searchParams.set("directory", workspace)
-  const parts = target.pathname.split("/")
-  if (parts[1]) {
-    try {
-      const decoded = Buffer.from(parts[1], "base64url").toString("utf8")
-      if (decoded.startsWith("/") && decoded !== workspace) parts[1] = Buffer.from(workspace).toString("base64url")
-    } catch {}
-  }
-  target.pathname = parts.join("/")
-  return `${target.pathname}${target.search}`
 }
 
 const server = http.createServer(async (req, res) => {
@@ -227,6 +248,10 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(401)
     return void res.end("unauthorized")
   }
+  if (current.authRole !== "admin" && req.method !== "GET" && /^\/api\/(config|tools|profiles|ops)\b/.test(req.url || "")) {
+    res.writeHead(403)
+    return void res.end("AI space configuration requires administrator access")
+  }
   if (req.url === "/__insight/context") {
     const record = recordFor(current)
     const { workspace } = ensureSpace(current, record)
@@ -235,7 +260,7 @@ const server = http.createServer(async (req, res) => {
   }
   try {
     const instance = await ensureInstance(current)
-    const upstream = http.request({ hostname: "127.0.0.1", port: instance.port, path: workspacePath(req.url, instance.workspace), method: req.method, headers: upstreamHeaders(req, instance.port) }, response => {
+    const upstream = http.request({ hostname: "127.0.0.1", port: instance.port, path: req.url, method: req.method, headers: upstreamHeaders(req, instance.port) }, response => {
       res.writeHead(response.statusCode || 502, response.headers)
       response.pipe(res)
     })
@@ -255,7 +280,7 @@ server.on("upgrade", async (req, socket, head) => {
     const instance = await ensureInstance(current)
     const upstream = net.connect(instance.port, "127.0.0.1", () => {
       const headers = upstreamHeaders(req, instance.port)
-      upstream.write(`${req.method} ${workspacePath(req.url, instance.workspace)} HTTP/${req.httpVersion}\r\n${Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\r\n")}\r\n\r\n`)
+      upstream.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n${Object.entries(headers).map(([name, value]) => `${name}: ${value}`).join("\r\n")}\r\n\r\n`)
       if (head.length) upstream.write(head)
       socket.pipe(upstream).pipe(socket)
     })
@@ -269,6 +294,19 @@ setInterval(() => {
   const cutoff = Date.now() - idleMs
   for (const [userId, instance] of active) if (instance.lastUsed < cutoff) stopInstance(userId)
 }, 60_000).unref()
+refreshPublicKnowledge()
+setInterval(refreshPublicKnowledge, 5 * 60_000).unref()
+
+http.createServer((req, res) => {
+  const client = providerUrl.protocol === "https:" ? https : http
+  const headers = { ...req.headers, host: providerUrl.host, authorization: `Bearer ${providerKey}` }
+  const upstream = client.request({ protocol: providerUrl.protocol, hostname: providerUrl.hostname, port: providerUrl.port || undefined, method: req.method, path: `${providerUrl.pathname.replace(/\/$/, "")}${req.url}`, headers }, response => {
+    res.writeHead(response.statusCode || 502, response.headers)
+    response.pipe(res)
+  })
+  upstream.on("error", () => { res.writeHead(502); res.end("provider unavailable") })
+  req.pipe(upstream)
+}).listen(4199, "127.0.0.1")
 
 for (const signal of ["SIGTERM", "SIGINT"]) process.on(signal, () => {
   for (const userId of active.keys()) stopInstance(userId)
@@ -279,8 +317,6 @@ if (process.argv.includes("--self-test")) {
   const id = "00000000-0000-4000-8000-000000000001"
   if (!identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": id } })) process.exit(1)
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
-  const workspace = `/srv/insight-agent/spaces/${id}/workspace`
-  if (workspacePath("/L3RtcC9taXNzaW5n/session?directory=%2Ftmp%2Fmissing", workspace) !== `/${Buffer.from(workspace).toString("base64url")}/session?directory=${encodeURIComponent(workspace)}`) process.exit(1)
   process.exit(0)
 }
 

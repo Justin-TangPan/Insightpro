@@ -26,12 +26,6 @@ server {
         proxy_set_header X-Insight-SSO-Ticket $sso_ticket;
     }
 
-    location = /insight-agent-bootstrap.js {
-        default_type application/javascript;
-        alias /etc/nginx/insight-agent/bootstrap.js;
-        add_header Cache-Control "no-store";
-    }
-
     location = /__insight/context {
         auth_request /_insight_auth;
         auth_request_set $agent_user_id $upstream_http_x_insight_user_id;
@@ -39,7 +33,7 @@ server {
         auth_request_set $auth_role $upstream_http_x_insight_auth_role;
         auth_request_set $display_name $upstream_http_x_insight_display_name;
 
-        proxy_pass http://opencode:4096;
+        proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-User-Id $agent_user_id;
         proxy_set_header X-Insight-Agent-Role $agent_role;
         proxy_set_header X-Insight-Auth-Role $auth_role;
@@ -55,7 +49,7 @@ server {
         auth_request_set $auth_role $upstream_http_x_insight_auth_role;
         auth_request_set $display_name $upstream_http_x_insight_display_name;
 
-        proxy_pass http://opencode:4096;
+        proxy_pass http://hermes:4096;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header Upgrade $http_upgrade;
@@ -70,9 +64,9 @@ server {
         proxy_buffering off;
         proxy_read_timeout 300s;
         proxy_hide_header WWW-Authenticate;
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header Content-Security-Policy;
         add_header Content-Security-Policy "frame-ancestors ${INSIGHT_APP_ORIGIN}" always;
-        sub_filter '</head>' '<script src="/insight-agent-bootstrap.js"></script></head>';
-        sub_filter_once on;
     }
 
     location @insight_login {

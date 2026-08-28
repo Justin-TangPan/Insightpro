@@ -1,5 +1,5 @@
 [Unit]
-Description=InsightPro OpenCode AI Agent
+Description=InsightPro Hermes AI Agent
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
@@ -8,9 +8,9 @@ Requires=docker.service
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/root/AIProject/insight-web
-ExecStart=/root/AIProject/insight-web/deploy/opencode/manage.sh start
-ExecStop=/root/AIProject/insight-web/deploy/opencode/manage.sh stop
-ExecReload=/root/AIProject/insight-web/deploy/opencode/manage.sh upgrade
+ExecStart=/root/AIProject/insight-web/deploy/hermes/manage.sh start
+ExecStop=/root/AIProject/insight-web/deploy/hermes/manage.sh stop
+ExecReload=/root/AIProject/insight-web/deploy/hermes/manage.sh upgrade
 TimeoutStartSec=600
 TimeoutStopSec=60
 

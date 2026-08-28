@@ -1,12 +1,12 @@
 # Insight-Agent
 
-Insight-Agent 是 InsightPro 内置的 AI 智能工作区。产品界面统一使用 Insight-Agent 名称；底层复用固定版本 OpenCode 原生 Web、Session 和 Agent 能力，不修改 OpenCode Core。
+Insight-Agent 是 InsightPro 内置的 AI 智能工作区，底层运行固定版本 Hermes Agent 原生 Dashboard 和 Agent 能力，不使用宿主机 Hermes，也不修改 Hermes Agent Core。
 
 ## 当前能力
 
 - 在 InsightPro Sidebar 中打开完整工作区。
 - 在普通页面使用可拖动、缩放、最小化和最大化的浮窗。
-- 浮窗和完整工作区复用同一个浏览器 iframe 与 OpenCode Session。
+- 浮窗和完整工作区复用同一个浏览器 iframe 与 Hermes Session。
 - 使用 InsightPro Supabase 身份单点进入，不提供第二套用户密码。
 - 每位用户自动进入以稳定 `user_id` 标识的独立 Workspace；界面可显示姓名或邮箱，文件和 Session 不以邮箱作为主键。
 - 普通用户可读写自己的 Workspace、只读公共知识库；管理员可进入并维护全部 AI 空间及公共知识库。
@@ -16,15 +16,15 @@ Insight-Agent 是 InsightPro 内置的 AI 智能工作区。产品界面统一�
 
 ## 运维
 
-底层部署实现暂位于 `deploy/opencode/`，这是 Insight-Agent 对固定 OpenCode Runtime 的内部适配层，不是产品入口。
+底层部署位于 `deploy/hermes/`，使用官方 Hermes Agent 容器镜像构建独立 Runtime。
 
 ```bash
-sudo ./deploy/opencode/manage.sh start
-sudo ./deploy/opencode/manage.sh health
-sudo ./deploy/opencode/manage.sh status
-sudo ./deploy/opencode/manage.sh logs
-sudo ./deploy/opencode/manage.sh stop
-sudo ./deploy/opencode/manage.sh upgrade
+sudo ./deploy/hermes/manage.sh start
+sudo ./deploy/hermes/manage.sh health
+sudo ./deploy/hermes/manage.sh status
+sudo ./deploy/hermes/manage.sh logs
+sudo ./deploy/hermes/manage.sh stop
+sudo ./deploy/hermes/manage.sh upgrade
 ```
 
-InsightPro 入口为 `/insight-agent`。调试时依次检查 Supabase Session、`POST /api/auth/opencode/ticket`、Gateway `/healthz` 和容器 `/global/health`。升级前阅读 [DEPLOYMENT.md](./DEPLOYMENT.md)，故障判断参见 [SECURITY.md](./SECURITY.md) 和 [ARCHITECTURE.md](./ARCHITECTURE.md)。
+InsightPro 入口为 `/insight-agent`。调试时依次检查 Supabase Session、SSO Ticket、Gateway `/healthz` 和 Hermes 容器健康状态。升级前阅读 [DEPLOYMENT.md](./DEPLOYMENT.md)。
