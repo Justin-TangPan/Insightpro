@@ -1,7 +1,8 @@
 FROM nousresearch/hermes-agent:v2026.8.19@sha256:3811ed13da874fba2ac99b6d492db9a203d34cb6dccf90d886948c00d0ccec09
 
-COPY runtime-manager.mjs /opt/insight-agent/runtime-manager.mjs
-RUN chmod 0555 /opt/insight-agent/runtime-manager.mjs
+COPY runtime-manager.mjs AGENTS.override.md /opt/insight-agent/
+RUN chmod 0555 /opt/insight-agent/runtime-manager.mjs \
+    && chmod 0444 /opt/insight-agent/AGENTS.override.md
 
 ENV HERMES_HOME=/opt/data \
     HERMES_WRITE_SAFE_ROOT=/workspace \

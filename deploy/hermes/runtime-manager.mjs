@@ -11,6 +11,7 @@ const spacesRoot = path.join(root, "spaces")
 const tokensRoot = path.join(root, "dashboard-tokens")
 const registryPath = path.join(root, "registry.json")
 const templateRoot = "/template"
+const workspaceRulesTemplate = "/opt/insight-agent/AGENTS.override.md"
 const knowledgeRoot = "/knowledge/public"
 const adminGid = 10002
 const firstAdminUid = 11000
@@ -157,6 +158,16 @@ agent:
   ownTree(hermesRoot, uid, adminGid)
 }
 
+function syncWorkspaceRules(workspace, uid) {
+  const rules = readFileSync(workspaceRulesTemplate, "utf8")
+  const destination = path.join(workspace, "AGENTS.override.md")
+  if (!existsSync(destination) || readFileSync(destination, "utf8") !== rules) {
+    writeFileSync(destination, rules, { mode: 0o640 })
+  }
+  chownSync(destination, uid, adminGid)
+  chmodSync(destination, 0o640)
+}
+
 function ensureSpace(identityValue, record) {
   const space = path.join(spacesRoot, identityValue.userId)
   const ownershipMarker = path.join(space, ".ownership-role")
@@ -176,6 +187,7 @@ function ensureSpace(identityValue, record) {
     chownSync(ownershipMarker, record.uid, adminGid)
   }
   copyConfig(space, identityValue.role, record.uid)
+  syncWorkspaceRules(workspace, record.uid)
   return { space, workspace }
 }
 
@@ -345,6 +357,7 @@ if (process.argv.includes("--self-test")) {
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
   if (providerApiPath("/openai/v1", "/v1/chat/completions") !== "/openai/v1/chat/completions") process.exit(1)
   if (nextUid("admin", [{ uid: adminGid }, { uid: firstAdminUid }]) !== firstAdminUid + 1) process.exit(1)
+  if (!readFileSync(workspaceRulesTemplate, "utf8").includes("/knowledge/public/insight-public-data.json")) process.exit(1)
   process.exit(0)
 }
 
