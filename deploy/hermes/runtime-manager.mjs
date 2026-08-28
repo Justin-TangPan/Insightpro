@@ -125,7 +125,7 @@ function copyConfig(space, role, uid) {
   mkdirSync(hermesRoot, { recursive: true, mode: 0o2770 })
   const config = `_config_version: 38
 model:
-  default: glm-5.2
+  default: openpangu-2.0-flash
   provider: custom
   base_url: http://127.0.0.1:4199/v1
 platform_toolsets:
