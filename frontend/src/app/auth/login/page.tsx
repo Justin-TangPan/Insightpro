@@ -58,7 +58,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-ink-secondary">密码</label>
+              <div className="mb-1.5 flex items-center justify-between"><label className="text-sm font-medium text-ink-secondary">密码</label><Link href="/auth/forgot-password" className="ui-link text-xs">忘记密码？</Link></div>
               <input
                 type="password"
                 value={password}

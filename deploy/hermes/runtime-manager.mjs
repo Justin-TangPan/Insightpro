@@ -236,6 +236,10 @@ async function ensureInstance(identityValue) {
 
 function upstreamHeaders(req, port) {
   const headers = { ...req.headers, host: `127.0.0.1:${port}` }
+  // Hermes binds per-user dashboards to loopback and rejects a proxied browser
+  // WebSocket whose Origin still names the public gateway. The gateway has
+  // already completed InsightPro SSO before this internal-only hop.
+  if (headers.origin) headers.origin = `http://127.0.0.1:${port}`
   for (const name of Object.keys(headers)) if (name.startsWith("x-insight-")) delete headers[name]
   delete headers.cookie
   return headers

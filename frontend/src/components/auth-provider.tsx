@@ -9,6 +9,7 @@ interface AuthState {
   loading: boolean
   signIn: (username: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string, name: string) => Promise<{ error: string | null }>
+  resetPassword: (email: string) => Promise<{ error: string | null }>
   updateProfile: (name: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
@@ -49,6 +50,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null }
   }
 
+  const resetPassword = async (email: string) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    })
+    return { error: error?.message ?? null }
+  }
+
   const signOut = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) {
@@ -67,7 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error?.message ?? null }
   }
 
-  return <AuthContext.Provider value={{ user, loading, signIn, signUp, updateProfile, signOut }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, loading, signIn, signUp, resetPassword, updateProfile, signOut }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
