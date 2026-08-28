@@ -10,9 +10,12 @@ Insight-Agent 是 InsightPro 内置的 AI 智能工作区，底层运行固定�
 - 使用 InsightPro Supabase 身份单点进入，不提供第二套用户密码。
 - 每位用户自动进入以稳定 `user_id` 标识的独立 Workspace；界面可显示姓名或邮箱，文件和 Session 不以邮箱作为主键。
 - 普通用户可读写自己的 Workspace、只读公共知识库；管理员可进入并维护全部 AI 空间及公共知识库。
+- Admin 可查看 Runtime、Workspace、最近使用时间、磁盘占用与基础用量；成员管理、禁用和恢复均以 InsightPro 的 `user_id` 为准。
 - 生成解释、方案、代码草稿和 Patch；修改不会直接进入生产仓库。
 
 当前不支持生产源码/数据库写入、业务对象写入、Shell/Git 操作、部署、Context Bridge，以及自动携带 Insight/Solution/Requirement 上下文。
+
+模型调用统计只记录 Runtime 实际发出的请求；Input/Output Token 仅在 Provider 响应提供 `usage` 时记录，不估算、不补造。
 
 ## 运维
 

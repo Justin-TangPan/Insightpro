@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from supabase import create_client, Client
 from settings import settings
-from services import agent_runtime_service, opencode_sso_service
+from services import agent_audit_service, agent_runtime_service, opencode_sso_service
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -219,6 +219,7 @@ async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(req
                 await agent_runtime_service.stop(str(user_id))
             except Exception:
                 pass
+        agent_audit_service.log(str(admin.id), "member_update", str(user_id), str(req.model_dump(exclude_none=True)))
         return {"user": _member_payload(updated)}
     except Exception as error:
         raise HTTPException(status_code=400, detail=f"成员更新失败: {error}")
@@ -254,6 +255,7 @@ async def start_agent_space(user_id: UUID, _=Depends(require_admin)):
             str(account.id), (account.app_metadata or {}).get("role", "user"),
             ((account.user_metadata or {}).get("name") or (account.email or "").split("@")[0])[:80],
         )
+        agent_audit_service.log(str(_.id), "runtime_start", str(user_id))
         return {"state": state}
     except Exception:
         raise HTTPException(status_code=503, detail="Insight-Agent Runtime 启动失败")
@@ -263,6 +265,7 @@ async def start_agent_space(user_id: UUID, _=Depends(require_admin)):
 async def stop_agent_space(user_id: UUID, _=Depends(require_admin)):
     try:
         await agent_runtime_service.stop(str(user_id))
+        agent_audit_service.log(str(_.id), "runtime_stop", str(user_id))
     except Exception:
         raise HTTPException(status_code=503, detail="Insight-Agent Runtime 当前不可用")
     return Response(status_code=204)
@@ -283,6 +286,7 @@ async def upload_public_knowledge(file: UploadFile = File(...), category: str = 
         raise HTTPException(status_code=413, detail="文件不能超过 10 MB")
     try:
         await agent_runtime_service.knowledge_upload(file.filename or "", category, content)
+        agent_audit_service.log(str(_.id), "knowledge_upload", detail=f"{category}/{file.filename}")
     except Exception:
         raise HTTPException(status_code=400, detail="上传失败")
     return Response(status_code=201)
@@ -292,6 +296,7 @@ async def upload_public_knowledge(file: UploadFile = File(...), category: str = 
 async def delete_public_knowledge(path: str, _=Depends(require_admin)):
     try:
         await agent_runtime_service.knowledge_delete(path)
+        agent_audit_service.log(str(_.id), "knowledge_delete", detail=path)
     except Exception:
         raise HTTPException(status_code=400, detail="删除失败或文件受保护")
     return Response(status_code=204)

@@ -106,6 +106,7 @@ function recordFor({ userId, role, displayName }) {
       role,
       displayName,
       createdAt: new Date().toISOString(),
+      usage: { runtime_starts: 0, days: {} },
     }
     registry.users[userId] = record
   } else {
@@ -115,6 +116,16 @@ function recordFor({ userId, role, displayName }) {
   }
   saveRegistry()
   return record
+}
+
+function recordUsage(userId, usage = {}) {
+  const record = registry.users[userId]
+  if (!record) return
+  const day = new Date().toISOString().slice(0, 10)
+  const state = record.usage || (record.usage = { runtime_starts: 0, days: {} })
+  const item = state.days[day] || (state.days[day] = { requests: 0, input_tokens: 0, output_tokens: 0 })
+  item.requests += 1; item.input_tokens += Number(usage.prompt_tokens || 0); item.output_tokens += Number(usage.completion_tokens || 0)
+  saveRegistry()
 }
 
 function adoptLegacy(space, role) {
@@ -274,8 +285,11 @@ function managementRequest(req, res) {
   }
   if (url.pathname === "/_insight/runtime/overview" && req.method === "GET") {
     const spaces = Object.entries(registry.users).map(([userId, record]) => spaceStatus(userId, record))
+    const today = new Date().toISOString().slice(0, 10)
+    const usage = Object.entries(registry.users).map(([user_id, record]) => ({ user_id, ...(record.usage || { runtime_starts: 0, days: {} }) }))
+    const totals = usage.reduce((sum, item) => { const day = item.days[today] || {}; sum.requests += day.requests || 0; sum.input_tokens += day.input_tokens || 0; sum.output_tokens += day.output_tokens || 0; return sum }, { requests: 0, input_tokens: 0, output_tokens: 0 })
     res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
-    res.end(JSON.stringify({ ai_space_users: spaces.length, active_runtimes: active.size, max_active_runtimes: maxActive, spaces }))
+    res.end(JSON.stringify({ ai_space_users: spaces.length, active_runtimes: active.size, max_active_runtimes: maxActive, spaces, usage, today: { date: today, ...totals } }))
     return true
   }
   const userId = url.searchParams.get("user_id") || ""
@@ -303,7 +317,7 @@ function managementRequest(req, res) {
   res.writeHead(404); res.end("not found"); return true
 }
 
-function childEnvironment(space, workspace, dashboardToken, role) {
+function childEnvironment(space, workspace, dashboardToken, role, userId) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
     if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name) || name.startsWith("OPENCODE_")) delete env[name]
@@ -315,7 +329,7 @@ function childEnvironment(space, workspace, dashboardToken, role) {
     HERMES_WRITE_SAFE_ROOT: role === "admin" ? `${workspace}:${knowledgeRoot}` : workspace,
     HERMES_DASHBOARD_SESSION_TOKEN: dashboardToken,
     OPENAI_BASE_URL: "http://127.0.0.1:4199/v1",
-    OPENAI_API_KEY: "runtime-proxy",
+    OPENAI_API_KEY: `runtime-proxy:${userId}`,
   }
 }
 
@@ -340,6 +354,8 @@ async function ensureInstance(identityValue) {
       if (oldest) stopInstance(oldest[0])
     }
     const record = recordFor(identityValue)
+    record.usage = record.usage || { runtime_starts: 0, days: {} }
+    record.usage.runtime_starts += 1
     record.lastUsedAt = new Date().toISOString()
     saveRegistry()
     const { space, workspace } = ensureSpace(identityValue, record)
@@ -348,7 +364,7 @@ async function ensureInstance(identityValue) {
       cwd: workspace,
       uid: record.uid,
       gid: identityValue.role === "admin" ? adminGid : record.uid,
-      env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId), identityValue.role),
+      env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId), identityValue.role, identityValue.userId),
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
@@ -438,6 +454,10 @@ http.createServer((req, res) => {
   const client = providerUrl.protocol === "https:" ? https : http
   const headers = { ...req.headers, host: providerUrl.host, authorization: `Bearer ${providerKey}` }
   const upstream = client.request({ protocol: providerUrl.protocol, hostname: providerUrl.hostname, port: providerUrl.port || undefined, method: req.method, path: providerApiPath(providerUrl.pathname, req.url || "/"), headers }, response => {
+    const userId = String(req.headers.authorization || "").replace(/^Bearer runtime-proxy:/, "")
+    const chunks = []
+    response.on("data", chunk => chunks.push(chunk))
+    response.on("end", () => { try { recordUsage(userId, JSON.parse(Buffer.concat(chunks).toString()).usage) } catch {} })
     res.writeHead(response.statusCode || 502, response.headers)
     response.pipe(res)
   })

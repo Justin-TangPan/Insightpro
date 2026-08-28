@@ -141,6 +141,8 @@ def ensure_runtime_schema() -> None:
         cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_user ON opencode_sso_sessions(user_id, expires_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_agent_user ON opencode_sso_sessions(agent_user_id, expires_at)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS agent_audit_events (id BIGSERIAL PRIMARY KEY, actor_user_id UUID NOT NULL, action TEXT NOT NULL, target_user_id UUID, detail TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_audit_events_created ON agent_audit_events(created_at DESC)")
         cursor.execute("ALTER TABLE opencode_sso_tickets ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE opencode_sso_sessions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")

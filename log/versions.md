@@ -1,5 +1,16 @@
 # 版本日志
 
+## [0.4.0] - 2026-08-28
+
+### 团队 AI Space 收尾
+- InsightPro 保持唯一账号来源：普通用户与 Admin 的角色、禁用状态、SSO 和独立 AI 身份均按稳定 `user_id` 处理。
+- 每位用户使用独立 Hermes Runtime、Linux UID、Workspace、Session 存储和端口；公共知识库独立挂载，成员只读、Admin 可维护。
+- Admin 管理页补齐 Runtime/Workspace 状态、启停、Agent 禁用/恢复、公共知识管理，以及按真实 Runtime 请求汇总的今日/近 7 天基础使用统计。
+- 新增 `agent_audit_events`，记录成员管理、Runtime 启停和公共知识库管理操作；不记录提示词、文件内容或密钥。
+
+### 兼容性
+- 产品层统一称为 Insight-Agent / AI Space。为避免影响已部署 SSO 表、回调和迁移，历史 `opencode_*` 数据表与少量兼容配置名暂时保留，后续单独评估迁移。
+
 ## [0.0.48] - 2026-08-26
 
 ### Insight-Agent 工作区命名

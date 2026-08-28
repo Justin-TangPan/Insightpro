@@ -8,7 +8,7 @@
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](compose.yaml)
 
-InsightPro 面向解决方案架构师、技术负责人和技术决策团队，持续发现值得关注的技术项目与官方解决方案，并将分散的信息转化为可跟踪的技术需求和可复用的解决方案。
+InsightPro 面向解决方案架构师、技术负责人和技术决策团队，持续发现值得关注的技术项目与官方解决方案，并将分散的信息转化为可跟踪的技术需求和可复用的解决方案。团队成员可在 Insight-Agent 的隔离 AI Space 中协作，不需要第二套账号。
 
 ## 核心价值
 
@@ -46,7 +46,7 @@ Insight → Requirement → Solution
 
 ### Insight-Agent
 
-InsightPro 内置的 AI 智能工作区，可理解项目代码、架构文档和平台公开数据，用于检索、分析、方案设计和技术协作。
+InsightPro 内置的 AI 智能工作区。每位成员有独立 Workspace 与 Session；公共知识库对成员只读、由 Admin 维护，并提供基础运行与用量可见性。
 
 ## 快速启动
 

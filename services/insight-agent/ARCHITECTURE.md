@@ -33,3 +33,9 @@ Supabase Auth 是唯一身份源。前端以 Supabase access token 向同源 Ins
 - Hermes 与 InsightPro 业务 API/数据库无写入关系。
 
 每位用户（包括管理员）使用独立 Linux UID；用户目录不可被其他普通 UID 遍历。管理员额外加入受限管理组，可维护 AI 空间与公共知识库，但容器未挂载生产目录、Docker Socket 或生产 Secret。Runtime Manager 只承担目录配置、子进程生命周期和代理，不访问 InsightPro 数据库。
+
+## 运维可见性
+
+Runtime 注册表记录每个用户的启动次数、按日请求数及 Provider 明确返回的 Token。FastAPI 记录 Admin 的成员、Runtime 和公共知识库管理操作到 `agent_audit_events`。这些记录不包含聊天正文、文件内容或 Secret；Insight-Agent 不在 InsightPro readiness 路径中，Runtime 故障不会阻断主系统。
+
+历史 SSO 表和少量配置仍使用 `opencode_*` 名称以兼容已部署数据和回调路径；产品与新代码统一称为 `Insight-Agent` / `AI Space`，该遗留命名不作高风险迁移。

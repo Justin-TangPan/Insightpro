@@ -8,7 +8,7 @@
 - `deploy/hermes/manage.sh`：bootstrap/start/stop/upgrade/health/logs。
 - `deploy/hermes/runtime-manager.mjs`：按 `user_id` 配置、启动和代理 Hermes Dashboard 子进程。
 
-systemd unit 是 `insight-hermes.service`。
+当前生产运行由独立 Docker Compose project 管理；不要把它加入 InsightPro 根 Compose，也不要让主系统的 `--remove-orphans` 操作接管它。
 
 ## 配置和持久化
 

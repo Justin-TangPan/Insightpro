@@ -25,3 +25,5 @@ Gateway 使用短时一次性 Ticket、可撤销 HttpOnly Cookie 和服务端验
 Gateway 不能自行提供数据隔离，因此 Runtime Manager 为每个稳定 `user_id` 启动独立 Hermes Dashboard 子进程，并分配独立 Linux UID、端口、Workspace 和 `HERMES_HOME`。普通用户目录为所有者可写、管理组可管理，其他 UID 无访问权；每位管理员也使用独立 UID，仅加入受限管理组。公共知识库由该管理组可写、普通用户只有读取权限。
 
 管理员的最高权限只存在于该容器已挂载的 AI 空间目录中，不代表宿主机 root。当前 Provider 凭据仍由同一受限 Runtime 服务管理；若未来允许用户自带 Provider Key，应增加独立凭据代理或每用户加密存储。当前尚无面向管理员的 Session 删除专用面板，管理员通过目标用户的原生工作区管理其 Session。
+
+被禁用成员在 Ticket 签发与 Gateway 校验两端都会被拒绝，现有 Gateway Session 同时撤销；其 Workspace 和 Session 保留以防误删。Admin 审计仅记录管理动作；用量计数来自 Runtime 实际请求，Provider 未提供的 Token 不会猜测。

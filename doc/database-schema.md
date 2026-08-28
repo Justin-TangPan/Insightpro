@@ -28,6 +28,7 @@
 | `requirement_solutions` | Requirement 与 Solution 多对多关联 | `requirement_id + solution_id` |
 | `opencode_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
 | `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
+| `agent_audit_events` | AI Space 管理操作审计 | 自增 `id` |
 | `cloud_vendor_news` | 云厂商官网动态 | `crawl_date + vendor + title` |
 | `competitor_news` | 友商动态摘要 | `scrape_date + vendor + title` |
 | `baidu_hotsearch` | 辅助热搜快照 | `scrape_date + title` |
@@ -124,6 +125,10 @@
 ### `opencode_sso_tickets` / `opencode_sso_sessions`
 
 两表启用 RLS 且只保存随机凭据的 SHA-256 摘要，不保存 Supabase Access Token 或模型密钥。表名为兼容已有数据暂不迁移；当前底层 Runtime 已替换为 Hermes Agent。
+
+### `agent_audit_events`
+
+记录 Admin 在 AI Space 内执行的成员角色/状态变更、Runtime 启停和公共知识库维护操作。字段为 `actor_user_id uuid`、`action text`、`target_user_id uuid?`、`detail text`、`created_at timestamptz`；按 `created_at` 建索引。仅保留审计元数据，不保存模型提示词、文件内容、密钥或 Supabase Token。模型请求与 Token 计数保存在隔离 Runtime 的持久化注册表中，因为仅 Provider 的实际响应能够确认其 `usage`。
 
 ### `cloud_vendor_news`
 

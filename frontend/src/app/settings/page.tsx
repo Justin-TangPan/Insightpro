@@ -36,6 +36,12 @@ interface AgentSpace extends AccountUser {
   disk_bytes: number;
 }
 
+interface AgentUsage {
+  user_id: string;
+  runtime_starts: number;
+  days: Record<string, { requests?: number; input_tokens?: number; output_tokens?: number }>;
+}
+
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
 export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolean }) {
@@ -48,7 +54,8 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const [knowledgeFiles, setKnowledgeFiles] = useState<{ path: string; size: number; updated_at: string; managed: boolean }[]>([]);
   const [knowledgeQuery, setKnowledgeQuery] = useState("");
   const [knowledgeCategory, setKnowledgeCategory] = useState("");
-  const [agentSummary, setAgentSummary] = useState({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0 });
+  const [agentSummary, setAgentSummary] = useState({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0, today: { date: "", requests: 0, input_tokens: 0, output_tokens: 0 } });
+  const [agentUsage, setAgentUsage] = useState<AgentUsage[]>([]);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
@@ -116,8 +123,8 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
 
   const fetchAgentSpaces = () => authenticatedFetch(`${API}/api/auth/agent-spaces`)
     .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-    .then(data => { setAgentSpaces(data.spaces || []); setAgentSummary(data); })
-    .catch(() => { setAgentSpaces([]); setAgentSummary({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0 }); });
+    .then(data => { setAgentSpaces(data.spaces || []); setAgentUsage(data.usage || []); setAgentSummary(data); })
+    .catch(() => { setAgentSpaces([]); setAgentUsage([]); setAgentSummary({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0, today: { date: "", requests: 0, input_tokens: 0, output_tokens: 0 } }); });
 
   const fetchKnowledge = (query = knowledgeQuery) => authenticatedFetch(`${API}/api/auth/public-knowledge?query=${encodeURIComponent(query)}`)
     .then(response => response.ok ? response.json() : Promise.reject())
@@ -175,6 +182,13 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
     const response = await authenticatedFetch(`${API}/api/auth/public-knowledge?path=${encodeURIComponent(path)}`, { method: "DELETE" });
     setMemberStatus(response.ok ? "公共知识已删除" : "该文件受保护或删除失败"); if (response.ok) void fetchKnowledge();
   };
+
+  const usageDays = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(); date.setUTCDate(date.getUTCDate() - (6 - index));
+    return date.toISOString().slice(0, 10);
+  });
+  const dailyUsage = usageDays.map(date => ({ date, requests: agentUsage.reduce((sum, item) => sum + (item.days[date]?.requests || 0), 0) }));
+  const usageRanking = [...agentUsage].sort((a, b) => (b.days[agentSummary.today.date]?.requests || 0) - (a.days[agentSummary.today.date]?.requests || 0)).slice(0, 3);
 
   // Add subscriber
   const handleSubscribe = async () => {
@@ -604,6 +618,8 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
         <div className="ui-card lg:col-span-2">
           <div className="ui-card-header"><div className="flex items-center gap-2.5"><Bot className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">AI Space 管理</h3></div><span className="ui-tag">{agentSummary.active_runtimes} / {agentSummary.max_active_runtimes} Runtime</span></div>
           <div className="mb-4 grid grid-cols-3 gap-3 text-center text-xs"><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">AI Space 用户</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.ai_space_users}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">在线 Runtime</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.active_runtimes}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">最大并发</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.max_active_runtimes}</p></div></div>
+          <div className="mb-4 grid grid-cols-3 gap-3 text-center text-xs"><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">今日 Agent 用户</p><p className="mt-1 text-lg font-semibold text-ink">{agentUsage.filter(item => (item.days[agentSummary.today.date]?.requests || 0) > 0).length}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">今日请求</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.today.requests}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">今日 Token</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.today.input_tokens + agentSummary.today.output_tokens}</p></div></div>
+          <p className="mb-1 text-xs text-ink-muted">近 7 天请求：{dailyUsage.map(item => `${item.date.slice(5)} ${item.requests}`).join(" · ")}</p><p className="mb-3 text-xs text-ink-muted">Token 仅在模型 Provider 返回 usage 时记录；未返回时只统计真实请求。用户排行：{usageRanking.map(item => `${agentSpaces.find(space => space.id === item.user_id)?.email || item.user_id.slice(0, 8)} ${(item.days[agentSummary.today.date]?.requests || 0)} 次`).join(" · ") || "暂无使用数据"}</p>
           <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">成员</th><th className="px-3 py-2">Runtime</th><th className="px-3 py-2">Workspace</th><th className="px-3 py-2">最近使用</th><th className="px-3 py-2">占用</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{agentSpaces.map(space => <tr key={space.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{space.name || space.email.split("@")[0]}</p><p className="text-ink-muted">{space.status === "disabled" ? "Agent 已禁用" : space.email}</p></td><td className="px-3 py-3"><span className={`ui-tag ${space.runtime_status === "running" ? "" : "ui-tag-warning"}`}>{space.runtime_status === "running" ? "运行中" : "已停止"}</span></td><td className="px-3 py-3 text-ink-secondary">{space.workspace_status === "ready" ? "已创建" : "未创建"}</td><td className="px-3 py-3 text-ink-secondary">{space.last_used_at ? new Date(space.last_used_at).toLocaleString("zh-CN") : "—"}</td><td className="px-3 py-3 text-ink-secondary">{space.disk_bytes ? `${(space.disk_bytes / 1024 / 1024).toFixed(1)} MB` : "—"}</td><td className="px-3 py-3"><div className="flex gap-2"><Link href={`/insight-agent?target=${space.id}`} className="ui-link">进入</Link><button type="button" disabled={space.status === "disabled" || space.runtime_status === "running"} onClick={() => void controlRuntime(space, "start")} className="ui-link">启动</button><button type="button" disabled={space.runtime_status !== "running"} onClick={() => void controlRuntime(space, "stop")} className="ui-link">停止</button><button type="button" disabled={space.id === user?.id} onClick={() => void updateMember(space, { disabled: space.status !== "disabled" })} className="ui-link">{space.status === "disabled" ? "恢复 Agent" : "禁止 Agent"}</button></div></td></tr>)}</tbody></table>{!agentSpaces.length && <p className="py-6 text-center text-sm text-ink-muted">暂无 AI Space，成员首次进入后会自动创建。</p>}</div>
         </div>
         <div className="ui-card lg:col-span-2"><div className="ui-card-header"><div className="flex items-center gap-2.5"><FileText className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">公共知识库</h3></div><span className="ui-tag">团队只读 · Admin 管理</span></div><div className="mb-4 flex flex-wrap gap-2"><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="搜索文件" /><button type="button" onClick={() => void fetchKnowledge()} className="ui-button-secondary">搜索</button><input value={knowledgeCategory} onChange={event => setKnowledgeCategory(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="目录（可选）" /><label className="ui-button-primary cursor-pointer">上传文件<input type="file" className="hidden" onChange={event => void uploadKnowledge(event.target.files?.[0])} /></label></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">文件</th><th className="px-3 py-2">更新时间</th><th className="px-3 py-2">大小</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{knowledgeFiles.map(file => <tr key={file.path} className="border-t border-grid/60"><td className="px-3 py-3 text-ink">{file.path}{file.managed && <span className="ml-2 ui-tag">系统同步</span>}</td><td className="px-3 py-3 text-ink-secondary">{new Date(file.updated_at).toLocaleString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{(file.size / 1024).toFixed(1)} KB</td><td className="px-3 py-3">{file.managed ? <span className="text-ink-muted">受保护</span> : <button type="button" onClick={() => void deleteKnowledge(file.path)} className="ui-link">删除</button>}</td></tr>)}</tbody></table></div></div>
