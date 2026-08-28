@@ -203,6 +203,10 @@ async function processHealthy(port) {
 function stopInstance(userId) {
   const instance = active.get(userId)
   if (!instance) return
+  if (registry.users[userId]) {
+    registry.users[userId].lastUsedAt = new Date(instance.lastUsed).toISOString()
+    saveRegistry()
+  }
   instance.child.kill("SIGTERM")
   active.delete(userId)
 }
@@ -223,7 +227,7 @@ function spaceStatus(userId, record) {
     user_id: userId,
     runtime_status: instance ? "running" : "stopped",
     workspace_status: existsSync(workspace) ? "ready" : "not_created",
-    last_used_at: record?.lastUsedAt || null,
+    last_used_at: instance ? new Date(instance.lastUsed).toISOString() : record?.lastUsedAt || null,
     disk_bytes: existsSync(path.join(spacesRoot, userId)) ? diskBytes(path.join(spacesRoot, userId)) : 0,
   }
 }
