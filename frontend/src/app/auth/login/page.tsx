@@ -78,9 +78,9 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center text-sm text-ink-muted">
-            还没有账号？{" "}
+            需要加入团队？{" "}
             <Link href="/auth/register" className="ui-link">
-              注册
+              联系管理员
             </Link>
           </p>
         </div>

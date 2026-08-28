@@ -23,6 +23,8 @@ interface AccountUser {
   email: string;
   name: string;
   role: string;
+  status: "active" | "disabled";
+  agent_space_status: string;
   created_at: string;
   last_sign_in_at: string | null;
 }
@@ -35,6 +37,10 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const { preferences, updatePreferences } = usePreferences();
   const [profileName, setProfileName] = useState("");
   const [users, setUsers] = useState<AccountUser[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
+  const [memberStatus, setMemberStatus] = useState("");
   const [saved, setSaved] = useState(false);
   const [toggles, setToggles] = useState(() => {
     if (typeof window !== "undefined") {
@@ -91,20 +97,38 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
     }
   };
 
+  const fetchUsers = () => authenticatedFetch(`${API}/api/auth/users`)
+    .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+    .then(data => setUsers(data.users || []))
+    .catch(() => setUsers([]));
+
   useEffect(() => {
     if (authLoading) return;
     void Promise.resolve().then(() => setProfileName(user?.user_metadata?.name || ""));
     if (!adminOnly || !isAdmin) return;
     void Promise.resolve().then(fetchSubscribers);
-    void authenticatedFetch(`${API}/api/auth/users`)
-      .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
-      .then(data => setUsers(data.users || []))
-      .catch(() => setUsers([]));
+    void fetchUsers();
     fetch(`${API}/api/system/health/ready`)
       .then((res) => res.json())
       .then((report) => setDatabaseConnected(report.checks?.database === true))
       .catch(() => setDatabaseConnected(false));
   }, [adminOnly, authLoading, isAdmin, user]);
+
+  const inviteMember = async () => {
+    setMemberStatus("");
+    const response = await authenticatedFetch(`${API}/api/auth/users/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: inviteEmail, name: inviteName, role: inviteRole }) });
+    const data = await response.json();
+    if (!response.ok) return setMemberStatus(data.detail || "邀请发送失败");
+    setInviteEmail(""); setInviteName(""); setInviteRole("user"); setMemberStatus("邀请已发送"); void fetchUsers();
+  };
+
+  const updateMember = async (account: AccountUser, changes: { role?: "user" | "admin"; disabled?: boolean }) => {
+    setMemberStatus("");
+    const response = await authenticatedFetch(`${API}/api/auth/users/${account.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
+    const data = await response.json();
+    if (!response.ok) return setMemberStatus(data.detail || "成员更新失败");
+    setUsers(items => items.map(item => item.id === account.id ? data.user : item));
+  };
 
   // Add subscriber
   const handleSubscribe = async () => {
@@ -516,10 +540,17 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
             <div className="flex items-center gap-2.5"><Users className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">用户系统</h3></div>
             <span className="ui-tag">{users.length} 位用户</span>
           </div>
+          <div className="mb-4 grid gap-2 rounded-xl bg-surface-subtle p-4 sm:grid-cols-[minmax(0,1fr)_9rem_7rem_auto]">
+            <input type="email" value={inviteEmail} onChange={event => setInviteEmail(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="成员邮箱" />
+            <input type="text" value={inviteName} onChange={event => setInviteName(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="姓名（可选）" />
+            <select value={inviteRole} onChange={event => setInviteRole(event.target.value as "user" | "admin")} className="ui-input px-3 py-2 text-sm"><option value="user">普通用户</option><option value="admin">Admin</option></select>
+            <button type="button" onClick={() => void inviteMember()} disabled={!inviteEmail} className="ui-button-primary">邀请成员</button>
+            {memberStatus && <p role="status" className="sm:col-span-4 text-xs text-ink-muted">{memberStatus}</p>}
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">用户</th><th className="px-3 py-2 font-semibold">角色</th><th className="px-3 py-2 font-semibold">注册时间</th><th className="px-3 py-2 font-semibold">最近登录</th><th className="px-3 py-2 font-semibold">AI 空间</th></tr></thead>
-              <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3"><span className="ui-tag">{account.role === "admin" ? "管理员" : "用户"}</span></td><td className="px-3 py-3 text-ink-secondary">{new Date(account.created_at).toLocaleDateString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{account.last_sign_in_at ? new Date(account.last_sign_in_at).toLocaleString("zh-CN") : "尚未登录"}</td><td className="px-3 py-3"><Link href={`/insight-agent?target=${account.id}`} className="ui-link inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" />管理空间</Link></td></tr>)}</tbody>
+              <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">用户</th><th className="px-3 py-2 font-semibold">角色</th><th className="px-3 py-2 font-semibold">状态</th><th className="px-3 py-2 font-semibold">AI 空间</th><th className="px-3 py-2 font-semibold">操作</th></tr></thead>
+              <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3"><select value={account.role} disabled={account.id === user?.id} onChange={event => void updateMember(account, { role: event.target.value as "user" | "admin" })} className="ui-input px-2 py-1 text-xs"><option value="user">普通用户</option><option value="admin">Admin</option></select></td><td className="px-3 py-3"><span className={`ui-tag ${account.status === "disabled" ? "ui-tag-warning" : ""}`}>{account.status === "disabled" ? "已禁用" : "正常"}</span></td><td className="px-3 py-3 text-ink-secondary">{account.agent_space_status}</td><td className="px-3 py-3"><div className="flex gap-2"><Link href={`/insight-agent?target=${account.id}`} className="ui-link inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" />管理</Link><button type="button" disabled={account.id === user?.id} onClick={() => void updateMember(account, { disabled: account.status !== "disabled" })} className="ui-link">{account.status === "disabled" ? "恢复" : "禁用"}</button></div></td></tr>)}</tbody>
             </table>
             {!users.length && <p className="py-8 text-center text-sm text-ink-muted">暂无用户数据</p>}
           </div>

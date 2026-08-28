@@ -45,6 +45,13 @@ def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
     assert error.value.status_code == 403
 
 
+def test_disabled_user_cannot_start_agent_runtime():
+    user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user", "status": "disabled"})
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(auth.create_opencode_ticket(None, user))
+    assert error.value.status_code == 403
+
+
 def test_admin_can_target_another_agent_identity(monkeypatch):
     admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
     monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda user_id: SimpleNamespace(user=SimpleNamespace(id=user_id)))
@@ -63,6 +70,28 @@ def test_admin_user_directory_exposes_no_credentials(monkeypatch):
     monkeypatch.setattr(auth.supabase.auth.admin, "list_users", lambda page, per_page: [account])
     result = asyncio.run(auth.auth_users())
     assert result["users"] == [{
-        "id": "user-1", "email": "user@example.com", "name": "User", "role": "user",
+        "id": "user-1", "email": "user@example.com", "name": "User", "role": "user", "status": "active",
+        "agent_space_status": "首次进入自动创建",
         "created_at": "2026-01-01", "last_sign_in_at": None,
     }]
+
+
+def test_admin_can_disable_member_and_revoke_agent_sessions(monkeypatch):
+    member = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "user"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
+    admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
+    monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda _: SimpleNamespace(user=member))
+    monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**member.__dict__, "app_metadata": values["app_metadata"]})))
+    revoked = []
+    monkeypatch.setattr(auth.opencode_sso_service, "revoke_member_gateway_sessions", revoked.append)
+    result = asyncio.run(auth.update_user(member.id, auth.MemberUpdateRequest(disabled=True), admin))
+    assert result["user"]["status"] == "disabled"
+    assert revoked == [str(member.id)]
+
+
+def test_admin_invitation_assigns_member_role(monkeypatch):
+    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={}, user_metadata={"name": "Member"}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
+    monkeypatch.setattr(auth.supabase.auth.admin, "invite_user_by_email", lambda *_: SimpleNamespace(user=account))
+    monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**account.__dict__, "app_metadata": values["app_metadata"]})))
+    result = asyncio.run(auth.invite_user(auth.InviteRequest(email="member@example.com", name="Member", role="admin")))
+    assert result["message"] == "邀请已发送"
+    assert result["user"]["role"] == "admin"

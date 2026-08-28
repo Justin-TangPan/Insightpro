@@ -4,7 +4,7 @@ import asyncio
 import hmac
 from urllib.parse import quote, urlencode
 from uuid import UUID
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -62,6 +62,45 @@ class RegisterRequest(BaseModel):
 
 class AgentTicketRequest(BaseModel):
     target_user_id: Optional[UUID] = None
+
+
+class InviteRequest(BaseModel):
+    email: str
+    name: str = ""
+    role: Literal["user", "admin"] = "user"
+
+
+class MemberUpdateRequest(BaseModel):
+    role: Optional[Literal["user", "admin"]] = None
+    disabled: Optional[bool] = None
+
+
+def _member_status(account) -> str:
+    return "disabled" if (getattr(account, "app_metadata", None) or {}).get("status") == "disabled" else "active"
+
+
+def _member_payload(account) -> dict:
+    status = _member_status(account)
+    return {
+        "id": str(account.id),
+        "email": account.email,
+        "name": (getattr(account, "user_metadata", None) or {}).get("name", ""),
+        "role": (getattr(account, "app_metadata", None) or {}).get("role", "user"),
+        "status": status,
+        "agent_space_status": "已禁用" if status == "disabled" else "首次进入自动创建",
+        "created_at": account.created_at,
+        "last_sign_in_at": account.last_sign_in_at,
+    }
+
+
+def _is_disabled(account) -> bool:
+    return _member_status(account) == "disabled"
+
+
+async def _require_active_agent_user(user):
+    if _is_disabled(user):
+        raise HTTPException(status_code=403, detail="当前账号已被禁用，无法进入 Insight-Agent")
+    return user
 
 
 def _gateway_secret() -> str:
@@ -128,6 +167,7 @@ async def auth_me(user=Depends(get_current_user)):
         "email": user.email,
         "name": user.user_metadata.get("name", "") if user.user_metadata else "",
         "role": (user.app_metadata or {}).get("role", "user"),
+        "status": _member_status(user),
     }
 
 
@@ -135,14 +175,49 @@ async def auth_me(user=Depends(get_current_user)):
 async def auth_users(_=Depends(require_admin)):
     # ponytail: one admin page covers the current small user base; paginate when it exceeds 200.
     users = await asyncio.to_thread(supabase.auth.admin.list_users, 1, 200)
-    return {"users": [{
-        "id": str(item.id),
-        "email": item.email,
-        "name": (item.user_metadata or {}).get("name", ""),
-        "role": (item.app_metadata or {}).get("role", "user"),
-        "created_at": item.created_at,
-        "last_sign_in_at": item.last_sign_in_at,
-    } for item in users], "total": len(users)}
+    return {"users": [_member_payload(item) for item in users], "total": len(users)}
+
+
+@router.post("/auth/users/invite")
+async def invite_user(req: InviteRequest, _=Depends(require_admin)):
+    email = req.email.strip().lower()
+    if "@" not in email or len(email) > 254:
+        raise HTTPException(status_code=422, detail="请输入有效邮箱")
+    try:
+        result = await asyncio.to_thread(
+            supabase.auth.admin.invite_user_by_email,
+            email,
+            {"data": {"name": req.name.strip()[:80]}, "redirect_to": f"{settings.BASE_URL.rstrip('/')}/auth/login"},
+        )
+        account = result.user
+        account = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, account.id, {
+            "app_metadata": {"role": req.role, "status": "active"},
+        })).user
+        return {"user": _member_payload(account), "message": "邀请已发送"}
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=f"邀请发送失败: {error}")
+
+
+@router.patch("/auth/users/{user_id}")
+async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(require_admin)):
+    if str(admin.id) == str(user_id):
+        raise HTTPException(status_code=400, detail="不能修改自己的管理员角色或状态")
+    try:
+        account = (await asyncio.to_thread(supabase.auth.admin.get_user_by_id, str(user_id))).user
+    except Exception:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    metadata = dict(account.app_metadata or {})
+    if req.role is not None:
+        metadata["role"] = req.role
+    if req.disabled is not None:
+        metadata["status"] = "disabled" if req.disabled else "active"
+    try:
+        updated = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, str(user_id), {"app_metadata": metadata})).user
+        if req.disabled:
+            await asyncio.to_thread(opencode_sso_service.revoke_member_gateway_sessions, str(user_id))
+        return {"user": _member_payload(updated)}
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=f"成员更新失败: {error}")
 
 
 @router.post("/auth/logout")
@@ -157,14 +232,16 @@ async def auth_logout(user=Depends(get_current_user)):
 
 @router.post("/auth/opencode/ticket")
 async def create_opencode_ticket(req: Optional[AgentTicketRequest] = None, user=Depends(require_auth)):
+    await _require_active_agent_user(user)
     target_user_id = str(req.target_user_id) if req and req.target_user_id else None
     if target_user_id and target_user_id != str(user.id):
         if (user.app_metadata or {}).get("role") != "admin":
             raise HTTPException(status_code=403, detail="只有管理员可以进入其他用户的 AI 空间")
         try:
-            await asyncio.to_thread(supabase.auth.admin.get_user_by_id, target_user_id)
+            target_account = (await asyncio.to_thread(supabase.auth.admin.get_user_by_id, target_user_id)).user
         except Exception:
             raise HTTPException(status_code=404, detail="目标用户不存在")
+        await _require_active_agent_user(target_account)
     ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id), target_user_id)
     query = urlencode({"ticket": ticket})
     return {"redirect_url": f"{settings.OPENCODE_PUBLIC_URL}/auth/callback?{query}"}
@@ -184,6 +261,8 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
         raise HTTPException(status_code=401, detail="SSO 用户已失效")
     auth_role = (auth_account.app_metadata or {}).get("role", "user")
     agent_role = (agent_account.app_metadata or {}).get("role", "user")
+    await _require_active_agent_user(auth_account)
+    await _require_active_agent_user(agent_account)
     display_name = ((agent_account.user_metadata or {}).get("name") or (agent_account.email or "").split("@")[0]).strip()[:80]
     session = await asyncio.to_thread(
         opencode_sso_service.create_gateway_session,

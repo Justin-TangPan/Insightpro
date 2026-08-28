@@ -72,3 +72,16 @@ def revoke_user_sessions(user_id: str) -> None:
             """,
             (user_id,),
         )
+
+
+def revoke_member_sessions(user_id: str) -> None:
+    """Revoke both a member's own sessions and admin sessions targeting that space."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE opencode_sso_sessions SET revoked_at = NOW()
+            WHERE (user_id = %s OR agent_user_id = %s) AND revoked_at IS NULL
+            """,
+            (user_id, user_id),
+        )

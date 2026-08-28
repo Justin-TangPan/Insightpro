@@ -39,3 +39,7 @@ def verify_gateway_session(token: str) -> dict | None:
 
 def revoke_gateway_sessions(user_id: str) -> None:
     repository.revoke_user_sessions(user_id)
+
+
+def revoke_member_gateway_sessions(user_id: str) -> None:
+    repository.revoke_member_sessions(user_id)
