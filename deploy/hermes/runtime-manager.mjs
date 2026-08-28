@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto"
 import { spawn } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
+import { cpSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
 import http from "node:http"
 import https from "node:https"
 import net from "node:net"
@@ -207,6 +207,63 @@ function stopInstance(userId) {
   active.delete(userId)
 }
 
+function diskBytes(target) {
+  try {
+    const stat = lstatSync(target)
+    if (stat.isSymbolicLink()) return 0
+    if (!stat.isDirectory()) return stat.size
+    return readdirSync(target).reduce((total, name) => total + diskBytes(path.join(target, name)), 0)
+  } catch { return 0 }
+}
+
+function spaceStatus(userId, record) {
+  const workspace = path.join(spacesRoot, userId, "workspace")
+  const instance = active.get(userId)
+  return {
+    user_id: userId,
+    runtime_status: instance ? "running" : "stopped",
+    workspace_status: existsSync(workspace) ? "ready" : "not_created",
+    last_used_at: record?.lastUsedAt || null,
+    disk_bytes: existsSync(path.join(spacesRoot, userId)) ? diskBytes(path.join(spacesRoot, userId)) : 0,
+  }
+}
+
+function managementRequest(req, res) {
+  if (!safeEqual(req.headers["x-insight-runtime-secret"], internalSecret)) {
+    res.writeHead(403); res.end("forbidden"); return true
+  }
+  const url = new URL(req.url, "http://runtime")
+  if (url.pathname === "/_insight/runtime/overview" && req.method === "GET") {
+    const spaces = Object.entries(registry.users).map(([userId, record]) => spaceStatus(userId, record))
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+    res.end(JSON.stringify({ ai_space_users: spaces.length, active_runtimes: active.size, max_active_runtimes: maxActive, spaces }))
+    return true
+  }
+  const userId = url.searchParams.get("user_id") || ""
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId)) {
+    res.writeHead(422); res.end("invalid user_id"); return true
+  }
+  if (url.pathname === "/_insight/runtime/status" && req.method === "GET") {
+    res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+    res.end(JSON.stringify(spaceStatus(userId, registry.users[userId])))
+    return true
+  }
+  if (url.pathname === "/_insight/runtime/stop" && req.method === "POST") {
+    stopInstance(userId)
+    res.writeHead(204); res.end(); return true
+  }
+  if (url.pathname === "/_insight/runtime/start" && req.method === "POST") {
+    const current = identity(req)
+    if (!current || current.userId !== userId) { res.writeHead(403); res.end("forbidden"); return true }
+    ensureInstance(current).then(() => {
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+      res.end(JSON.stringify(spaceStatus(userId, registry.users[userId])))
+    }).catch(() => { res.writeHead(503); res.end("agent starting failed") })
+    return true
+  }
+  res.writeHead(404); res.end("not found"); return true
+}
+
 function childEnvironment(space, workspace, dashboardToken) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
@@ -244,6 +301,8 @@ async function ensureInstance(identityValue) {
       if (oldest) stopInstance(oldest[0])
     }
     const record = recordFor(identityValue)
+    record.lastUsedAt = new Date().toISOString()
+    saveRegistry()
     const { space, workspace } = ensureSpace(identityValue, record)
     const log = openSync(path.join(space, "runtime.log"), "a")
     const child = spawn("hermes", ["dashboard", "--host", "127.0.0.1", "--port", String(record.port), "--no-open", "--skip-build", "--isolated"], {
@@ -281,6 +340,7 @@ function upstreamHeaders(req, port) {
 
 const server = http.createServer(async (req, res) => {
   if (req.url === "/healthz") return void res.end("healthy\n")
+  if ((req.url || "").startsWith("/_insight/runtime/")) return void managementRequest(req, res)
   const current = identity(req)
   if (!current) {
     res.writeHead(401)

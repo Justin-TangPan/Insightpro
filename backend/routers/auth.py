@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from supabase import create_client, Client
 from settings import settings
-from services import opencode_sso_service
+from services import agent_runtime_service, opencode_sso_service
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -213,11 +213,59 @@ async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(req
         metadata["status"] = "disabled" if req.disabled else "active"
     try:
         updated = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, str(user_id), {"app_metadata": metadata})).user
-        if req.disabled:
+        if req.disabled or req.role is not None:
             await asyncio.to_thread(opencode_sso_service.revoke_member_gateway_sessions, str(user_id))
+            try:
+                await agent_runtime_service.stop(str(user_id))
+            except Exception:
+                pass
         return {"user": _member_payload(updated)}
     except Exception as error:
         raise HTTPException(status_code=400, detail=f"成员更新失败: {error}")
+
+
+@router.get("/auth/agent-spaces")
+async def agent_spaces(_=Depends(require_admin)):
+    try:
+        runtime = await agent_runtime_service.overview()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Insight-Agent Runtime Manager 当前不可用")
+    accounts = await asyncio.to_thread(supabase.auth.admin.list_users, 1, 200)
+    states = {item["user_id"]: item for item in runtime["spaces"]}
+    spaces = []
+    for account in accounts:
+        member = _member_payload(account)
+        state = states.get(member["id"], {
+            "runtime_status": "stopped", "workspace_status": "not_created", "last_used_at": None, "disk_bytes": 0,
+        })
+        spaces.append({**member, **state})
+    return {**runtime, "spaces": spaces}
+
+
+@router.post("/auth/agent-spaces/{user_id}/start")
+async def start_agent_space(user_id: UUID, _=Depends(require_admin)):
+    try:
+        account = (await asyncio.to_thread(supabase.auth.admin.get_user_by_id, str(user_id))).user
+    except Exception:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    await _require_active_agent_user(account)
+    try:
+        state = await agent_runtime_service.start(
+            str(account.id), (account.app_metadata or {}).get("role", "user"),
+            ((account.user_metadata or {}).get("name") or (account.email or "").split("@")[0])[:80],
+        )
+        return {"state": state}
+    except Exception:
+        raise HTTPException(status_code=503, detail="Insight-Agent Runtime 启动失败")
+
+
+@router.post("/auth/agent-spaces/{user_id}/stop", status_code=204)
+async def stop_agent_space(user_id: UUID, _=Depends(require_admin)):
+    try:
+        await agent_runtime_service.stop(str(user_id))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Insight-Agent Runtime 当前不可用")
+    return Response(status_code=204)
 
 
 @router.post("/auth/logout")

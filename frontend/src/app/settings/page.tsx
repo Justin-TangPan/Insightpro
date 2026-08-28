@@ -29,6 +29,13 @@ interface AccountUser {
   last_sign_in_at: string | null;
 }
 
+interface AgentSpace extends AccountUser {
+  runtime_status: "running" | "stopped";
+  workspace_status: "ready" | "not_created";
+  last_used_at: string | null;
+  disk_bytes: number;
+}
+
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
 export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolean }) {
@@ -37,6 +44,8 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const { preferences, updatePreferences } = usePreferences();
   const [profileName, setProfileName] = useState("");
   const [users, setUsers] = useState<AccountUser[]>([]);
+  const [agentSpaces, setAgentSpaces] = useState<AgentSpace[]>([]);
+  const [agentSummary, setAgentSummary] = useState({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0 });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
@@ -102,12 +111,18 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
     .then(data => setUsers(data.users || []))
     .catch(() => setUsers([]));
 
+  const fetchAgentSpaces = () => authenticatedFetch(`${API}/api/auth/agent-spaces`)
+    .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
+    .then(data => { setAgentSpaces(data.spaces || []); setAgentSummary(data); })
+    .catch(() => { setAgentSpaces([]); setAgentSummary({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0 }); });
+
   useEffect(() => {
     if (authLoading) return;
     void Promise.resolve().then(() => setProfileName(user?.user_metadata?.name || ""));
     if (!adminOnly || !isAdmin) return;
     void Promise.resolve().then(fetchSubscribers);
     void fetchUsers();
+    void fetchAgentSpaces();
     fetch(`${API}/api/system/health/ready`)
       .then((res) => res.json())
       .then((report) => setDatabaseConnected(report.checks?.database === true))
@@ -128,6 +143,15 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
     const data = await response.json();
     if (!response.ok) return setMemberStatus(data.detail || "成员更新失败");
     setUsers(items => items.map(item => item.id === account.id ? data.user : item));
+    void fetchAgentSpaces();
+  };
+
+  const controlRuntime = async (space: AgentSpace, action: "start" | "stop") => {
+    setMemberStatus("");
+    const response = await authenticatedFetch(`${API}/api/auth/agent-spaces/${space.id}/${action}`, { method: "POST" });
+    if (!response.ok) return setMemberStatus((await response.json()).detail || "Runtime 操作失败");
+    setMemberStatus(action === "start" ? "Runtime 已启动" : "Runtime 已停止");
+    void fetchAgentSpaces();
   };
 
   // Add subscriber
@@ -554,6 +578,11 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
             </table>
             {!users.length && <p className="py-8 text-center text-sm text-ink-muted">暂无用户数据</p>}
           </div>
+        </div>
+        <div className="ui-card lg:col-span-2">
+          <div className="ui-card-header"><div className="flex items-center gap-2.5"><Bot className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">AI Space 管理</h3></div><span className="ui-tag">{agentSummary.active_runtimes} / {agentSummary.max_active_runtimes} Runtime</span></div>
+          <div className="mb-4 grid grid-cols-3 gap-3 text-center text-xs"><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">AI Space 用户</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.ai_space_users}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">在线 Runtime</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.active_runtimes}</p></div><div className="rounded-lg bg-surface-subtle p-3"><p className="text-ink-muted">最大并发</p><p className="mt-1 text-lg font-semibold text-ink">{agentSummary.max_active_runtimes}</p></div></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">成员</th><th className="px-3 py-2">Runtime</th><th className="px-3 py-2">Workspace</th><th className="px-3 py-2">最近使用</th><th className="px-3 py-2">占用</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{agentSpaces.map(space => <tr key={space.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{space.name || space.email.split("@")[0]}</p><p className="text-ink-muted">{space.status === "disabled" ? "Agent 已禁用" : space.email}</p></td><td className="px-3 py-3"><span className={`ui-tag ${space.runtime_status === "running" ? "" : "ui-tag-warning"}`}>{space.runtime_status === "running" ? "运行中" : "已停止"}</span></td><td className="px-3 py-3 text-ink-secondary">{space.workspace_status === "ready" ? "已创建" : "未创建"}</td><td className="px-3 py-3 text-ink-secondary">{space.last_used_at ? new Date(space.last_used_at).toLocaleString("zh-CN") : "—"}</td><td className="px-3 py-3 text-ink-secondary">{space.disk_bytes ? `${(space.disk_bytes / 1024 / 1024).toFixed(1)} MB` : "—"}</td><td className="px-3 py-3"><div className="flex gap-2"><Link href={`/insight-agent?target=${space.id}`} className="ui-link">进入</Link><button type="button" disabled={space.status === "disabled" || space.runtime_status === "running"} onClick={() => void controlRuntime(space, "start")} className="ui-link">启动</button><button type="button" disabled={space.runtime_status !== "running"} onClick={() => void controlRuntime(space, "stop")} className="ui-link">停止</button><button type="button" disabled={space.id === user?.id} onClick={() => void updateMember(space, { disabled: space.status !== "disabled" })} className="ui-link">{space.status === "disabled" ? "恢复 Agent" : "禁止 Agent"}</button></div></td></tr>)}</tbody></table>{!agentSpaces.length && <p className="py-6 text-center text-sm text-ink-muted">暂无 AI Space，成员首次进入后会自动创建。</p>}</div>
         </div>
         </>}
       </div>

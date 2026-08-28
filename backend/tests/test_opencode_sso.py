@@ -83,6 +83,9 @@ def test_admin_can_disable_member_and_revoke_agent_sessions(monkeypatch):
     monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**member.__dict__, "app_metadata": values["app_metadata"]})))
     revoked = []
     monkeypatch.setattr(auth.opencode_sso_service, "revoke_member_gateway_sessions", revoked.append)
+    async def stop(_):
+        return None
+    monkeypatch.setattr(auth.agent_runtime_service, "stop", stop)
     result = asyncio.run(auth.update_user(member.id, auth.MemberUpdateRequest(disabled=True), admin))
     assert result["user"]["status"] == "disabled"
     assert revoked == [str(member.id)]
@@ -95,3 +98,14 @@ def test_admin_invitation_assigns_member_role(monkeypatch):
     result = asyncio.run(auth.invite_user(auth.InviteRequest(email="member@example.com", name="Member", role="admin")))
     assert result["message"] == "邀请已发送"
     assert result["user"]["role"] == "admin"
+
+
+def test_admin_can_view_agent_space_states(monkeypatch):
+    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "user"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
+    monkeypatch.setattr(auth.supabase.auth.admin, "list_users", lambda *_: [account])
+    async def overview():
+        return {"ai_space_users": 1, "active_runtimes": 1, "max_active_runtimes": 6, "spaces": [{"user_id": str(account.id), "runtime_status": "running", "workspace_status": "ready", "last_used_at": "2026-01-01T00:00:00Z", "disk_bytes": 1}]}
+    monkeypatch.setattr(auth.agent_runtime_service, "overview", overview)
+    result = asyncio.run(auth.agent_spaces())
+    assert result["spaces"][0]["runtime_status"] == "running"
+    assert result["spaces"][0]["workspace_status"] == "ready"
