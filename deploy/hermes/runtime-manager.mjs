@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto"
+import { randomBytes, timingSafeEqual } from "node:crypto"
 import { spawn } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, symlinkSync, writeFileSync, chownSync, chmodSync } from "node:fs"
 import http from "node:http"
@@ -8,6 +8,7 @@ import path from "node:path"
 
 const root = process.env.INSIGHT_AGENT_DATA_ROOT || "/srv/insight-agent"
 const spacesRoot = path.join(root, "spaces")
+const tokensRoot = path.join(root, "dashboard-tokens")
 const registryPath = path.join(root, "registry.json")
 const templateRoot = "/template"
 const knowledgeRoot = "/knowledge/public"
@@ -43,8 +44,10 @@ async function refreshPublicKnowledge() {
 }
 
 mkdirSync(spacesRoot, { recursive: true, mode: 0o711 })
+mkdirSync(tokensRoot, { recursive: true, mode: 0o700 })
 mkdirSync(knowledgeRoot, { recursive: true, mode: 0o755 })
 chmodSync(spacesRoot, 0o711)
+chmodSync(tokensRoot, 0o700)
 chmodSync(knowledgeRoot, 0o755)
 chownSync(knowledgeRoot, adminUid, adminUid)
 
@@ -52,6 +55,14 @@ let registry = existsSync(registryPath) ? JSON.parse(readFileSync(registryPath, 
 
 function saveRegistry() {
   writeFileSync(registryPath, JSON.stringify(registry, null, 2), { mode: 0o600 })
+}
+
+function dashboardTokenFor(userId) {
+  const tokenPath = path.join(tokensRoot, userId)
+  if (existsSync(tokenPath)) return readFileSync(tokenPath, "utf8").trim()
+  const token = randomBytes(32).toString("base64url")
+  writeFileSync(tokenPath, token, { mode: 0o600 })
+  return token
 }
 
 function safeEqual(left, right) {
@@ -174,7 +185,7 @@ function stopInstance(userId) {
   active.delete(userId)
 }
 
-function childEnvironment(space, workspace) {
+function childEnvironment(space, workspace, dashboardToken) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
     if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name) || name.startsWith("OPENCODE_")) delete env[name]
@@ -184,6 +195,7 @@ function childEnvironment(space, workspace) {
     HOME: path.join(space, "home"),
     HERMES_HOME: path.join(space, "hermes"),
     HERMES_WRITE_SAFE_ROOT: `${workspace}:${knowledgeRoot}`,
+    HERMES_DASHBOARD_SESSION_TOKEN: dashboardToken,
     OPENAI_BASE_URL: "http://127.0.0.1:4199/v1",
     OPENAI_API_KEY: "runtime-proxy",
   }
@@ -216,7 +228,7 @@ async function ensureInstance(identityValue) {
       cwd: workspace,
       uid: record.uid,
       gid: identityValue.role === "admin" ? adminUid : record.uid,
-      env: childEnvironment(space, workspace),
+      env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId)),
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
