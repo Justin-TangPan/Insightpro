@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 
-app = FastAPI(title="InsightPro API", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="InsightPro API", version="0.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -112,7 +112,7 @@ app.include_router(workbench.router, prefix="/api", tags=["Workbench"])
 
 @app.get("/")
 async def root():
-    return {"message": "InsightPro API is running", "version": "0.4.0"}
+    return {"message": "InsightPro API is running", "version": "0.5.0"}
 
 
 @app.get("/api/system/health/live")

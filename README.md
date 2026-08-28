@@ -1,14 +1,14 @@
 # InsightPro
 
-> 技术解决方案洞察平台 · `v0.4.0`
+> 技术解决方案洞察平台 · `v0.5.0`
 
-[![Version](https://img.shields.io/badge/version-0.4.0-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-0.5.0-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](compose.yaml)
 
-InsightPro 面向解决方案架构师、技术负责人和技术决策团队，持续发现值得关注的技术项目与官方解决方案，并将分散的信息转化为可跟踪的技术需求和可复用的解决方案。团队成员可在 Insight-Agent 的隔离 AI Space 中协作，不需要第二套账号。
+InsightPro 面向解决方案架构师、技术负责人和技术决策团队：持续发现值得关注的技术项目与官方解决方案，将洞察沉淀为可跟踪的需求和可复用的方案，并在统一账号体系下提供隔离的团队 AI Space。
 
 ## 核心价值
 
@@ -19,6 +19,8 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队，
 ```text
 Insight → Requirement → Solution
 ```
+
+`v0.5.0` 将 Insight-Agent 纳入正式团队能力：成员拥有独立 Workspace 与 Session，Admin 可管理成员、AI Space、公共知识库和基础运行用量；InsightPro 仍是唯一账号与业务系统。
 
 ## 产品预览
 
@@ -46,7 +48,7 @@ Insight → Requirement → Solution
 
 ### Insight-Agent
 
-InsightPro 内置的 AI 智能工作区。每位成员有独立 Workspace 与 Session；公共知识库对成员只读、由 Admin 维护，并提供基础运行与用量可见性。
+InsightPro 内置的 AI 智能工作区。每位成员有独立 Workspace、Session 和 Runtime；公共知识库对成员只读、由 Admin 维护。成员可在自己的空间内创建、修改和删除文件，但不具备生产目录、数据库、密钥、Docker 或部署权限。
 
 ## 快速启动
 
@@ -98,7 +100,10 @@ bash scripts/health-check.sh full
 
 ```bash
 sudo bash scripts/deploy-docker.sh
+sudo bash deploy/hermes/manage.sh upgrade
 ```
+
+主系统与 Insight-Agent 使用独立 Docker Compose project：主系统部署不会重建或中断 AI Space。详细配置见 [Insight-Agent 部署文档](services/insight-agent/DEPLOYMENT.md)。
 
 ## 技术栈
 

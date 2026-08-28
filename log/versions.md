@@ -1,5 +1,12 @@
 # 版本日志
 
+## [0.5.0] - 2026-08-28
+
+### 正式发布
+- 将团队 AI Space 收敛为 InsightPro v0.5.0 的正式能力：统一账号、独立用户 Runtime / Workspace / Session、公共知识库、Admin 管理、基础审计与真实使用统计。
+- 主系统和 Insight-Agent 保持独立部署与健康边界；Insight-Agent 故障不会影响 InsightPro 主系统可用性。
+- 刷新项目 README、AI Space 运维/安全文档与数据库契约，明确产品边界和历史 `opencode_*` 兼容技术债。
+
 ## [0.4.0] - 2026-08-28
 
 ### 团队 AI Space 收尾
