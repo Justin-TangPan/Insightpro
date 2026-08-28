@@ -24,6 +24,10 @@ const publicApi = process.env.INSIGHT_PUBLIC_API_URL || "http://host.docker.inte
 const active = new Map()
 const starting = new Map()
 
+function providerApiPath(basePath, requestPath) {
+  return `${basePath.replace(/\/$/, "")}${requestPath.replace(/^\/v1(?=\/|$)/, "")}`
+}
+
 process.umask(0o007)
 
 async function refreshPublicKnowledge() {
@@ -316,7 +320,7 @@ setInterval(refreshPublicKnowledge, 5 * 60_000).unref()
 http.createServer((req, res) => {
   const client = providerUrl.protocol === "https:" ? https : http
   const headers = { ...req.headers, host: providerUrl.host, authorization: `Bearer ${providerKey}` }
-  const upstream = client.request({ protocol: providerUrl.protocol, hostname: providerUrl.hostname, port: providerUrl.port || undefined, method: req.method, path: `${providerUrl.pathname.replace(/\/$/, "")}${req.url}`, headers }, response => {
+  const upstream = client.request({ protocol: providerUrl.protocol, hostname: providerUrl.hostname, port: providerUrl.port || undefined, method: req.method, path: providerApiPath(providerUrl.pathname, req.url || "/"), headers }, response => {
     res.writeHead(response.statusCode || 502, response.headers)
     response.pipe(res)
   })
@@ -333,6 +337,7 @@ if (process.argv.includes("--self-test")) {
   const id = "00000000-0000-4000-8000-000000000001"
   if (!identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": id } })) process.exit(1)
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
+  if (providerApiPath("/openai/v1", "/v1/chat/completions") !== "/openai/v1/chat/completions") process.exit(1)
   process.exit(0)
 }
 
