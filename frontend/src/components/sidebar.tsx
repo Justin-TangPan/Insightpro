@@ -9,6 +9,7 @@ import {
   Blocks,
   ClipboardList,
   Settings,
+  Shield,
   LogIn,
   LogOut,
   Bot,
@@ -31,7 +32,7 @@ const navItems: NavItem[] = [
   { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "方案目录与变化" },
   { href: "/workbench/solutions", icon: Blocks, label: "Solutions", description: "自有技术方案" },
   { href: "/workbench/requirements", icon: ClipboardList, label: "Requirements", description: "需求与方案关联" },
-  { href: "/settings", icon: Settings, label: "系统设置", description: "账号与配置" },
+  { href: "/settings", icon: Settings, label: "系统设置", description: "个人偏好与账号" },
 ];
 
 export function Sidebar() {
@@ -41,6 +42,9 @@ export function Sidebar() {
   const english = preferences.language === "en";
   const userName = user?.user_metadata?.name || user?.email?.split("@")[0] || "";
   const userInitials = userName ? userName.slice(0, 2).toUpperCase() : "??";
+  const visibleNavItems = user?.app_metadata?.role === "admin"
+    ? [...navItems, { href: "/admin", icon: Shield, label: "平台管理", description: "用户与平台配置" }]
+    : navItems;
 
   const closeMobile = () => {
     if (window.innerWidth < 1024) {
@@ -71,7 +75,7 @@ export function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto px-3 py-5" onClick={closeMobile}>
         <div className="space-y-1.5">
-          {navItems.map((item, index) => {
+          {visibleNavItems.map((item, index) => {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <div key={item.href}>
@@ -92,7 +96,7 @@ export function Sidebar() {
                       <span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 1).padStart(2, "0")}</span>
                       <span className="text-sm font-semibold">{english ? ({ "首页洞察": "Home", "技术热点": "Tech Trends", "解决方案洞察": "Solution Insights", "系统设置": "Settings" }[item.label] || item.label) : item.label}</span>
                     </div>
-                    <p className="mt-0.5 truncate text-xs text-ink-muted">{english ? ({ "技术方案简报": "Solution brief", "GitHub 项目": "GitHub projects", "方案目录与变化": "Catalog and changes", "自有技术方案": "Managed solutions", "需求与方案关联": "Requirements and links", "账号与配置": "Account and preferences" }[item.description] || item.description) : item.description}</p>
+                      <p className="mt-0.5 truncate text-xs text-ink-muted">{english ? ({ "技术方案简报": "Solution brief", "GitHub 项目": "GitHub projects", "方案目录与变化": "Catalog and changes", "自有技术方案": "Managed solutions", "需求与方案关联": "Requirements and links", "个人偏好与账号": "Account and preferences", "用户与平台配置": "Users and platform" }[item.description] || item.description) : item.description}</p>
                   </div>
                 </Link>
               </div>

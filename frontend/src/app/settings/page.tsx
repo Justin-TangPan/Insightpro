@@ -29,7 +29,7 @@ interface AccountUser {
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 
-export default function SettingsPage() {
+export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolean }) {
   const { user, loading: authLoading, updateProfile } = useAuth();
   const isAdmin = user?.app_metadata?.role === "admin";
   const { preferences, updatePreferences } = usePreferences();
@@ -94,7 +94,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (authLoading) return;
     void Promise.resolve().then(() => setProfileName(user?.user_metadata?.name || ""));
-    if (!isAdmin) return;
+    if (!adminOnly || !isAdmin) return;
     void Promise.resolve().then(fetchSubscribers);
     void authenticatedFetch(`${API}/api/auth/users`)
       .then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))))
@@ -104,7 +104,7 @@ export default function SettingsPage() {
       .then((res) => res.json())
       .then((report) => setDatabaseConnected(report.checks?.database === true))
       .catch(() => setDatabaseConnected(false));
-  }, [authLoading, isAdmin, user]);
+  }, [adminOnly, authLoading, isAdmin, user]);
 
   // Add subscriber
   const handleSubscribe = async () => {
@@ -225,12 +225,13 @@ export default function SettingsPage() {
   return (
     <div className="page-stack">
       <SectionHeader
-        badge="Settings"
-        title={preferences.language === "en" ? "System Settings" : "系统设置"}
-        subtitle={preferences.language === "en" ? "Manage your account, appearance and preferences" : "管理账号、外观与使用偏好"}
+        badge={adminOnly ? "Admin" : "Settings"}
+        title={adminOnly ? "平台管理" : (preferences.language === "en" ? "System Settings" : "系统设置")}
+        subtitle={adminOnly ? "用户、数据源、安全与邮件订阅管理" : (preferences.language === "en" ? "Manage your account, appearance and preferences" : "管理账号、外观与使用偏好")}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {adminOnly && !isAdmin ? <div className="ui-card py-12 text-center text-sm text-ink-muted">需要管理员权限。</div> : <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {!adminOnly && <>
         {/* Profile */}
         <div className="ui-card">
           <div className="ui-card-header">
@@ -253,6 +254,9 @@ export default function SettingsPage() {
                 <span className="ui-tag">{isAdmin ? "Admin" : "User"}</span>
               </div>
             </div>
+          </div>
+          <div className="mt-4 border-t border-grid pt-3">
+            <Link href="/auth/forgot-password" className="ui-link text-sm">忘记密码或重置密码</Link>
           </div>
         </div>
 
@@ -307,9 +311,10 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        </>}
+
         {/* Email Subscription */}
-        {isAdmin && <>
-        <div className="lg:col-span-2 flex items-center gap-3 pt-2"><Shield className="h-5 w-5 text-primary" /><div><h2 className="type-h2 text-ink">管理员设置</h2><p className="text-xs text-ink-muted">仅管理员可见和操作</p></div></div>
+        {adminOnly && isAdmin && <>
         <div className="ui-card lg:col-span-2">
           <div className="ui-card-header flex-col sm:flex-row sm:items-center">
             <div className="flex items-center gap-2.5">
@@ -521,6 +526,7 @@ export default function SettingsPage() {
         </div>
         </>}
       </div>
+      }
 
       {previewHtml && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="邮件预览">
@@ -540,7 +546,7 @@ export default function SettingsPage() {
       )}
 
       {/* Save Button */}
-      <div className="flex justify-end">
+      {!adminOnly && <div className="flex justify-end">
         <button
           onClick={handleSave}
           className="ui-button-primary px-6"
@@ -548,6 +554,7 @@ export default function SettingsPage() {
           {saved ? <><RefreshCw className="h-4 w-4" /> 已保存</> : <><Save className="h-4 w-4" /> 保存设置</>}
         </button>
       </div>
+      }
     </div>
   );
 }

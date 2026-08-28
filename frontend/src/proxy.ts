@@ -11,5 +11,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/workbench/:path*", "/settings/:path*", "/auth/opencode", "/insight-agent"],
+  matcher: ["/workbench/:path*", "/settings/:path*", "/admin/:path*", "/auth/opencode", "/insight-agent"],
 };
