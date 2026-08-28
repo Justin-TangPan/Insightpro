@@ -7,7 +7,7 @@ from settings import settings
 
 
 def _url(path: str) -> str:
-    return f"{settings.OPENCODE_PUBLIC_URL}/_insight/runtime/{path}"
+    return f"{settings.AGENT_RUNTIME_CONTROL_URL}/_insight/runtime/{path}"
 
 
 def _headers(user_id: str = "", role: str = "", display_name: str = "") -> dict:

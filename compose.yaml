@@ -13,6 +13,8 @@ services:
       OPENCODE_SSO_SECRET_FILE: /run/secrets/opencode_sso_secret
     volumes:
       - /etc/insight-hermes/backend-gateway.secret:/run/secrets/opencode_sso_secret:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "0.0.0.0:8000:8000"
     restart: unless-stopped
