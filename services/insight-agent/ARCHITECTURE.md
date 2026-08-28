@@ -32,4 +32,4 @@ Supabase Auth 是唯一身份源。前端以 Supabase access token 向同源 Ins
 - InsightPro PostgreSQL、Docker Socket、生产目录和生产 `.env`：不挂载、不联网授权。
 - Hermes 与 InsightPro 业务 API/数据库无写入关系。
 
-普通用户子进程使用独立 Linux UID；用户目录不可被其他普通 UID 遍历。管理员子进程使用受限管理 UID，可维护所有空间，但容器未挂载生产目录、Docker Socket 或生产 Secret。Runtime Manager 只承担目录配置、子进程生命周期和代理，不访问 InsightPro 数据库。
+每位用户（包括管理员）使用独立 Linux UID；用户目录不可被其他普通 UID 遍历。管理员额外加入受限管理组，可维护 AI 空间与公共知识库，但容器未挂载生产目录、Docker Socket 或生产 Secret。Runtime Manager 只承担目录配置、子进程生命周期和代理，不访问 InsightPro 数据库。

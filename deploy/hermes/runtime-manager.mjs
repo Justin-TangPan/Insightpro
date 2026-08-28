@@ -12,7 +12,8 @@ const tokensRoot = path.join(root, "dashboard-tokens")
 const registryPath = path.join(root, "registry.json")
 const templateRoot = "/template"
 const knowledgeRoot = "/knowledge/public"
-const adminUid = 10002
+const adminGid = 10002
+const firstAdminUid = 11000
 const firstUserUid = 20000
 const firstPort = 12000
 const maxActive = Number(process.env.OPENCODE_MAX_ACTIVE || 6)
@@ -28,7 +29,9 @@ function providerApiPath(basePath, requestPath) {
   return `${basePath.replace(/\/$/, "")}${requestPath.replace(/^\/v1(?=\/|$)/, "")}`
 }
 
-process.umask(0o007)
+// Private workspaces deny traversal to other users; this makes files created
+// by an admin in the shared knowledge directory readable to team members.
+process.umask(0o002)
 
 async function refreshPublicKnowledge() {
   try {
@@ -40,7 +43,7 @@ async function refreshPublicKnowledge() {
     }))
     const destination = path.join(knowledgeRoot, "insight-public-data.json")
     writeFileSync(destination, JSON.stringify({ refreshedAt: new Date().toISOString(), ...Object.fromEntries(entries) }, null, 2), { mode: 0o644 })
-    chownSync(destination, adminUid, adminUid)
+    chownSync(destination, 0, adminGid)
     chmodSync(destination, 0o644)
   } catch (error) {
     console.error("Public knowledge refresh failed", error)
@@ -52,8 +55,8 @@ mkdirSync(tokensRoot, { recursive: true, mode: 0o700 })
 mkdirSync(knowledgeRoot, { recursive: true, mode: 0o755 })
 chmodSync(spacesRoot, 0o711)
 chmodSync(tokensRoot, 0o700)
-chmodSync(knowledgeRoot, 0o755)
-chownSync(knowledgeRoot, adminUid, adminUid)
+chmodSync(knowledgeRoot, 0o2775)
+chownSync(knowledgeRoot, 0, adminGid)
 
 let registry = existsSync(registryPath) ? JSON.parse(readFileSync(registryPath, "utf8")) : { users: {} }
 
@@ -75,6 +78,12 @@ function safeEqual(left, right) {
   return a.length === b.length && a.length > 0 && timingSafeEqual(a, b)
 }
 
+function nextUid(role, records = Object.values(registry.users)) {
+  const floor = role === "admin" ? firstAdminUid : firstUserUid
+  const ceiling = role === "admin" ? firstUserUid : Infinity
+  return Math.max(floor, ...records.filter(item => item.uid >= floor && item.uid < ceiling).map(item => item.uid + 1))
+}
+
 function identity(req) {
   if (!safeEqual(req.headers["x-insight-runtime-secret"], internalSecret)) return null
   const userId = String(req.headers["x-insight-user-id"] || "").toLowerCase()
@@ -90,20 +99,16 @@ function identity(req) {
 function recordFor({ userId, role, displayName }) {
   let record = registry.users[userId]
   if (!record) {
-    const records = Object.values(registry.users)
     record = {
-      uid: role === "admin" ? adminUid : Math.max(firstUserUid, ...records.map(item => item.uid + 1)),
-      port: Math.max(firstPort, ...records.map(item => item.port + 1)),
+      uid: nextUid(role),
+      port: Math.max(firstPort, ...Object.values(registry.users).map(item => item.port + 1)),
       role,
       displayName,
       createdAt: new Date().toISOString(),
     }
     registry.users[userId] = record
   } else {
-    if (record.role !== role) {
-      const userUids = Object.values(registry.users).filter(item => item.uid >= firstUserUid).map(item => item.uid + 1)
-      record.uid = role === "admin" ? adminUid : Math.max(firstUserUid, ...userUids)
-    }
+    if (record.role !== role || (role === "admin" && record.uid === adminGid)) record.uid = nextUid(role)
     record.role = role
     record.displayName = displayName || record.displayName
   }
@@ -149,25 +154,26 @@ agent:
   disabled_toolsets: [terminal, web, browser, cronjob, skills_hub, send_message]
 `
   writeFileSync(path.join(hermesRoot, "config.yaml"), config, { mode: 0o640 })
-  ownTree(hermesRoot, uid, adminUid)
+  ownTree(hermesRoot, uid, adminGid)
 }
 
 function ensureSpace(identityValue, record) {
   const space = path.join(spacesRoot, identityValue.userId)
   const ownershipMarker = path.join(space, ".ownership-role")
-  const ownershipRole = existsSync(ownershipMarker) ? readFileSync(ownershipMarker, "utf8") : ""
+  const ownershipState = existsSync(ownershipMarker) ? readFileSync(ownershipMarker, "utf8") : ""
   mkdirSync(space, { recursive: true, mode: 0o2770 })
   adoptLegacy(space, identityValue.role)
   for (const name of ["hermes", "home"]) mkdirSync(path.join(space, name), { recursive: true, mode: 0o2770 })
   const workspace = path.join(space, "workspace")
   if (!existsSync(workspace)) cpSync(templateRoot, workspace, { recursive: true })
   if (!existsSync(path.join(workspace, "public-knowledge"))) symlinkSync(knowledgeRoot, path.join(workspace, "public-knowledge"), "dir")
-  if (ownershipRole !== identityValue.role) {
-    for (const name of ["hermes", "home", "workspace"]) ownTree(path.join(space, name), record.uid, adminUid)
-    chownSync(space, record.uid, adminUid)
+  const desiredOwnership = `${identityValue.role}:${record.uid}`
+  if (ownershipState !== desiredOwnership) {
+    for (const name of ["hermes", "home", "workspace"]) ownTree(path.join(space, name), record.uid, adminGid)
+    chownSync(space, record.uid, adminGid)
     chmodSync(space, 0o2770)
-    writeFileSync(ownershipMarker, identityValue.role, { mode: 0o660 })
-    chownSync(ownershipMarker, record.uid, adminUid)
+    writeFileSync(ownershipMarker, desiredOwnership, { mode: 0o660 })
+    chownSync(ownershipMarker, record.uid, adminGid)
   }
   copyConfig(space, identityValue.role, record.uid)
   return { space, workspace }
@@ -231,7 +237,7 @@ async function ensureInstance(identityValue) {
     const child = spawn("hermes", ["dashboard", "--host", "127.0.0.1", "--port", String(record.port), "--no-open", "--skip-build", "--isolated"], {
       cwd: workspace,
       uid: record.uid,
-      gid: identityValue.role === "admin" ? adminUid : record.uid,
+      gid: identityValue.role === "admin" ? adminGid : record.uid,
       env: childEnvironment(space, workspace, dashboardTokenFor(identityValue.userId)),
       stdio: ["ignore", log, log],
     })
@@ -338,6 +344,7 @@ if (process.argv.includes("--self-test")) {
   if (!identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": id } })) process.exit(1)
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
   if (providerApiPath("/openai/v1", "/v1/chat/completions") !== "/openai/v1/chat/completions") process.exit(1)
+  if (nextUid("admin", [{ uid: adminGid }, { uid: firstAdminUid }]) !== firstAdminUid + 1) process.exit(1)
   process.exit(0)
 }
 
