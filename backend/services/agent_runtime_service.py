@@ -44,6 +44,13 @@ async def stop(user_id: str) -> None:
         response.raise_for_status()
 
 
+async def read_action(user_id: str, session_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.get(_url("action"), params={"session_id": session_id}, headers=_headers(user_id))
+        response.raise_for_status()
+        return response.json()
+
+
 async def knowledge_list(query: str = "") -> dict:
     async with httpx.AsyncClient(timeout=10) as client:
         response = await client.get(_knowledge_url("list"), params={"q": query}, headers=_headers())

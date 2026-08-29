@@ -1,5 +1,15 @@
 # 版本日志
 
+## [0.6.0] - 2026-08-29
+
+### Context Bridge
+- 新增统一 Context Service、对象绑定 Agent Session Snapshot、GitHub/Cloud Solution/Requirement/Solution 页面入口，以及隔离 Workspace 中的受限 Context 文件。
+- 新增仅草稿的 Requirement/Solution Action 提案与用户确认 API；Agent 不持有业务数据库或写入凭据。
+- 移除启动时无条件 `DROP TABLE ... CASCADE`，Schema 校准仅执行向后兼容的补齐。
+
+### 验证
+- 后端 pytest：47 passed（Python 3.9 测试环境）。前端 lint/build 与 Docker 验证待本次变更后运行。
+
 ## [0.5.0] - 2026-08-28
 
 ### 正式发布

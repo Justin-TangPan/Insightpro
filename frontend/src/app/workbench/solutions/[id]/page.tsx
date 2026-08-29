@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, ClipboardList, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bot, ClipboardList, Save, Trash2 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { priorityLabels, Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
 
@@ -46,7 +46,7 @@ export default function SolutionDetailPage() {
   if (!item) return <div className="page-stack">{error ? <ErrorBox message={error} /> : <div className="h-96 animate-shimmer rounded-xl bg-white" />}</div>;
   return (
     <div className="page-stack">
-      <SectionHeader badge="Insight → Requirement → Solution" title={item.name} subtitle={`${item.category} · ${solutionStatusLabels[item.status]} · ${item.version}`} action={<Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link>} />
+      <SectionHeader badge="Insight → Requirement → Solution" title={item.name} subtitle={`${item.category} · ${solutionStatusLabels[item.status]} · ${item.version}`} action={<div className="flex gap-2"><Link href={`/insight-agent?context_type=solution&context_id=${item.id}`} className="ui-button-primary"><Bot className="h-4 w-4" />使用 Agent 分析</Link><Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>} />
       {error && <ErrorBox message={error} />}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <form onSubmit={save} className="ui-card space-y-5">

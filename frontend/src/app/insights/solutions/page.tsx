@@ -253,6 +253,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
           <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看阿里云方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
         </div>
       </div>
+          <Link href={`/insight-agent?context_type=cloud_solution&context_id=${item.id}`} className="ui-button-secondary px-3 py-2 text-xs">Agent 分析</Link>
     </article>
   );
 }

@@ -1,7 +1,7 @@
 services:
   backend:
     container_name: insight-backend
-    image: insight-web-backend:0.5.0
+    image: insight-web-backend:0.6.0
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -34,7 +34,7 @@ services:
 
   frontend:
     container_name: insight-frontend
-    image: insight-web-frontend:0.5.0
+    image: insight-web-frontend:0.6.0
     build:
       context: ./frontend
       dockerfile: Dockerfile

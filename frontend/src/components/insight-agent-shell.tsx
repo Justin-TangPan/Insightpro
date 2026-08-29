@@ -16,10 +16,15 @@ export function InsightAgentShell() {
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [connection, setConnection] = useState({ key: "", source: "" });
+  const [contextTitle, setContextTitle] = useState("");
+  const [agentSessionId, setAgentSessionId] = useState("");
+  const [proposal, setProposal] = useState<{ id: string; action: string; payload?: { entity_type?: string } } | null>(null);
   const [error, setError] = useState("");
   const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
   const targetUserId = full ? searchParams.get("target") || "" : "";
-  const connectionKey = user ? `${user.id}:${targetUserId || user.id}` : "";
+  const contextType = full ? searchParams.get("context_type") || "" : "";
+  const contextId = full ? searchParams.get("context_id") || "" : "";
+  const connectionKey = user ? `${user.id}:${targetUserId || user.id}:${contextType}:${contextId}` : "";
 
   useEffect(() => {
     if (!full && !pathname.startsWith("/auth/")) previousPath.current = pathname;
@@ -28,10 +33,21 @@ export function InsightAgentShell() {
   useEffect(() => {
     if ((!full && !open) || !user || connection.key === connectionKey) return;
     let cancelled = false;
-    void authenticatedFetch("/api/auth/opencode/ticket", {
-      method: "POST",
-      ...(targetUserId && { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ target_user_id: targetUserId }) }),
-    })
+    const contextRequest = contextType && contextId
+      ? authenticatedFetch("/api/agent/sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ context_type: contextType, context_id: contextId }) })
+        .then(async response => {
+          if (!response.ok) throw new Error("当前业务对象无法作为 Agent Context 使用");
+          return response.json() as Promise<{ id: string; context_title: string }>;
+        })
+      : Promise.resolve(null);
+    void contextRequest.then(context => authenticatedFetch("/api/auth/opencode/ticket", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...(targetUserId && { target_user_id: targetUserId }), ...(context && { agent_session_id: context.id }) }),
+    }).then(response => {
+      if (context) { setContextTitle(context.context_title); setAgentSessionId(context.id); setProposal(null); }
+      else { setContextTitle(""); setAgentSessionId(""); setProposal(null); }
+      return response;
+    }))
       .then(async response => {
         if (!response.ok) throw new Error(response.status === 403 ? "当前账号未获 Insight-Agent 访问权限" : "Insight-Agent 授权失败");
         return response.json() as Promise<{ redirect_url: string }>;
@@ -39,7 +55,7 @@ export function InsightAgentShell() {
       .then(data => { if (!cancelled) setConnection({ key: connectionKey, source: data.redirect_url }); })
       .catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : "Insight-Agent 授权失败"); });
     return () => { cancelled = true; };
-  }, [connection.key, connectionKey, full, open, targetUserId, user]);
+  }, [connection.key, connectionKey, contextId, contextType, full, open, targetUserId, user]);
 
   const show = () => {
     if (!user) {
@@ -60,6 +76,26 @@ export function InsightAgentShell() {
     if (full) router.push(previousPath.current);
     setOpen(true);
     setMinimized(false);
+  };
+
+  const importDraft = async () => {
+    if (!agentSessionId) return;
+    try {
+      const response = await authenticatedFetch(`/api/agent/sessions/${agentSessionId}/actions/import`, { method: "POST" });
+      if (!response.ok) throw new Error("没有可确认的 Agent 草稿");
+      const action = await response.json() as { id: string; action: string; payload?: { entity_type?: string } };
+      setProposal(action);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "读取草稿失败"); }
+  };
+
+  const confirmDraft = async () => {
+    if (!proposal) return;
+    try {
+      const response = await authenticatedFetch(`/api/agent/actions/${proposal.id}/confirm`, { method: "POST" });
+      if (!response.ok) throw new Error("草稿确认失败");
+      const item = await response.json() as { id: number };
+      router.push(proposal.action === "create_requirement_draft" || proposal.payload?.entity_type === "requirement" ? `/workbench/requirements/${item.id}` : `/workbench/solutions/${item.id}`);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "草稿确认失败"); }
   };
 
   const startDrag = (event: React.PointerEvent<HTMLElement>) => {
@@ -108,8 +144,9 @@ export function InsightAgentShell() {
         }}
       >
         <header onPointerDown={startDrag} className="flex h-12 shrink-0 cursor-move items-center justify-between bg-primary-dark px-4 text-white">
-          <div className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4" /> Insight-Agent</div>
+          <div className="flex min-w-0 items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4 shrink-0" /> Insight-Agent{contextTitle && <span className="truncate border-l border-white/25 pl-2 text-xs font-medium text-white/70">当前上下文：{contextTitle}</span>}</div>
           <div className="flex items-center gap-1">
+            {full && agentSessionId && <button type="button" onClick={() => void (proposal ? confirmDraft() : importDraft())} className="rounded bg-white/15 px-2 py-1 text-xs font-semibold hover:bg-white/25">{proposal ? "确认创建草稿" : "读取 Agent 草稿"}</button>}
             {!full && <button type="button" onClick={() => setMinimized(value => !value)} className="rounded p-1.5 hover:bg-white/15" aria-label={minimized ? "展开" : "最小化"}>{minimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button>}
             <button type="button" onClick={() => full ? restore() : router.push("/insight-agent")} className="rounded p-1.5 hover:bg-white/15" aria-label={full ? "还原浮窗" : "最大化"}>{full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>
             <button type="button" onClick={close} className="rounded p-1.5 hover:bg-white/15" aria-label="关闭"><X className="h-4 w-4" /></button>

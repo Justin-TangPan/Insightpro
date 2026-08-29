@@ -13,7 +13,9 @@ Insight-Agent 是 InsightPro 内置的 AI 智能工作区，底层运行固定�
 - Admin 可查看 Runtime、Workspace、最近使用时间、磁盘占用与基础用量；成员管理、禁用和恢复均以 InsightPro 的 `user_id` 为准。
 - 生成解释、方案、代码草稿和 Patch；修改不会直接进入生产仓库。
 
-当前不支持生产源码/数据库写入、业务对象写入、Shell/Git 操作、部署、Context Bridge，以及自动携带 Insight/Solution/Requirement 上下文。
+支持 Backend 生成的 Context Bridge：GitHub Project、Cloud Solution、Vendor Update、Requirement、Solution 以受限 Session Snapshot 同步到隔离 Workspace。Agent 不连接数据库、不持有业务 API 凭据。
+
+Agent 可提出 Requirement/Solution Draft Action；用户必须在 InsightPro 中读取并确认，Backend 校验权限与 Schema 后才会创建 Draft。仍不支持生产源码/数据库写入、Shell/Git 操作或部署。
 
 模型调用统计只记录 Runtime 实际发出的请求；Input/Output Token 仅在 Provider 响应提供 `usage` 时记录，不估算、不补造。
 

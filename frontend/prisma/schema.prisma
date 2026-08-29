@@ -227,6 +227,8 @@ model RequirementSolution {
 model OpenCodeSsoTicket {
   tokenHash String    @id @map("token_hash")
   userId    String    @map("user_id") @db.Uuid
+  targetUserId String? @map("target_user_id") @db.Uuid
+  agentSessionId String? @map("agent_session_id") @db.Uuid
   expiresAt DateTime  @map("expires_at") @db.Timestamptz
   usedAt    DateTime? @map("used_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
@@ -238,10 +240,44 @@ model OpenCodeSsoTicket {
 model OpenCodeSsoSession {
   tokenHash String    @id @map("token_hash")
   userId    String    @map("user_id") @db.Uuid
+  agentUserId String  @map("agent_user_id") @db.Uuid
+  authRole String     @default("user") @map("auth_role")
+  agentRole String    @default("user") @map("agent_role")
+  displayName String  @default("") @map("display_name")
+  agentSessionId String? @map("agent_session_id") @db.Uuid
   expiresAt DateTime  @map("expires_at") @db.Timestamptz
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz
 
   @@index([userId, expiresAt])
   @@map("opencode_sso_sessions")
+}
+
+model AgentSession {
+  id              String   @id @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  contextType     String   @map("context_type")
+  contextId       String   @map("context_id")
+  contextTitle    String   @map("context_title")
+  contextSnapshot Json     @map("context_snapshot")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
+
+  @@index([userId, updatedAt])
+  @@map("agent_sessions")
+}
+
+model AgentAction {
+  id          String   @id @db.Uuid
+  sessionId   String   @map("session_id") @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  action      String
+  payload     Json
+  status      String   @default("proposed")
+  result      Json?
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz
+
+  @@index([userId, status, createdAt])
+  @@map("agent_actions")
 }

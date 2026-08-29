@@ -12,7 +12,6 @@ _LOCK_ID = 2_026_071_300
 def ensure_runtime_schema() -> None:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("DROP TABLE IF EXISTS demand_reports, demand_signals, bidding_opportunities, policy_updates, industry_news CASCADE")
         cursor.execute(
             "ALTER TABLE trending_business_eval ADD COLUMN IF NOT EXISTS summary TEXT"
         )
@@ -139,21 +138,43 @@ def ensure_runtime_schema() -> None:
         cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS auth_role TEXT NOT NULL DEFAULT 'user'")
         cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_role TEXT NOT NULL DEFAULT 'user'")
         cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE opencode_sso_tickets ADD COLUMN IF NOT EXISTS agent_session_id UUID")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_user ON opencode_sso_sessions(user_id, expires_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_agent_user ON opencode_sso_sessions(agent_user_id, expires_at)")
         cursor.execute("CREATE TABLE IF NOT EXISTS agent_audit_events (id BIGSERIAL PRIMARY KEY, actor_user_id UUID NOT NULL, action TEXT NOT NULL, target_user_id UUID, detail TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_audit_events_created ON agent_audit_events(created_at DESC)")
         cursor.execute("ALTER TABLE opencode_sso_tickets ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE opencode_sso_sessions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_session_id UUID")
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirement_solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_sessions (
+                id UUID PRIMARY KEY, user_id UUID NOT NULL, context_type TEXT NOT NULL,
+                context_id TEXT NOT NULL, context_title TEXT NOT NULL,
+                context_snapshot JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sessions_user_updated ON agent_sessions(user_id, updated_at DESC)")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_actions (
+                id UUID PRIMARY KEY, session_id UUID NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+                user_id UUID NOT NULL, action TEXT NOT NULL, payload JSONB NOT NULL,
+                status TEXT NOT NULL DEFAULT 'proposed' CHECK (status IN ('proposed', 'confirmed', 'rejected')),
+                result JSONB, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), confirmed_at TIMESTAMPTZ
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_user_status ON agent_actions(user_id, status, created_at DESC)")
+        cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_github_trending_search ON github_trending USING GIN
             ((COALESCE(repo_name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(language,'')) gin_trgm_ops)
         """)
         cursor.execute("""
+        cursor.execute("ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE agent_actions ENABLE ROW LEVEL SECURITY")
             CREATE INDEX IF NOT EXISTS idx_aliyun_solutions_search ON aliyun_solutions USING GIN
             ((COALESCE(title,'') || ' ' || COALESCE(category,'') || ' ' || COALESCE(summary,'') || ' ' || COALESCE(source_description,'')) gin_trgm_ops)
         """)

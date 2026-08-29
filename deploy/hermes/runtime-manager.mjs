@@ -94,6 +94,7 @@ function identity(req) {
     role: req.headers["x-insight-agent-role"] === "admin" ? "admin" : "user",
     authRole: req.headers["x-insight-auth-role"] === "admin" ? "admin" : "user",
     displayName: decodeURIComponent(String(req.headers["x-insight-display-name"] || "")).slice(0, 80),
+    agentSessionId: String(req.headers["x-insight-agent-session-id"] || ""),
   }
 }
 
@@ -202,6 +203,33 @@ function ensureSpace(identityValue, record) {
   return { space, workspace }
 }
 
+async function syncBusinessContext(identityValue, workspace) {
+  const sessionId = identityValue.agentSessionId
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(sessionId)) {
+    try { unlinkSync(path.join(workspace, ".insight", "INSIGHT_CONTEXT.md")) } catch {}
+    return
+  }
+  try {
+    const response = await fetch(`${publicApi}/agent/internal/sessions/${sessionId}`, {
+      headers: { "X-Insight-Runtime-Secret": internalSecret, "X-Insight-User-Id": identityValue.userId },
+      signal: AbortSignal.timeout(10_000),
+    })
+    if (!response.ok) throw new Error(`context session: ${response.status}`)
+    const session = await response.json()
+    const context = session.context_snapshot
+    const directory = path.join(workspace, ".insight")
+    mkdirSync(directory, { recursive: true, mode: 0o770 })
+    const contextPath = path.join(directory, "INSIGHT_CONTEXT.md")
+    writeFileSync(contextPath, `# Current InsightPro Context\n\nSession: ${session.id}\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\`\n`, { mode: 0o640 })
+    writeFileSync(path.join(directory, "INSIGHT_ACTION.json"), JSON.stringify({ session_id: session.id, action: "", payload: {} }, null, 2), { mode: 0o640 })
+    ownTree(directory, registry.users[identityValue.userId].uid, adminGid)
+    chownSync(contextPath, 0, registry.users[identityValue.userId].uid)
+    chmodSync(contextPath, 0o640)
+  } catch (error) {
+    console.error("Business context sync failed", error)
+  }
+}
+
 async function processHealthy(port) {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(500) })
@@ -292,6 +320,16 @@ function managementRequest(req, res) {
     res.end(JSON.stringify({ ai_space_users: spaces.length, active_runtimes: active.size, max_active_runtimes: maxActive, spaces, usage, today: { date: today, ...totals } }))
     return true
   }
+  if (url.pathname === "/_insight/runtime/action" && req.method === "GET") {
+    const userId = String(req.headers["x-insight-user-id"] || "").toLowerCase()
+    const sessionId = String(url.searchParams.get("session_id") || "")
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(sessionId)) { res.writeHead(422); res.end("invalid session"); return true }
+    try {
+      const action = JSON.parse(readFileSync(path.join(spacesRoot, userId, "workspace", ".insight", "INSIGHT_ACTION.json"), "utf8"))
+      if (action.session_id !== sessionId || !action.action || typeof action.payload !== "object") { res.writeHead(404); res.end("no action"); return true }
+      res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(action)); return true
+    } catch { res.writeHead(404); res.end("no action"); return true }
+  }
   const userId = url.searchParams.get("user_id") || ""
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId)) {
     res.writeHead(422); res.end("invalid user_id"); return true
@@ -337,6 +375,10 @@ async function ensureInstance(identityValue) {
   const existing = active.get(identityValue.userId)
   if (existing && !existing.child.killed && existing.role === identityValue.role) {
     existing.lastUsed = Date.now()
+    if (existing.contextSessionId !== identityValue.agentSessionId) {
+      await syncBusinessContext(identityValue, existing.workspace)
+      existing.contextSessionId = identityValue.agentSessionId
+    }
     return existing
   }
   if (existing) {
@@ -359,6 +401,7 @@ async function ensureInstance(identityValue) {
     record.lastUsedAt = new Date().toISOString()
     saveRegistry()
     const { space, workspace } = ensureSpace(identityValue, record)
+    await syncBusinessContext(identityValue, workspace)
     const log = openSync(path.join(space, "runtime.log"), "a")
     const child = spawn("hermes", ["dashboard", "--host", "127.0.0.1", "--port", String(record.port), "--no-open", "--skip-build", "--isolated"], {
       cwd: workspace,
@@ -368,7 +411,7 @@ async function ensureInstance(identityValue) {
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
-    const instance = { child, port: record.port, workspace, role: identityValue.role, lastUsed: Date.now() }
+    const instance = { child, port: record.port, workspace, role: identityValue.role, contextSessionId: identityValue.agentSessionId, lastUsed: Date.now() }
     active.set(identityValue.userId, instance)
     for (let attempt = 0; attempt < 300; attempt += 1) {
       if (await processHealthy(record.port)) return instance

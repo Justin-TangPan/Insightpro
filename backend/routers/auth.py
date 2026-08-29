@@ -62,6 +62,7 @@ class RegisterRequest(BaseModel):
 
 class AgentTicketRequest(BaseModel):
     target_user_id: Optional[UUID] = None
+    agent_session_id: Optional[UUID] = None
 
 
 class InviteRequest(BaseModel):
@@ -324,7 +325,11 @@ async def create_opencode_ticket(req: Optional[AgentTicketRequest] = None, user=
         except Exception:
             raise HTTPException(status_code=404, detail="目标用户不存在")
         await _require_active_agent_user(target_account)
-    ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id), target_user_id)
+    agent_session_id = str(req.agent_session_id) if req and req.agent_session_id else None
+    if agent_session_id:
+        from services import agent_service
+        await asyncio.to_thread(agent_service.get_session, str(user.id), agent_session_id)
+    ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id), target_user_id, agent_session_id)
     query = urlencode({"ticket": ticket})
     return {"redirect_url": f"{settings.OPENCODE_PUBLIC_URL}/auth/callback?{query}"}
 
@@ -348,7 +353,7 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
     display_name = ((agent_account.user_metadata or {}).get("name") or (agent_account.email or "").split("@")[0]).strip()[:80]
     session = await asyncio.to_thread(
         opencode_sso_service.create_gateway_session,
-        ticket["user_id"], ticket["agent_user_id"], auth_role, agent_role, display_name,
+        ticket["user_id"], ticket["agent_user_id"], auth_role, agent_role, display_name, ticket.get("agent_session_id"),
     )
     response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/chat", status_code=303)
     response.set_cookie(
@@ -387,6 +392,7 @@ async def verify_opencode_gateway(
         "X-Insight-Agent-Role": session["agent_role"],
         "X-Insight-Auth-Role": session["auth_role"],
         "X-Insight-Display-Name": quote(session["display_name"], safe=""),
+        "X-Insight-Agent-Session-Id": session.get("agent_session_id") or "",
         "Cache-Control": "no-store",
     })
 

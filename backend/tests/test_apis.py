@@ -12,7 +12,7 @@ class TestAPIEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
-        assert resp.json()["version"] == "0.5.0"
+        assert resp.json()["version"] == "0.6.0"
 
     def test_lan_frontend_origin_is_allowed(self):
         resp = client.get(

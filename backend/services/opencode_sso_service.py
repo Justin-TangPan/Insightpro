@@ -10,9 +10,9 @@ TICKET_TTL_SECONDS = 60
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
 
 
-def issue_ticket(user_id: str, target_user_id: str | None = None) -> str:
+def issue_ticket(user_id: str, target_user_id: str | None = None, agent_session_id: str | None = None) -> str:
     ticket = secrets.token_urlsafe(32)
-    repository.create_ticket(hashlib.sha256(ticket.encode()).hexdigest(), user_id, target_user_id, TICKET_TTL_SECONDS)
+    repository.create_ticket(hashlib.sha256(ticket.encode()).hexdigest(), user_id, target_user_id, agent_session_id, TICKET_TTL_SECONDS)
     return ticket
 
 
@@ -22,11 +22,11 @@ def consume_ticket(ticket: str) -> dict | None:
     return repository.consume_ticket(hashlib.sha256(ticket.encode()).hexdigest())
 
 
-def create_gateway_session(user_id: str, agent_user_id: str, auth_role: str, agent_role: str, display_name: str) -> str:
+def create_gateway_session(user_id: str, agent_user_id: str, auth_role: str, agent_role: str, display_name: str, agent_session_id: str | None = None) -> str:
     token = secrets.token_urlsafe(32)
     repository.create_session(
         hashlib.sha256(token.encode()).hexdigest(), user_id, agent_user_id,
-        auth_role, agent_role, display_name, SESSION_TTL_SECONDS,
+        auth_role, agent_role, display_name, agent_session_id, SESSION_TTL_SECONDS,
     )
     return token
 

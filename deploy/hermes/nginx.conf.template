@@ -26,7 +26,7 @@ server {
         proxy_set_header X-Insight-SSO-Ticket $sso_ticket;
     }
 
-    location ~ ^/_insight/runtime/(overview|status|start|stop)$ {
+    location ~ ^/_insight/runtime/(overview|status|start|stop|action)$ {
         if ($http_x_insight_runtime_secret != "${OPENCODE_GATEWAY_SECRET}") { return 403; }
         proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-Runtime-Secret $http_x_insight_runtime_secret;
@@ -54,6 +54,7 @@ server {
         proxy_set_header X-Insight-Agent-Role $agent_role;
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
+        proxy_set_header X-Insight-Agent-Session-Id $upstream_http_x_insight_agent_session_id;
         proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
     }
 
@@ -76,6 +77,7 @@ server {
         proxy_set_header X-Insight-Agent-Role $agent_role;
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
+        proxy_set_header X-Insight-Agent-Session-Id $upstream_http_x_insight_agent_session_id;
         proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
         proxy_buffering off;
         proxy_read_timeout 300s;

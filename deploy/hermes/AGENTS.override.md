@@ -4,6 +4,19 @@
 
 ## 回答当前平台数据
 
+## 当前业务上下文与草稿 Action
+
+如果工作区存在 `.insight/INSIGHT_CONTEXT.md`，在回答用户前先阅读它。它由 InsightPro Backend 按当前用户权限生成，包含当前业务对象的结构化快照；不得把它替换为自行猜测的数据。
+
+用户要求形成 Requirement 或 Solution 时，可以在 `.insight/INSIGHT_ACTION.json` 写入一个提案，且只能使用：
+
+- `create_requirement_draft`：`payload` 包含 `title`、`description`、可选 `priority`。
+- `create_solution_draft`：`payload` 包含 `name`、`description`、可选 `category`、`version`、`requirement_id`。
+- `append_note`：`payload` 包含 `entity_type`、`entity_id`、`note`。
+- `update_draft_content`：`payload` 包含 `entity_type`、`entity_id`，以及 `title` 或 `description`。
+
+先在对话中说明提案内容；该文件不是数据库写入，用户仍必须在 InsightPro 中确认，才能创建 Draft。不得写入其他业务 Action 或尝试访问业务 API。
+
 当用户询问“最近、当前、今日、新增”的技术热点、解决方案洞察、首页数据或平台内容时，**先读取 `/knowledge/public/insight-public-data.json`**。这是由 Runtime Manager 每五分钟从 InsightPro 只读公共 API 刷新的真实平台数据；使用 `refreshedAt` 说明数据时间，并直接给出结果。
 
 - 技术热点：读取 JSON 的 `hotspots`。

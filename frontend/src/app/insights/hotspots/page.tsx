@@ -9,7 +9,7 @@ import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { Requirement, workbenchFetch } from "@/lib/workbench";
 import {
   Star, GitFork, TrendingUp, CalendarDays, RefreshCw,
-  ExternalLink, Activity, Zap, Clock, ArrowUpRight, BookmarkPlus, Check
+  ExternalLink, Activity, Zap, Clock, ArrowUpRight, BookmarkPlus, Bot, Check
 } from "lucide-react";
 
 interface TrendingItem {
@@ -421,6 +421,7 @@ export default function HotspotsPage() {
                   {savedRepos.has(item.repo_url) ? <Check className="h-3.5 w-3.5" /> : <BookmarkPlus className="h-3.5 w-3.5" />}
                   {savingRepo === item.repo_url ? "暂存中" : savedRepos.has(item.repo_url) ? "已暂存" : "暂存需求"}
                 </button>
+                <button type="button" onClick={() => router.push(`/insight-agent?context_type=github_project&context_id=${encodeURIComponent(item.repo_name)}`)} className="ui-button-secondary px-3 py-1.5 text-xs"><Bot className="h-3.5 w-3.5" />Agent 分析</button>
               </div>
             </article>
             );

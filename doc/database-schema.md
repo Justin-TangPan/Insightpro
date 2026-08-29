@@ -29,6 +29,8 @@
 | `opencode_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
 | `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
 | `agent_audit_events` | AI Space 管理操作审计 | 自增 `id` |
+| `agent_sessions` | 绑定对象的 Agent Context 快照 | UUID `id`，按 `user_id` 隔离 |
+| `agent_actions` | 用户确认前的 Agent Draft Action | UUID `id`，按 `user_id` 隔离 |
 | `cloud_vendor_news` | 云厂商官网动态 | `crawl_date + vendor + title` |
 | `competitor_news` | 友商动态摘要 | `scrape_date + vendor + title` |
 | `baidu_hotsearch` | 辅助热搜快照 | `scrape_date + title` |
@@ -129,6 +131,10 @@
 ### `agent_audit_events`
 
 记录 Admin 在 AI Space 内执行的成员角色/状态变更、Runtime 启停和公共知识库维护操作。字段为 `actor_user_id uuid`、`action text`、`target_user_id uuid?`、`detail text`、`created_at timestamptz`；按 `created_at` 建索引。仅保留审计元数据，不保存模型提示词、文件内容、密钥或 Supabase Token。模型请求与 Token 计数保存在隔离 Runtime 的持久化注册表中，因为仅 Provider 的实际响应能够确认其 `usage`。
+
+### `agent_sessions` / `agent_actions`
+
+`agent_sessions` 以 `context_type`、`context_id` 和受限 `context_snapshot jsonb` 记录一次对象分析；快照是历史会话的事实来源，不复制原始大全文。`agent_actions` 保存 Agent 提出的结构化 Draft、确认状态和最终业务对象结果。两表均以 `user_id` 作为 FastAPI Repository 的隔离条件；Hermes 不连接数据库，只能由 Backend 将已授权 Session Snapshot 同步到隔离 Workspace。确认前不会写入 `requirements` 或 `solutions`。
 
 ### `cloud_vendor_news`
 
