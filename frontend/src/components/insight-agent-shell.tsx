@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bot, Maximize2, Minimize2, Minus, X } from "lucide-react";
+import { ArrowLeft, Bot, Maximize2, Minimize2, Minus, X } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { useAuth } from "@/components/auth-provider";
@@ -24,6 +24,7 @@ export function InsightAgentShell() {
   const targetUserId = full ? searchParams.get("target") || "" : "";
   const contextType = full ? searchParams.get("context_type") || "" : "";
   const contextId = full ? searchParams.get("context_id") || "" : "";
+  const returnPath = contextType === "cloud_solution" ? "/insights/solutions" : previousPath.current;
   const connectionKey = user ? `${user.id}:${targetUserId || user.id}:${contextType}:${contextId}` : "";
 
   useEffect(() => {
@@ -146,6 +147,7 @@ export function InsightAgentShell() {
         <header onPointerDown={startDrag} className="flex h-12 shrink-0 cursor-move items-center justify-between bg-primary-dark px-4 text-white">
           <div className="flex min-w-0 items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4 shrink-0" /> Insight-Agent{contextTitle && <span className="truncate border-l border-white/25 pl-2 text-xs font-medium text-white/70">当前上下文：{contextTitle}</span>}</div>
           <div className="flex items-center gap-1">
+            {full && <button type="button" onClick={() => router.push(returnPath)} className="flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold hover:bg-white/15"><ArrowLeft className="h-3.5 w-3.5" />返回洞察</button>}
             {full && agentSessionId && <button type="button" onClick={() => void (proposal ? confirmDraft() : importDraft())} className="rounded bg-white/15 px-2 py-1 text-xs font-semibold hover:bg-white/25">{proposal ? "确认创建草稿" : "读取 Agent 草稿"}</button>}
             {!full && <button type="button" onClick={() => setMinimized(value => !value)} className="rounded p-1.5 hover:bg-white/15" aria-label={minimized ? "展开" : "最小化"}>{minimized ? <Maximize2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}</button>}
             <button type="button" onClick={() => full ? restore() : router.push("/insight-agent")} className="rounded p-1.5 hover:bg-white/15" aria-label={full ? "还原浮窗" : "最大化"}>{full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}</button>

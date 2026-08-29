@@ -48,13 +48,14 @@ server {
         auth_request_set $agent_role $upstream_http_x_insight_agent_role;
         auth_request_set $auth_role $upstream_http_x_insight_auth_role;
         auth_request_set $display_name $upstream_http_x_insight_display_name;
+        auth_request_set $agent_session_id $upstream_http_x_insight_agent_session_id;
 
         proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-User-Id $agent_user_id;
         proxy_set_header X-Insight-Agent-Role $agent_role;
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
-        proxy_set_header X-Insight-Agent-Session-Id $upstream_http_x_insight_agent_session_id;
+        proxy_set_header X-Insight-Agent-Session-Id $agent_session_id;
         proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
     }
 
@@ -65,6 +66,7 @@ server {
         auth_request_set $agent_role $upstream_http_x_insight_agent_role;
         auth_request_set $auth_role $upstream_http_x_insight_auth_role;
         auth_request_set $display_name $upstream_http_x_insight_display_name;
+        auth_request_set $agent_session_id $upstream_http_x_insight_agent_session_id;
 
         proxy_pass http://hermes:4096;
         proxy_http_version 1.1;
@@ -77,7 +79,7 @@ server {
         proxy_set_header X-Insight-Agent-Role $agent_role;
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
-        proxy_set_header X-Insight-Agent-Session-Id $upstream_http_x_insight_agent_session_id;
+        proxy_set_header X-Insight-Agent-Session-Id $agent_session_id;
         proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
         proxy_buffering off;
         proxy_read_timeout 300s;

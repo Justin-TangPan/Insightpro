@@ -6,7 +6,7 @@
 
 ## 当前业务上下文与草稿 Action
 
-如果工作区存在 `.insight/INSIGHT_CONTEXT.md`，在回答用户前先阅读它。它由 InsightPro Backend 按当前用户权限生成，包含当前业务对象的结构化快照；不得把它替换为自行猜测的数据。
+如果工作区存在 `.insight/INSIGHT_CONTEXT.md`，在回答用户前先阅读它。它由 InsightPro Backend 按当前用户权限生成，包含当前业务对象的结构化快照；不得把它替换为自行猜测的数据。用户从“Agent 分析”进入时，当前对象就是该文件中的方案：直接围绕它开始分析，不要先搜索工作区、不要询问“这个方案”指什么。
 
 用户要求形成 Requirement 或 Solution 时，可以在 `.insight/INSIGHT_ACTION.json` 写入一个提案，且只能使用：
 
