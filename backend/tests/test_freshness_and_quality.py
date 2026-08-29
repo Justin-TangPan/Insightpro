@@ -2,7 +2,7 @@ from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
 from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree
-from services.huawei_solution_service import _parse_catalog, detail_category
+from services.huawei_solution_service import _parse_catalog
 from services.system_health_service import evaluate_readiness
 from deep_searcher_integration import context_to_str
 
@@ -61,11 +61,10 @@ def test_solution_changes_name_the_changed_content_and_huawei_cards_parse():
     page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;云迁移&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/migration.html&quot;,&quot;caption&quot;:&quot;迁移方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}&quot;cardItem&quot;:{&quot;label&quot;:&quot;AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/example.html&quot;,&quot;caption&quot;:&quot;示例方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}'
     item = _parse_catalog(page)[0]
     assert item["title"] == "示例方案"
-    assert item["category"] == "AI / 通用实践"
+    assert item["category"] == "AI / 解决方案实践"
     item["content_snapshot"] = {"title": "示例方案", "category": item["category"], "source_description": "新说明", "detail_text": ""}
     summary = _change_summary({"source_description": "旧说明"}, item)
     assert "方案简介：旧说明 → 新说明" in summary
-    assert detail_category("AI", "文字识别-快递电子面单识别", "") == "视觉与识别"
 
 
 def test_heuristic_technical_evaluation_is_displayable():

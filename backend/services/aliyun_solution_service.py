@@ -305,11 +305,10 @@ def get_aliyun_solutions() -> dict:
         )
         items = [dict(row) for row in cursor.fetchall()]
     cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-    from services.huawei_solution_service import detail_category
     for item in items:
         primary, _, secondary = item["category"].partition(" / ")
         item["primary_category"] = primary
-        item["secondary_category"] = detail_category(primary, item["title"], item["source_description"]) if item["vendor"] == "华为云" else secondary or "分类入口"
+        item["secondary_category"] = secondary or "分类入口"
         item["is_recent"], item["change_type"] = _classify_change(item, cutoff)
     items.sort(key=lambda item: (
         0 if item["is_recent"] and item["change_type"] == "new" else

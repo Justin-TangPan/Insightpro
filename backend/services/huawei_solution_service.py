@@ -27,25 +27,6 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
-def detail_category(category: str, title: str, description: str) -> str:
-    """The official list has no subcategory, so use stable capability labels."""
-    text = f"{title} {description}".lower()
-    # ponytail: keyword taxonomy; replace with official subcategories if Huawei exposes them.
-    rules = {
-        "AI": ((("内容审核", "审核", "moderation"), "内容审核"), (("ocr", "识别", "人证", "人脸"), "视觉与识别"), (("语音", "音频", "视频", "voice"), "语音与音视频"), (("模型", "aigc", "qwen", "evalscope", "stable diffusion"), "大模型与生成式 AI"), (("智能体", "agent", "mcp", "助手"), "智能体与应用")),
-        "数据分析与管理": ((("迁移", "同步", "datax", "dbsyncer"), "数据迁移与集成"), (("bi", "分析", "dli", "数据湖"), "数据分析与 BI")),
-        "应用现代化": ((("容器", "cce", "docker", "kubernetes"), "容器与云原生"), (("函数", "serverless", "functiongraph"), "无服务器应用"), (("网站", "建站", "cms", "博客"), "网站与内容应用"), (("devops", "jenkins", "编译", "发布"), "研发与交付")),
-        "安全与合规": ((("waf", "网站", "web"), "Web 安全"), (("勒索", "病毒", "安全"), "主机与数据安全")),
-        "网络": ((("cdn", "加速", "全站"), "应用与内容加速"), (("vpc", "elb", "负载", "vpn", "nat"), "网络连接与负载均衡")),
-        "运维监控": ((("日志", "lts"), "日志与可观测性"), (("告警", "监控", "zabbix"), "监控与告警"), (("运维", "jumpserver", "宝塔"), "运维管理")),
-        "云迁移": ((("数据库", "oracle", "rds", "datax"), "数据库迁移"), (("备份", "恢复"), "备份与容灾"), (("容器", "应用"), "应用迁移")),
-    }
-    for keywords, label in rules.get(category, ()):
-        if any(keyword in text for keyword in keywords):
-            return label
-    return "通用实践"
-
-
 def _parse_catalog(page: str) -> list[dict]:
     items, seen = [], set()
     for category, url, title, description in CARD_RE.findall(page):
@@ -57,7 +38,7 @@ def _parse_catalog(page: str) -> list[dict]:
         description = _clean(BeautifulSoup(html.unescape(description), "html.parser").get_text(" "))
         items.append({
             "title": title, "url": url,
-            "category": f"{category} / {detail_category(category, title, description)}",
+            "category": f"{category} / 解决方案实践",
             "source_description": description,
             "menu_order": len(items),
         })

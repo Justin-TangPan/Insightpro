@@ -91,8 +91,8 @@ export default function SolutionInsightsPage() {
   const directory = useMemo(() => {
     const primaryMap = new Map<string, Map<string, SolutionItem[]>>();
     for (const item of vendorItems) {
-      const primary = item.primary_category;
-      const secondary = item.secondary_category;
+      const primary = item.vendor === "华为云" ? "解决方案实践" : item.primary_category;
+      const secondary = item.vendor === "华为云" ? item.primary_category : item.secondary_category;
       if (!primaryMap.has(primary)) primaryMap.set(primary, new Map());
       const secondaryMap = primaryMap.get(primary)!;
       if (!secondaryMap.has(secondary)) secondaryMap.set(secondary, []);
@@ -106,10 +106,10 @@ export default function SolutionInsightsPage() {
         name: secondaryName,
         items,
         order: Math.min(...items.map((item) => item.menu_order)),
-      })).sort((a, b) => a.order - b.order),
-    })).sort((a, b) => activeVendor === "华为云"
-      ? HUAWEI_CATEGORY_ORDER.indexOf(a.name) - HUAWEI_CATEGORY_ORDER.indexOf(b.name)
-      : a.order - b.order);
+      })).sort((a, b) => activeVendor === "华为云"
+        ? HUAWEI_CATEGORY_ORDER.indexOf(a.name) - HUAWEI_CATEGORY_ORDER.indexOf(b.name)
+        : a.order - b.order),
+    })).sort((a, b) => a.order - b.order);
   }, [activeVendor, vendorItems]);
 
   const activePrimary = directory.find((group) => group.name === selectedPrimary) || directory[0];
