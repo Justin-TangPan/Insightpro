@@ -18,6 +18,8 @@ interface SolutionItem {
   secondary_category: string;
   source_description: string;
   summary: string;
+  vendor: string;
+  change_summary: string;
   first_seen_date: string;
   last_seen_date: string;
   last_changed_date: string;
@@ -34,7 +36,7 @@ interface SolutionResponse {
   baseline_count: number;
   daily_insight: { date: string; new: number; updated: number; removed: number };
   last_checked: string | null;
-  source: string;
+  sources: Record<string, string>;
 }
 
 const PAGE_SIZE = 12;
@@ -52,7 +54,7 @@ export default function SolutionInsightsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API}/api/solutions/aliyun`);
+      const response = await fetch(`${API}/api/solutions/catalog`);
       if (!response.ok) throw new Error(`加载失败：${response.status}`);
       setData(await response.json());
     } catch (reason) {
@@ -68,7 +70,7 @@ export default function SolutionInsightsPage() {
     setRefreshing(true);
     setError("");
     try {
-      const response = await authenticatedFetch(`${API}/api/solutions/aliyun/refresh`, { method: "POST" });
+      const response = await authenticatedFetch(`${API}/api/solutions/catalog/refresh`, { method: "POST" });
       if (!response.ok) throw new Error(response.status === 401 ? "请先登录后手动检查更新" : `检查失败：${response.status}`);
       await load();
     } catch (reason) {
@@ -81,8 +83,9 @@ export default function SolutionInsightsPage() {
   const directory = useMemo(() => {
     const primaryMap = new Map<string, Map<string, SolutionItem[]>>();
     for (const item of data?.items || []) {
-      if (!primaryMap.has(item.primary_category)) primaryMap.set(item.primary_category, new Map());
-      const secondaryMap = primaryMap.get(item.primary_category)!;
+      const primary = `${item.vendor} · ${item.primary_category}`;
+      if (!primaryMap.has(primary)) primaryMap.set(primary, new Map());
+      const secondaryMap = primaryMap.get(primary)!;
       if (!secondaryMap.has(item.secondary_category)) secondaryMap.set(item.secondary_category, []);
       secondaryMap.get(item.secondary_category)!.push(item);
     }
@@ -125,9 +128,9 @@ export default function SolutionInsightsPage() {
   return (
     <div className="page-stack">
       <SectionHeader
-        badge="Solution Intelligence / Aliyun"
+        badge="Solution Intelligence / Cloud"
         title="解决方案洞察"
-        subtitle="按阿里云官方一级、二级领域复刻技术解决方案目录，每日与上一版数据比较。"
+        subtitle="汇集阿里云、华为云官方解决方案目录，每日与上一版内容逐项比较。"
         action={
           <div className="flex flex-col items-end gap-3">
             <div className="flex items-center gap-2 text-xs text-ink-muted"><Clock3 className="h-3.5 w-3.5" />每天 09:00 自动对比 · 最近检查 {data?.last_checked || "—"}</div>
@@ -154,7 +157,7 @@ export default function SolutionInsightsPage() {
       </section>
 
       <div className="rounded-xl bg-surface-subtle px-5 py-4 text-sm leading-6 text-ink-secondary">
-        当前 {data?.baseline_count ?? 0} 项存量方案已设为普通基线。此后每日按 URL 和内容指纹与上一版比较，真正新增的方案置顶，内容变化标记为更新。
+        当前 {data?.baseline_count ?? 0} 项存量方案已设为普通基线。此后每日按 URL 和内容指纹与上一版比较；更新卡片会列出名称、分类、简介或正文的具体变化。
       </div>
 
       {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}。系统仍会在每天 09:00 自动检查。</div>}
@@ -171,8 +174,8 @@ export default function SolutionInsightsPage() {
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 bg-surface-subtle px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Official directory</p><h2 className="mt-1 type-h2 text-ink">阿里云技术解决方案目录</h2></div>
-          {data?.source && <a href={data.source} target="_blank" rel="noreferrer" className="ui-link flex items-center gap-2 text-xs">查看官方来源<ArrowUpRight className="h-3.5 w-3.5" /></a>}
+          <div><p className="swiss-kicker text-primary">Official directory</p><h2 className="mt-1 type-h2 text-ink">云厂商技术解决方案目录</h2></div>
+          <div className="flex gap-3">{Object.entries(data?.sources || {}).map(([vendor, url]) => <a key={vendor} href={url} target="_blank" rel="noreferrer" className="ui-link flex items-center gap-1 text-xs">{vendor}<ArrowUpRight className="h-3.5 w-3.5" /></a>)}</div>
         </div>
 
         {loading ? (
@@ -205,7 +208,7 @@ export default function SolutionInsightsPage() {
                 <header id="solution-page" className="scroll-mt-20 bg-primary-dark px-6 py-7 text-white">
                   <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">{activePrimary.name} / Secondary domain</p>
                   <div className="mt-2 flex items-end justify-between gap-4"><h3 className="type-h2">{activeSecondary.name}</h3><span className="serif-stat text-4xl text-white/35">{activeSecondary.items.length}</span></div>
-                  <p className="mt-2 text-sm text-white/65">顺序与阿里云官方目录保持一致 · 第 {activePage}/{totalPages} 页 · 每页 {PAGE_SIZE} 项</p>
+                  <p className="mt-2 text-sm text-white/65">顺序与官方目录保持一致 · 第 {activePage}/{totalPages} 页 · 每页 {PAGE_SIZE} 项</p>
                 </header>
                 <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">{pageItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
                 <Pagination page={activePage} totalPages={totalPages} totalItems={activeSecondary.items.length} start={pageStart} onChange={changePage} />
@@ -240,20 +243,21 @@ function SolutionCard({ item }: { item: SolutionItem }) {
   return (
     <article className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]">
       <div className="flex min-h-7 items-start justify-between gap-5">
-        <p className="swiss-kicker text-ink-muted">{item.primary_category} / {item.secondary_category}</p>
+        <p className="swiss-kicker text-ink-muted">{item.vendor} / {item.primary_category} / {item.secondary_category}</p>
         {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? "新增置顶" : "内容更新"}</span>}
       </div>
       <h3 className="mt-3 type-h3 text-ink">{item.title}</h3>
       <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary">{item.summary}</p>
       {item.source_description && <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-muted">{item.source_description}</p>}
+      {item.is_recent && item.change_type === "updated" && item.change_summary && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">{item.change_summary}</p>}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
         <span className="text-[11px] text-ink-muted">{item.is_baseline ? "普通方案" : `最近变化 ${item.last_changed_date}`}</span>
         <div className="flex items-center gap-3">
-          <Link href={{ pathname: "/workbench/requirements/new", query: { source_type: "aliyun_solution", source_id: String(item.id), source_url: item.url, title: item.title } }} className="ui-button-secondary px-3 py-2 text-xs">创建需求</Link>
-          <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看阿里云方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
+          <Link href={`/insight-agent?context_type=cloud_solution&context_id=${item.id}`} className="ui-button-secondary px-3 py-2 text-xs">Agent 分析</Link>
+          <Link href={{ pathname: "/workbench/requirements/new", query: { source_type: "cloud_solution", source_id: String(item.id), source_url: item.url, title: item.title } }} className="ui-button-secondary px-3 py-2 text-xs">创建需求</Link>
+          <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
         </div>
       </div>
-          <Link href={`/insight-agent?context_type=cloud_solution&context_id=${item.id}`} className="ui-button-secondary px-3 py-2 text-xs">Agent 分析</Link>
     </article>
   );
 }

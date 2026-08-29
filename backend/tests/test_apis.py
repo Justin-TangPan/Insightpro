@@ -26,6 +26,7 @@ class TestAPIEndpoints:
         ("POST", "/api/github-trending/refresh"),
         ("POST", "/api/github-trending/business-eval/refresh"),
         ("POST", "/api/solutions/aliyun/refresh"),
+        ("POST", "/api/solutions/catalog/refresh"),
         ("POST", "/api/crawl/trigger"),
         ("DELETE", "/api/reports/missing"),
         ("GET", "/api/email/subscribers"),

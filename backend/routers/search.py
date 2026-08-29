@@ -69,7 +69,7 @@ def _search(query: str, kind: SearchKind, page: int, page_size: int, user_id: Op
             ORDER BY repo_name, scrape_date DESC, id DESC LIMIT 100
         """, "COALESCE(repo_name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(language,'')", tokens)
         results += _search_rows(cursor, """
-            SELECT title, category AS source, url, 'solution' AS type,
+            SELECT title, vendor || ' · ' || category AS source, url, 'solution' AS type,
               COALESCE(summary,'') || ' ' || COALESCE(source_description,'') AS search_text
             FROM aliyun_solutions WHERE is_active=TRUE AND {conditions}
             ORDER BY menu_order LIMIT 100

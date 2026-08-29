@@ -26,14 +26,14 @@ def schedule_jobs(scheduler: BackgroundScheduler):
     """注册所有定时任务"""
     from crawlers import run_daily_crawl
     from services.email_service import send_scheduled_digests
-    from services.aliyun_solution_service import refresh_aliyun_solutions
+    from services.aliyun_solution_service import refresh_solution_catalogs
     from main_legacy import (
         refresh_and_store, refresh_competitor_news,
         evaluate_trending_business, generate_project_summaries, cleanup_old_data,
     )
     jobs = [
         (refresh_and_store, 9, 0, "github_daily"),
-        (refresh_aliyun_solutions, 9, 0, "aliyun_solutions_daily"),
+        (refresh_solution_catalogs, 9, 0, "solution_catalogs_daily"),
         (run_daily_crawl, 9, 0, "daily_crawl"),
         (refresh_competitor_news, 9, 2, "competitor_daily"),
         (evaluate_trending_business, 9, 3, "trending_business_eval_daily"),

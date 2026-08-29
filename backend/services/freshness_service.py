@@ -26,6 +26,18 @@ def has_rows_today(dataset: str) -> bool:
         return bool(cursor.fetchone()["present"])
 
 
+def solution_catalogs_fresh_today() -> bool:
+    """A successful Aliyun run alone must not hide a missing Huawei run."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(DISTINCT vendor) AS count FROM aliyun_solutions WHERE last_seen_date=%s AND vendor IN ('阿里云', '华为云')",
+            (today,),
+        )
+        return cursor.fetchone()["count"] == 2
+
+
 def get_freshness_report() -> dict:
     today = datetime.now().date()
     datasets = []

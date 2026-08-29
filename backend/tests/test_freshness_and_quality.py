@@ -1,7 +1,8 @@
 from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
-from services.aliyun_solution_service import _classify_change, _fallback_summary, _parse_menu_tree
+from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree
+from services.huawei_solution_service import _parse_catalog
 from services.system_health_service import evaluate_readiness
 from deep_searcher_integration import context_to_str
 
@@ -56,6 +57,16 @@ def test_aliyun_baseline_is_ordinary_and_real_new_item_is_recent():
     assert _classify_change(new_item, "2026-08-20") == (True, "new")
 
 
+def test_solution_changes_name_the_changed_content_and_huawei_cards_parse():
+    page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/example.html&quot;,&quot;caption&quot;:&quot;示例方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}'
+    item = _parse_catalog(page)[0]
+    assert item["title"] == "示例方案"
+    assert item["category"] == "AI / 解决方案实践"
+    item["content_snapshot"] = {"title": "示例方案", "category": item["category"], "source_description": "新说明", "detail_text": ""}
+    summary = _change_summary({"source_description": "旧说明"}, item)
+    assert "方案简介：旧说明 → 新说明" in summary
+
+
 def test_heuristic_technical_evaluation_is_displayable():
     result = _heuristic_score_project({
         "repo_name": "example/cloud-agent",
@@ -75,11 +86,18 @@ def test_startup_job_only_runs_when_dataset_is_missing(monkeypatch):
     monkeypatch.setattr(startup_service, "has_rows_today", lambda _: False)
     assert startup_service._run_if_missing("github_trending", "github", lambda: calls.append("run"))
     assert calls == ["run"]
-
     monkeypatch.setattr(startup_service, "has_rows_today", lambda _: True)
     assert not startup_service._run_if_missing("github_trending", "github", lambda: calls.append("again"))
     assert calls == ["run"]
 
+
+def test_solution_catalog_catchup_requires_both_vendors(monkeypatch):
+    calls = []
+    monkeypatch.setattr(startup_service, "solution_catalogs_fresh_today", lambda: False)
+    assert startup_service._run_solution_catalogs_if_stale(lambda: calls.append("refresh"))
+    monkeypatch.setattr(startup_service, "solution_catalogs_fresh_today", lambda: True)
+    assert not startup_service._run_solution_catalogs_if_stale(lambda: calls.append("again"))
+    assert calls == ["refresh"]
 
 def test_readiness_requires_fresh_nonempty_technical_data():
     healthy = evaluate_readiness(

@@ -122,8 +122,32 @@ def _summarize(items: list[dict]) -> dict[str, str]:
 
 
 def _content_hash(item: dict) -> str:
-    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed", "menu_order"}}
+    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed", "menu_order", "vendor", "content_snapshot"}}
     return hashlib.sha256(json.dumps(fingerprint, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+def _change_summary(old: dict, item: dict) -> str:
+    """Return the small, user-facing diff instead of only saying 'updated'."""
+    before = old.get("content_snapshot") or {
+        "title": old.get("title", ""), "category": old.get("category", ""),
+        "source_description": old.get("source_description", ""),
+    }
+    if isinstance(before, str):
+        try:
+            before = json.loads(before)
+        except json.JSONDecodeError:
+            before = {}
+    after = item.get("content_snapshot") or {}
+    labels = (("title", "方案名称"), ("category", "所属分类"), ("source_description", "方案简介"), ("detail_text", "方案正文"))
+    changes = []
+    for field, label in labels:
+        old_value, new_value = _clean(str(before.get(field, ""))), _clean(str(after.get(field, "")))
+        if old_value != new_value:
+            if field == "detail_text":
+                changes.append("方案正文已更新")
+            else:
+                changes.append(f"{label}：{old_value[:80] or '（无）'} → {new_value[:80] or '（无）'}")
+    return "；".join(changes) or "方案页面内容已更新"
 
 
 def _classify_change(item: dict, cutoff: str) -> tuple[bool, str]:
@@ -173,7 +197,7 @@ def refresh_aliyun_solutions() -> dict:
     today = datetime.now().strftime("%Y-%m-%d")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT url, title, source_description, content_hash, summary, is_baseline FROM aliyun_solutions")
+        cursor.execute("SELECT url, title, category, source_description, content_hash, summary, is_baseline, content_snapshot FROM aliyun_solutions WHERE vendor='阿里云'")
         existing = {row["url"]: dict(row) for row in cursor.fetchall()}
         initial_baseline = not existing
         for item in items:
@@ -182,8 +206,21 @@ def refresh_aliyun_solutions() -> dict:
                 item.update(
                     title=old["title"],
                     source_description=old["source_description"],
-                    content_hash=old["content_hash"],
                 )
+                snapshot = old.get("content_snapshot") or {}
+                if isinstance(snapshot, str):
+                    snapshot = json.loads(snapshot)
+                item["vendor"] = "阿里云"
+                item["content_snapshot"] = snapshot
+                item["content_hash"] = old["content_hash"]
+                continue
+            item["vendor"] = "阿里云"
+            item["content_snapshot"] = {
+                "title": item["title"], "category": item["category"],
+                "source_description": item["source_description"],
+                "detail_text": _clean(json.dumps(item.get("detail_data") or {}, ensure_ascii=False)),
+            }
+            item["content_hash"] = _content_hash(item)
         changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]]
         summaries = _summarize(changed)
 
@@ -195,13 +232,13 @@ def refresh_aliyun_solutions() -> dict:
                 cursor.execute(
                     """
                     INSERT INTO aliyun_solutions
-                      (title, url, category, source_description, summary, content_hash,
+                      (title, url, category, source_description, summary, content_hash, vendor, content_snapshot, change_summary,
                        first_seen_date, last_seen_date, last_changed_date, is_active,
                        is_baseline, menu_order, removed_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE, %s, %s, NULL)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s::jsonb, '', %s, %s, %s, TRUE, %s, %s, NULL)
                     """,
                     (item["title"], item["url"], item["category"], item["source_description"],
-                     summaries[item["url"]], item["content_hash"], today, today, today,
+                     summaries[item["url"]], item["content_hash"], item["vendor"], json.dumps(item["content_snapshot"], ensure_ascii=False), today, today, today,
                      initial_baseline, item["menu_order"]),
                 )
             elif old["content_hash"] != item["content_hash"]:
@@ -209,14 +246,14 @@ def refresh_aliyun_solutions() -> dict:
                 cursor.execute(
                     """
                     UPDATE aliyun_solutions
-                    SET title=%s, category=%s, source_description=%s, summary=%s,
+                    SET title=%s, category=%s, source_description=%s, summary=%s, vendor=%s,
                         content_hash=%s, last_seen_date=%s, last_changed_date=%s,
-                        is_active=TRUE, is_baseline=FALSE, menu_order=%s,
+                        content_snapshot=%s::jsonb, change_summary=%s, is_active=TRUE, is_baseline=FALSE, menu_order=%s,
                         removed_at=NULL, updated_at=NOW()
                     WHERE url=%s
                     """,
-                    (item["title"], item["category"], item["source_description"], summaries[item["url"]],
-                     item["content_hash"], today, today, item["menu_order"], item["url"]),
+                    (item["title"], item["category"], item["source_description"], summaries[item["url"]], item["vendor"],
+                     item["content_hash"], today, today, json.dumps(item["content_snapshot"], ensure_ascii=False), _change_summary(old, item), item["menu_order"], item["url"]),
                 )
             else:
                 cursor.execute(
@@ -231,11 +268,26 @@ def refresh_aliyun_solutions() -> dict:
         cursor.execute(
             """UPDATE aliyun_solutions
                SET is_active=FALSE, removed_at=NOW(), updated_at=NOW()
-               WHERE is_active=TRUE AND url <> ALL(%s)""",
+               WHERE is_active=TRUE AND vendor='阿里云' AND url <> ALL(%s)""",
             (current_urls,),
         )
         removed_count = cursor.rowcount
     return {"status": "success", "checked_date": today, "total": len(items), "new": new_count, "updated": changed_count, "removed": removed_count}
+
+
+def refresh_solution_catalogs() -> dict:
+    """Refresh both official catalogues in one scheduled/manual check."""
+    from services.huawei_solution_service import refresh_huawei_solutions
+    aliyun = refresh_aliyun_solutions()
+    huawei = refresh_huawei_solutions()
+    return {
+        "status": "success", "checked_date": aliyun["checked_date"],
+        "total": aliyun["total"] + huawei["total"],
+        "new": aliyun["new"] + huawei["new"],
+        "updated": aliyun["updated"] + huawei["updated"],
+        "removed": aliyun["removed"] + huawei["removed"],
+        "vendors": {"阿里云": aliyun, "华为云": huawei},
+    }
 
 
 def get_aliyun_solutions() -> dict:
@@ -243,12 +295,12 @@ def get_aliyun_solutions() -> dict:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, title, url, category, source_description, summary,
+            SELECT id, title, url, category, source_description, summary, vendor, change_summary,
                    first_seen_date, last_seen_date, last_changed_date,
                    is_baseline, menu_order, updated_at
             FROM aliyun_solutions
             WHERE is_active=TRUE
-            ORDER BY menu_order, title
+            ORDER BY vendor, menu_order, title
             """
         )
         items = [dict(row) for row in cursor.fetchall()]
@@ -282,5 +334,8 @@ def get_aliyun_solutions() -> dict:
         "baseline_count": sum(item["is_baseline"] for item in items),
         "daily_insight": {"date": today, "new": new_today, "updated": updated_today, "removed": removed_today},
         "last_checked": max((item["last_seen_date"] for item in items), default=None),
-        "source": INDEX_URL,
+        "sources": {"阿里云": INDEX_URL, "华为云": "https://www.huaweicloud.com/solution/reference-architecture.html"},
     }
+
+
+get_solution_catalog = get_aliyun_solutions

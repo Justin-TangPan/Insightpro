@@ -150,6 +150,9 @@ def run():
             last_changed_date TEXT NOT NULL,
             is_active BOOLEAN NOT NULL DEFAULT TRUE,
             is_baseline BOOLEAN NOT NULL DEFAULT FALSE,
+            vendor TEXT NOT NULL DEFAULT '阿里云',
+            content_snapshot JSONB,
+            change_summary TEXT NOT NULL DEFAULT '',
             menu_order INTEGER NOT NULL DEFAULT 0,
             removed_at TIMESTAMPTZ,
             created_at TIMESTAMP DEFAULT NOW(),
@@ -161,6 +164,9 @@ def run():
     c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS is_baseline BOOLEAN NOT NULL DEFAULT FALSE")
     c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS menu_order INTEGER NOT NULL DEFAULT 0")
     c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS removed_at TIMESTAMPTZ")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS vendor TEXT NOT NULL DEFAULT '阿里云'")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS content_snapshot JSONB")
+    c.execute("ALTER TABLE aliyun_solutions ADD COLUMN IF NOT EXISTS change_summary TEXT NOT NULL DEFAULT ''")
 
     conn.close()
     print("\nSchema reconciliation complete.")
