@@ -41,6 +41,7 @@ interface SolutionResponse {
 }
 
 const PAGE_SIZE = 12;
+const HUAWEI_CATEGORY_ORDER = ["AI", "数据分析与管理", "应用现代化", "安全与合规", "网络", "运维监控", "云迁移"];
 
 export default function SolutionInsightsPage() {
   const [data, setData] = useState<SolutionResponse | null>(null);
@@ -105,7 +106,11 @@ export default function SolutionInsightsPage() {
         name: secondaryName,
         items,
         order: Math.min(...items.map((item) => item.menu_order)),
-      })).sort((a, b) => a.order - b.order),
+      })).sort((a, b) => {
+        if (activeVendor !== "华为云") return a.order - b.order;
+        const aOrder = HUAWEI_CATEGORY_ORDER.indexOf(a.name), bOrder = HUAWEI_CATEGORY_ORDER.indexOf(b.name);
+        return (aOrder < 0 ? HUAWEI_CATEGORY_ORDER.length : aOrder) - (bOrder < 0 ? HUAWEI_CATEGORY_ORDER.length : bOrder);
+      }),
     })).sort((a, b) => a.order - b.order);
   }, [vendorItems]);
 
