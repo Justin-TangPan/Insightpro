@@ -16,10 +16,8 @@ from services.aliyun_solution_service import _change_summary, _content_hash, _fa
 
 INDEX_URL = "https://www.huaweicloud.com/solution/reference-architecture.html"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; InsightPro/0.4)"}
-CARD_RE = re.compile(
-    r'&quot;cardItem&quot;:\{.*?&quot;label&quot;:&quot;(.*?)&quot;.*?&quot;href&quot;:&quot;(https://www\.huaweicloud\.com/solution/implementations/[^&]+)&quot;.*?&quot;caption&quot;:&quot;(.*?)&quot;.*?&quot;description&quot;:&quot;(.*?)&quot;',
-    re.S,
-)
+CARD_RE = re.compile(r'&quot;cardItem&quot;:\{([^{}]+)\}', re.S)
+FIELD_RE = re.compile(r'&quot;(label|href|caption|description)&quot;:&quot;(.*?)&quot;', re.S)
 CATEGORY_ORDER = ("AI", "数据分析与管理", "应用现代化", "安全与合规", "网络", "运维监控", "云迁移")
 
 
@@ -29,7 +27,12 @@ def _clean(text: str) -> str:
 
 def _parse_catalog(page: str) -> list[dict]:
     items, seen = [], set()
-    for category, url, title, description in CARD_RE.findall(page):
+    for card in CARD_RE.findall(page):
+        fields = dict(FIELD_RE.findall(card))
+        category, url = fields.get("label", ""), fields.get("href", "")
+        title, description = fields.get("caption", ""), fields.get("description", "")
+        if not url.startswith("https://www.huaweicloud.com/solution/implementations/"):
+            continue
         url = html.unescape(url).split("?")[0]
         if url in seen:
             continue

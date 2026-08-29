@@ -32,10 +32,11 @@ def solution_catalogs_fresh_today() -> bool:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(DISTINCT vendor) AS count FROM aliyun_solutions WHERE last_seen_date=%s AND vendor IN ('阿里云', '华为云')",
+            "SELECT COUNT(DISTINCT vendor) AS count, COUNT(*) FILTER (WHERE vendor='华为云' AND category LIKE ' / %%') AS uncategorized FROM aliyun_solutions WHERE last_seen_date=%s AND vendor IN ('阿里云', '华为云')",
             (today,),
         )
-        return cursor.fetchone()["count"] == 2
+        row = cursor.fetchone()
+        return row["count"] == 2 and row["uncategorized"] == 0
 
 
 def get_freshness_report() -> dict:

@@ -313,7 +313,7 @@ def get_aliyun_solutions() -> dict:
     items.sort(key=lambda item: (
         0 if item["is_recent"] and item["change_type"] == "new" else
         1 if item["is_recent"] else 2,
-        item["menu_order"], item["title"],
+        -item["menu_order"] if item["vendor"] == "华为云" else item["menu_order"], item["title"],
     ))
     today = datetime.now().strftime("%Y-%m-%d")
     vendors = ("阿里云", "华为云")
