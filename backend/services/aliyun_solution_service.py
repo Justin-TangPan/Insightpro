@@ -316,23 +316,29 @@ def get_aliyun_solutions() -> dict:
         item["menu_order"], item["title"],
     ))
     today = datetime.now().strftime("%Y-%m-%d")
+    vendors = ("阿里云", "华为云")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(*)::int AS count FROM aliyun_solutions WHERE NOT is_active AND removed_at::date=CURRENT_DATE"
+            "SELECT vendor, COUNT(*)::int AS count FROM aliyun_solutions WHERE NOT is_active AND removed_at::date=CURRENT_DATE GROUP BY vendor"
         )
-        removed_today = cursor.fetchone()["count"]
-    new_today = sum(not item["is_baseline"] and item["first_seen_date"] == today for item in items)
-    updated_today = sum(
-        not item["is_baseline"] and item["last_changed_date"] == today
-        and item["first_seen_date"] != item["last_changed_date"] for item in items
-    )
+        removed_today = {row["vendor"]: row["count"] for row in cursor.fetchall()}
+    daily_insights = {}
+    for vendor in vendors:
+        vendor_items = [item for item in items if item["vendor"] == vendor]
+        new_today = sum(not item["is_baseline"] and item["first_seen_date"] == today for item in vendor_items)
+        updated_today = sum(
+            not item["is_baseline"] and item["last_changed_date"] == today
+            and item["first_seen_date"] != item["last_changed_date"] for item in vendor_items
+        )
+        daily_insights[vendor] = {"date": today, "new": new_today, "updated": updated_today, "removed": removed_today.get(vendor, 0)}
     return {
         "items": items,
         "count": len(items),
         "recent_count": sum(item["is_recent"] for item in items),
         "baseline_count": sum(item["is_baseline"] for item in items),
-        "daily_insight": {"date": today, "new": new_today, "updated": updated_today, "removed": removed_today},
+        "daily_insight": {"date": today, "new": sum(row["new"] for row in daily_insights.values()), "updated": sum(row["updated"] for row in daily_insights.values()), "removed": sum(row["removed"] for row in daily_insights.values())},
+        "daily_insights": daily_insights,
         "last_checked": max((item["last_seen_date"] for item in items), default=None),
         "sources": {"阿里云": INDEX_URL, "华为云": "https://www.huaweicloud.com/solution/reference-architecture.html"},
     }

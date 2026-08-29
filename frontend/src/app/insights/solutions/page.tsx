@@ -35,6 +35,7 @@ interface SolutionResponse {
   recent_count: number;
   baseline_count: number;
   daily_insight: { date: string; new: number; updated: number; removed: number };
+  daily_insights: Record<string, { date: string; new: number; updated: number; removed: number }>;
   last_checked: string | null;
   sources: Record<string, string>;
 }
@@ -48,6 +49,7 @@ export default function SolutionInsightsPage() {
   const [error, setError] = useState("");
   const [selectedPrimary, setSelectedPrimary] = useState("");
   const [selectedSecondary, setSelectedSecondary] = useState("");
+  const [selectedVendor, setSelectedVendor] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const load = useCallback(async () => {
@@ -80,14 +82,20 @@ export default function SolutionInsightsPage() {
     }
   };
 
+  const vendors = useMemo(() => Array.from(new Set((data?.items || []).map((item) => item.vendor))), [data]);
+  const activeVendor = vendors.includes(selectedVendor) ? selectedVendor : vendors[0];
+  const vendorItems = (data?.items || []).filter((item) => item.vendor === activeVendor);
+  const dailyInsight = data?.daily_insights?.[activeVendor] || data?.daily_insight;
+
   const directory = useMemo(() => {
     const primaryMap = new Map<string, Map<string, SolutionItem[]>>();
-    for (const item of data?.items || []) {
-      const primary = `${item.vendor} · ${item.primary_category}`;
+    for (const item of vendorItems) {
+      const primary = item.vendor === "华为云" ? "解决方案实践" : item.primary_category;
+      const secondary = item.vendor === "华为云" ? item.primary_category : item.secondary_category;
       if (!primaryMap.has(primary)) primaryMap.set(primary, new Map());
       const secondaryMap = primaryMap.get(primary)!;
-      if (!secondaryMap.has(item.secondary_category)) secondaryMap.set(item.secondary_category, []);
-      secondaryMap.get(item.secondary_category)!.push(item);
+      if (!secondaryMap.has(secondary)) secondaryMap.set(secondary, []);
+      secondaryMap.get(secondary)!.push(item);
     }
     return Array.from(primaryMap, ([name, secondaryMap]) => ({
       name,
@@ -99,11 +107,11 @@ export default function SolutionInsightsPage() {
         order: Math.min(...items.map((item) => item.menu_order)),
       })).sort((a, b) => a.order - b.order),
     })).sort((a, b) => a.order - b.order);
-  }, [data]);
+  }, [vendorItems]);
 
   const activePrimary = directory.find((group) => group.name === selectedPrimary) || directory[0];
   const activeSecondary = activePrimary?.secondary.find((group) => group.name === selectedSecondary) || activePrimary?.secondary[0];
-  const newItems = (data?.items || []).filter((item) => item.is_recent && item.change_type === "new");
+  const newItems = vendorItems.filter((item) => item.is_recent && item.change_type === "new");
   const totalPages = Math.max(1, Math.ceil((activeSecondary?.items.length || 0) / PAGE_SIZE));
   const activePage = Math.min(currentPage, totalPages);
   const pageStart = (activePage - 1) * PAGE_SIZE;
@@ -117,6 +125,13 @@ export default function SolutionInsightsPage() {
 
   const selectSecondary = (name: string) => {
     setSelectedSecondary(name);
+    setCurrentPage(1);
+  };
+
+  const selectVendor = (vendor: string) => {
+    setSelectedVendor(vendor);
+    setSelectedPrimary("");
+    setSelectedSecondary("");
     setCurrentPage(1);
   };
 
@@ -144,10 +159,10 @@ export default function SolutionInsightsPage() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="今日目录变化">
         {[
-          { label: "官方方案", value: data?.count ?? 0, unit: "项" },
-          { label: "今日新增", value: data?.daily_insight?.new ?? 0, unit: "项", warning: true },
-          { label: "今日更新", value: data?.daily_insight?.updated ?? 0, unit: "项" },
-          { label: "今日下线", value: data?.daily_insight?.removed ?? 0, unit: "项" },
+          { label: "官方方案", value: vendorItems.length, unit: "项" },
+          { label: "今日新增", value: dailyInsight?.new ?? 0, unit: "项", warning: true },
+          { label: "今日更新", value: dailyInsight?.updated ?? 0, unit: "项" },
+          { label: "今日下线", value: dailyInsight?.removed ?? 0, unit: "项" },
         ].map((stat) => (
           <div key={stat.label} className="ui-card flex min-h-36 flex-col justify-end">
             <p className="swiss-kicker text-ink-muted">{stat.label}</p>
@@ -156,8 +171,12 @@ export default function SolutionInsightsPage() {
         ))}
       </section>
 
+      <nav className="flex gap-2" aria-label="云厂商目录">
+        {vendors.map((vendor) => <button key={vendor} type="button" onClick={() => selectVendor(vendor)} aria-current={vendor === activeVendor ? "page" : undefined} className={`ui-button-secondary ${vendor === activeVendor ? "bg-primary text-white hover:bg-primary-dark" : ""}`}>{vendor}</button>)}
+      </nav>
+
       <div className="rounded-xl bg-surface-subtle px-5 py-4 text-sm leading-6 text-ink-secondary">
-        当前 {data?.baseline_count ?? 0} 项存量方案已设为普通基线。此后每日按 URL 和内容指纹与上一版比较；更新卡片会列出名称、分类、简介或正文的具体变化。
+        当前查看 {activeVendor || "—"}。存量方案已设为普通基线；后续更新会列出名称、分类、简介或正文的具体变化。
       </div>
 
       {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}。系统仍会在每天 09:00 自动检查。</div>}
@@ -243,7 +262,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
   return (
     <article className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]">
       <div className="flex min-h-7 items-start justify-between gap-5">
-        <p className="swiss-kicker text-ink-muted">{item.vendor} / {item.primary_category} / {item.secondary_category}</p>
+        <p className="swiss-kicker text-ink-muted">{item.vendor} / {item.vendor === "华为云" ? item.primary_category : `${item.primary_category} / ${item.secondary_category}`}</p>
         {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? "新增置顶" : "内容更新"}</span>}
       </div>
       <h3 className="mt-3 type-h3 text-ink">{item.title}</h3>
