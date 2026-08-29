@@ -58,7 +58,7 @@ def test_aliyun_baseline_is_ordinary_and_real_new_item_is_recent():
 
 
 def test_solution_changes_name_the_changed_content_and_huawei_cards_parse():
-    page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/example.html&quot;,&quot;caption&quot;:&quot;示例方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}'
+    page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;云迁移&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/migration.html&quot;,&quot;caption&quot;:&quot;迁移方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}&quot;cardItem&quot;:{&quot;label&quot;:&quot;AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/example.html&quot;,&quot;caption&quot;:&quot;示例方案&quot;,&quot;description&quot;:&quot;&lt;p&gt;旧说明&lt;/p&gt;&quot;}'
     item = _parse_catalog(page)[0]
     assert item["title"] == "示例方案"
     assert item["category"] == "AI / 解决方案实践"

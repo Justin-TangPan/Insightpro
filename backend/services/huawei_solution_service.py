@@ -20,6 +20,7 @@ CARD_RE = re.compile(
     r'&quot;cardItem&quot;:\{.*?&quot;label&quot;:&quot;(.*?)&quot;.*?&quot;href&quot;:&quot;(https://www\.huaweicloud\.com/solution/implementations/[^&]+)&quot;.*?&quot;caption&quot;:&quot;(.*?)&quot;.*?&quot;description&quot;:&quot;(.*?)&quot;',
     re.S,
 )
+CATEGORY_ORDER = ("AI", "数据分析与管理", "应用现代化", "安全与合规", "网络", "运维监控", "云迁移")
 
 
 def _clean(text: str) -> str:
@@ -41,6 +42,10 @@ def _parse_catalog(page: str) -> list[dict]:
         })
     if not items:
         raise ValueError("华为云解决方案目录没有可访问条目")
+    order = {category: index for index, category in enumerate(CATEGORY_ORDER)}
+    items.sort(key=lambda item: (order.get(item["category"].split(" / ")[0], len(order)), item["menu_order"]))
+    for index, item in enumerate(items):
+        item["menu_order"] = index
     return items
 
 
