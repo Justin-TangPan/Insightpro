@@ -26,3 +26,11 @@ def test_confirm_requirement_action_creates_draft_from_snapshot(monkeypatch):
     assert result["status"] == "draft"
     assert created[0][1]["source_type"] == "github_project"
     assert created[0][1]["source_id"] == "dify"
+
+
+def test_chat_messages_only_accept_server_owned_context(monkeypatch):
+    monkeypatch.setattr(agent_service, "get_session", lambda *_: {"context_type": "cloud_solution", "context_snapshot": {"title": "方案 A"}, "conversation": [{"role": "assistant", "content": "前文"}]})
+    messages = agent_service.chat_messages("user-1", "分析它", "session-1")
+    assert messages[0]["role"] == "system"
+    assert "方案 A" in messages[0]["content"]
+    assert messages[-1] == {"role": "user", "content": "分析它"}

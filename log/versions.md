@@ -1,5 +1,25 @@
 # 版本日志
 
+## [0.6.2] - 2026-08-31
+
+### Insight-Agent 子系统
+- Insight-Agent 会话改为按用户持久化：支持新建、恢复、切换和删除最近会话；消息仅在流式回答完整结束后写入服务器端会话。
+- 历史消息与 Context Snapshot 都由服务端按 `user_id` 读取，浏览器不再提交会话历史或系统提示词。
+
+## [0.6.1] - 2026-08-31
+
+### 文档与命名校准
+- 将正式外部方案目录统一为阿里云/华为云多云目录；`/api/solutions/catalog` 为正式 API，`/api/solutions/aliyun` 仅保留兼容。
+- 补齐 `aliyun_solutions`（历史表名）的 `vendor`、`content_snapshot`、`change_summary` 契约及 Prisma 镜像，修正 public 表计数、运维镜像版本、调度说明和 Agent 项目上下文。
+- 将 Insight-Agent 专属规则保留在 `deploy/hermes/AGENTS.override.md`，移除根目录误放的规则与前端的无效引用；邮件和兼容 Chat 文案改为多云目录。
+
+### Insight-Agent 原生对话
+- 用站内原生流式对话页面替换 Hermes Dashboard iframe；点击洞察页“Agent 分析”会创建受权限保护的 Context Session，并自动发送首条分析请求。
+- 新增登录态保护的 `POST /api/agent/chat/stream`；仅由服务端将当前用户的 Context Snapshot 注入模型提示词，客户端不能提交系统提示词或其他用户的 Session。
+
+### 验证
+- 静态核对 Compose、FastAPI 路由、运行时 schema、Prisma schema 与文档；未运行需要外部服务的部署或健康检查。
+
 ## [0.6.0] - 2026-08-29
 
 ### Context Bridge

@@ -1,6 +1,6 @@
 # InsightPro 数据库契约
 
-**基线日期**：2026-08-25
+**基线日期**：2026-08-31
 
 **状态**：已与当前 PostgreSQL、后端 SQL 和 Prisma schema 对齐
 
@@ -22,14 +22,14 @@
 |---|---|---|
 | `github_trending` | GitHub Trending 快照 | `scrape_date + category + repo_name` |
 | `trending_business_eval` | 项目用途摘要与价值评估 | `scrape_date + repo_name` |
-| `aliyun_solutions` | 阿里云方案目录及变化状态 | `url` |
+| `aliyun_solutions` | 外部云厂商方案目录及变化状态（历史表名） | `url` |
 | `requirements` | 用户管理的技术需求 | 自增 `id`，按 `user_id` 隔离 |
 | `solutions` | 用户管理的自有技术方案 | 自增 `id`，按 `user_id` 隔离 |
 | `requirement_solutions` | Requirement 与 Solution 多对多关联 | `requirement_id + solution_id` |
 | `opencode_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
 | `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
 | `agent_audit_events` | AI Space 管理操作审计 | 自增 `id` |
-| `agent_sessions` | 绑定对象的 Agent Context 快照 | UUID `id`，按 `user_id` 隔离 |
+| `agent_sessions` | Insight-Agent 对话、上下文快照与持久消息 | UUID `id`，按 `user_id` 隔离 |
 | `agent_actions` | 用户确认前的 Agent Draft Action | UUID `id`，按 `user_id` 隔离 |
 | `cloud_vendor_news` | 云厂商官网动态 | `crawl_date + vendor + title` |
 | `competitor_news` | 友商动态摘要 | `scrape_date + vendor + title` |
@@ -76,7 +76,7 @@
 | 字段 | 类型 | 空值 | 说明 |
 |---|---|---|---|
 | `id` | serial | 否 | 主键 |
-| `title`、`url`、`category` | text | 否 | 方案标题、唯一链接和官方一级/二级分类路径 |
+| `title`、`url`、`category` | text | 否 | 方案标题、唯一链接和官方分类路径 |
 | `source_description` | text | 是 | 官方描述 |
 | `summary` | text | 否 | 20–30 字方案价值简介 |
 | `content_hash` | text | 否 | 变化检测指纹 |
@@ -85,7 +85,10 @@
 | `last_changed_date` | text | 否 | 最近内容变化日期 |
 | `is_active` | boolean | 否 | 当前是否仍在官方目录 |
 | `is_baseline` | boolean | 否 | 初始存量基线；基线方案不参与新增置顶 |
-| `menu_order` | integer | 否 | 阿里云官方目录顺序 |
+| `vendor` | text | 否 | 来源云厂商，当前为 `阿里云` 或 `华为云` |
+| `content_snapshot` | jsonb | 是 | 最近一次用于生成变更说明的内容快照 |
+| `change_summary` | text | 否 | 相比上一版的面向用户的变更说明；首次入库为空 |
+| `menu_order` | integer | 否 | 厂商官方目录顺序 |
 | `removed_at` | timestamptz | 是 | 最近从官方目录下线的时间 |
 | `created_at`、`updated_at` | timestamp | 否 | 创建与更新时间 |
 
@@ -134,7 +137,7 @@
 
 ### `agent_sessions` / `agent_actions`
 
-`agent_sessions` 以 `context_type`、`context_id` 和受限 `context_snapshot jsonb` 记录一次对象分析；快照是历史会话的事实来源，不复制原始大全文。`agent_actions` 保存 Agent 提出的结构化 Draft、确认状态和最终业务对象结果。两表均以 `user_id` 作为 FastAPI Repository 的隔离条件；Hermes 不连接数据库，只能由 Backend 将已授权 Session Snapshot 同步到隔离 Workspace。确认前不会写入 `requirements` 或 `solutions`。
+`agent_sessions` 记录原生 Insight-Agent 对话。关联洞察时以 `context_type`、`context_id` 和受限 `context_snapshot jsonb` 保存事实快照；自由对话使用 `chat` 类型且不带业务对象。`title` 为会话名称，`conversation jsonb` 保存用户与 Agent 的消息；两者均只按 `user_id` 读取、写入和删除。`agent_actions` 保存 Agent 提出的结构化 Draft、确认状态和最终业务对象结果。确认前不会写入 `requirements` 或 `solutions`。
 
 ### `cloud_vendor_news`
 

@@ -1,19 +1,18 @@
 # Insight-Agent
 
-Insight-Agent 是 InsightPro 内置的 AI 智能工作区，底层运行固定版本 Hermes Agent 原生 Dashboard 和 Agent 能力，不使用宿主机 Hermes，也不修改 Hermes Agent Core。
+Insight-Agent 是 InsightPro 内置的 AI 智能工作区。默认入口是站内原生流式对话界面；Hermes 保留为隔离 Workspace Runtime，不使用宿主机 Hermes，也不修改 Hermes Agent Core。
 
 ## 当前能力
 
-- 在 InsightPro Sidebar 中打开完整工作区。
-- 在普通页面使用可拖动、缩放、最小化和最大化的浮窗。
-- 浮窗和完整工作区复用同一个浏览器 iframe 与 Hermes Session。
-- 使用 InsightPro Supabase 身份单点进入，不提供第二套用户密码。
+- 在 InsightPro Sidebar 或右下角打开原生对话工作区。
+- 使用 InsightPro Supabase 身份；前端经受认证的流式 API 与 Agent 交互，不提供第二套用户密码。
+- 从洞察页点击“Agent 分析”会创建 Context Session，并自动发送首条分析请求。
 - 每位用户自动进入以稳定 `user_id` 标识的独立 Workspace；界面可显示姓名或邮箱，文件和 Session 不以邮箱作为主键。
 - 普通用户可读写自己的 Workspace、只读公共知识库；管理员可进入并维护全部 AI 空间及公共知识库。
 - Admin 可查看 Runtime、Workspace、最近使用时间、磁盘占用与基础用量；成员管理、禁用和恢复均以 InsightPro 的 `user_id` 为准。
 - 生成解释、方案、代码草稿和 Patch；修改不会直接进入生产仓库。
 
-支持 Backend 生成的 Context Bridge：GitHub Project、Cloud Solution、Vendor Update、Requirement、Solution 以受限 Session Snapshot 同步到隔离 Workspace。Agent 不连接数据库、不持有业务 API 凭据。
+支持 Backend 生成的 Context Bridge：GitHub Project、Cloud Solution、Vendor Update、Requirement、Solution 以受限 Session Snapshot 注入原生对话；Agent 不连接数据库、不持有业务 API 凭据。
 
 Agent 可提出 Requirement/Solution Draft Action；用户必须在 InsightPro 中读取并确认，Backend 校验权限与 Schema 后才会创建 Draft。仍不支持生产源码/数据库写入、Shell/Git 操作或部署。
 

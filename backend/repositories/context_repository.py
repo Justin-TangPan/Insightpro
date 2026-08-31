@@ -55,9 +55,9 @@ def create_agent_session(session_id: str, user_id: str, context: dict) -> dict:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot)
-               VALUES (%s,%s,%s,%s,%s,%s::jsonb) RETURNING *""",
-            (session_id, user_id, context["context_type"], context["context_id"], context["title"], __import__("json").dumps(context)),
+            """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot, title)
+               VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s) RETURNING *""",
+            (session_id, user_id, context["context_type"], context["context_id"], context["title"], __import__("json").dumps(context), context["title"]),
         )
         return dict(cursor.fetchone())
 
@@ -68,6 +68,44 @@ def get_agent_session(user_id: str, session_id: str) -> dict | None:
         cursor.execute("SELECT * FROM agent_sessions WHERE id=%s AND user_id=%s", (session_id, user_id))
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def create_chat_session(session_id: str, user_id: str) -> dict:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot)
+               VALUES (%s,%s,'chat',%s,'', '{}'::jsonb) RETURNING *""",
+            (session_id, user_id, session_id),
+        )
+        return dict(cursor.fetchone())
+
+
+def list_agent_sessions(user_id: str) -> list[dict]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id::text, title, context_type, context_title, updated_at FROM agent_sessions WHERE user_id=%s ORDER BY updated_at DESC LIMIT 30", (user_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def delete_agent_session(user_id: str, session_id: str) -> bool:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM agent_sessions WHERE id=%s AND user_id=%s", (session_id, user_id))
+        return cursor.rowcount == 1
+
+
+def append_conversation(user_id: str, session_id: str, user_message: str, assistant_message: str) -> None:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        title = user_message.strip().replace("\n", " ")[:40] or "新对话"
+        cursor.execute(
+            """UPDATE agent_sessions
+               SET conversation=conversation || %s::jsonb,
+                   title=CASE WHEN title='新对话' THEN %s ELSE title END, updated_at=NOW()
+               WHERE id=%s AND user_id=%s""",
+            (__import__("json").dumps([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_message}]), title, session_id, user_id),
+        )
 
 
 def create_agent_action(action_id: str, session_id: str, user_id: str, action: str, payload: dict) -> dict:

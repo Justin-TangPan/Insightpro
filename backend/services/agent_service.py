@@ -8,9 +8,37 @@ from repositories import context_repository as repository
 from services import context_service, workbench_service
 
 
+def chat_messages(user_id: str, message: str, session_id: str) -> list[dict]:
+    """Build the small, server-owned prompt for the native Insight-Agent chat."""
+    session = get_session(user_id, session_id)
+    context = session["context_snapshot"] if session["context_type"] != "chat" else None
+    system = "你是 InsightPro 的 Insight-Agent。用中文给出清晰、可执行的技术分析；不要编造未提供的事实。"
+    if context:
+        system += f"\n\n当前已授权业务上下文：\n{__import__('json').dumps(context, ensure_ascii=False)}"
+    history = session.get("conversation") or []
+    return [{"role": "system", "content": system}, *history[-12:], {"role": "user", "content": message}]
+
+
 def create_session(user_id: str, context_type: str, context_id: str) -> dict:
     context = context_service.get_context(user_id, context_type, context_id)
     return repository.create_agent_session(str(uuid4()), user_id, context)
+
+
+def create_chat_session(user_id: str) -> dict:
+    return repository.create_chat_session(str(uuid4()), user_id)
+
+
+def list_sessions(user_id: str) -> list[dict]:
+    return repository.list_agent_sessions(user_id)
+
+
+def delete_session(user_id: str, session_id: str) -> None:
+    if not repository.delete_agent_session(user_id, session_id):
+        raise HTTPException(status_code=404, detail="Agent Session 不存在")
+
+
+def record_turn(user_id: str, session_id: str, message: str, reply: str) -> None:
+    repository.append_conversation(user_id, session_id, message, reply)
 
 
 def get_session(user_id: str, session_id: str) -> dict:

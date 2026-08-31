@@ -12,7 +12,7 @@ class TestAPIEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
-        assert resp.json()["version"] == "0.6.0"
+        assert resp.json()["version"] == "0.6.2"
 
     def test_lan_frontend_origin_is_allowed(self):
         resp = client.get(
@@ -42,6 +42,7 @@ class TestAPIEndpoints:
         ("POST", "/api/workbench/solutions"),
         ("POST", "/api/auth/opencode/ticket"),
         ("POST", "/api/auth/opencode/revoke"),
+        ("POST", "/api/agent/chat/stream"),
     ])
     def test_sensitive_endpoints_require_auth(self, method, path):
         response = client.request(method, path)

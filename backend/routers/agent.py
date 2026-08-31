@@ -6,6 +6,7 @@ import hmac
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from routers.auth import require_auth
@@ -20,6 +21,16 @@ ActionType = Literal["create_requirement_draft", "create_solution_draft", "appen
 class SessionCreate(BaseModel):
     context_type: ContextType
     context_id: str = Field(min_length=1, max_length=200)
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=8000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=8000)
+    session_id: str = Field(min_length=1, max_length=64)
 
 
 class ActionCreate(BaseModel):
@@ -67,6 +78,43 @@ async def create_session(payload: SessionCreate, user=Depends(require_auth)):
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str, user=Depends(require_auth)):
     return await asyncio.to_thread(agent_service.get_session, str(user.id), session_id)
+
+
+@router.get("/chat/sessions")
+async def list_chat_sessions(user=Depends(require_auth)):
+    return {"items": await asyncio.to_thread(agent_service.list_sessions, str(user.id))}
+
+
+@router.post("/chat/sessions", status_code=201)
+async def create_chat_session(user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.create_chat_session, str(user.id))
+
+
+@router.delete("/chat/sessions/{session_id}", status_code=204)
+async def delete_chat_session(session_id: str, user=Depends(require_auth)):
+    await asyncio.to_thread(agent_service.delete_session, str(user.id), session_id)
+
+
+@router.post("/chat/stream")
+async def chat_stream(payload: ChatRequest, user=Depends(require_auth)):
+    from services import ai_service
+
+    if not settings.CHAT_API_KEY:
+        raise HTTPException(status_code=503, detail="Insight-Agent 模型未配置")
+    messages = await asyncio.to_thread(agent_service.chat_messages, str(user.id), payload.message, payload.session_id)
+
+    async def stream():
+        reply = []
+        async for line in ai_service.chat_complete_stream(messages):
+            if line.startswith("data: ") and line.strip() != "data: [DONE]":
+                try:
+                    reply.append(__import__("json").loads(line[6:])["choices"][0]["delta"].get("content", ""))
+                except (KeyError, ValueError, IndexError):
+                    pass
+            yield line
+        await asyncio.to_thread(agent_service.record_turn, str(user.id), payload.session_id, payload.message, "".join(reply))
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 @router.post("/sessions/{session_id}/actions", status_code=201)

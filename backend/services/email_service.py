@@ -114,7 +114,7 @@ def build_daily_digest_html() -> str:
             solution_new = solution_changes["new_count"]
             solution_updated = solution_changes["updated_count"]
             c.execute(
-                """SELECT title, url, category, summary, first_seen_date, last_changed_date
+                """SELECT title, url, category, summary, vendor, first_seen_date, last_changed_date
                    FROM aliyun_solutions
                    WHERE is_active=TRUE AND NOT is_baseline AND last_changed_date=%s
                    ORDER BY CASE WHEN first_seen_date=%s THEN 0 ELSE 1 END, menu_order, id LIMIT 8""",
@@ -132,13 +132,13 @@ def build_daily_digest_html() -> str:
     PRIMARY = "#3F8062"
     SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
 
-    # ── 阿里云官方解决方案变化 ──
+    # ── 云厂商官方解决方案变化 ──
     solution_cards = ""
     for item in solution_items:
         is_new = item.get("first_seen_date") == today
         badge = "新增" if is_new else "更新"
         primary, _, secondary = (item.get("category") or "未分类").partition(" / ")
-        category = f"{primary} · {secondary}" if secondary else primary
+        category = f"{item.get('vendor', '云厂商')} · {primary} · {secondary}" if secondary else f"{item.get('vendor', '云厂商')} · {primary}"
         solution_cards += f"""\
           <tr>
             <td style="padding:13px 16px;border-bottom:1px solid {GRID};">
@@ -262,7 +262,7 @@ def build_daily_digest_html() -> str:
         <tr>
           <td style="padding:28px 40px 0;" class="email-pad">
             <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">Solution Updates</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">阿里云官方解决方案变化</span>
+            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">云厂商官方解决方案变化</span>
             <span style="display:block;font-size:11px;color:{MUTED};margin-top:5px;">每日对比官方目录，仅标记当天真实新增与更新</span>
           </td>
         </tr>

@@ -1,8 +1,8 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v0.6.0`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v0.6.2`
 
-[![Version](https://img.shields.io/badge/version-0.6.0-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-0.6.2-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
@@ -20,7 +20,7 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队：
 Insight → Requirement → Solution
 ```
 
-`v0.6.0` 将 Insight-Agent 从独立工作区接入核心业务：对象 Context 由 Backend 规范化并以 Session Snapshot 传递，Agent 仅能提出待确认的 Draft Action；InsightPro 仍是唯一账号与业务系统和写入边界。
+`v0.6.2` 将 Insight-Agent 完善为带持久会话、上下文感知推荐和 Markdown 回复的站内原生对话子系统；InsightPro 仍是唯一账号与业务系统和写入边界。
 
 ## 产品预览
 
@@ -38,9 +38,9 @@ Insight → Requirement → Solution
 
 跟踪 GitHub Trending 日榜、周榜和月榜，提供历史变化、项目用途速读和技术价值评估。热点项目可以一键暂存为 Requirement。
 
-### 解决方案洞察
+### 云厂商解决方案洞察
 
-同步官方技术解决方案一级、二级目录，每日识别新增、更新和下线变化，并保留原始来源。
+同步阿里云、华为云官方技术解决方案目录，每日识别新增、更新和下线变化，并保留原始来源。
 
 ### Workbench
 
@@ -48,7 +48,7 @@ Insight → Requirement → Solution
 
 ### Insight-Agent
 
-InsightPro 内置的 AI 智能工作区。GitHub Project、Cloud Solution、Requirement 与 Solution 可以直接“使用 Agent 分析”；Backend 生成已授权的对象快照，Agent 可生成待用户确认的 Requirement/Solution Draft。每位成员仍有独立 Workspace、Session 和 Runtime，不具备生产目录、数据库、密钥、Docker 或部署权限。
+InsightPro 内置的 AI 智能工作区。GitHub Project、Cloud Solution、Requirement 与 Solution 可以直接“使用 Agent 分析”；Backend 生成已授权的对象快照，并自动发起流式分析。原生聊天界面不持有数据库或模型密钥。
 
 ## 快速启动
 

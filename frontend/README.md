@@ -23,13 +23,12 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 | 路径 | 内容 |
 |---|---|
 | `src/app/` | 页面、根布局和全局样式 |
-| `src/components/` | 侧边栏、搜索、聊天助手和通用 UI |
+| `src/components/` | 侧边栏、搜索、Insight-Agent Shell 和通用 UI |
 | `src/lib/` | API、认证、Workbench 数据契约和 Supabase 客户端 |
-| `public/chat.js` | 全局聊天助手运行脚本与快捷问题 |
 | `prisma/schema.prisma` | 后端 public 表的数据契约镜像 |
 | `next.config.ts` | standalone 输出和 `/api` 同源代理 |
 
-全局聊天助手由 `src/app/layout.tsx` 挂载，生产环境地址来自 `window.__CHAT_API_URL__`。导航或核心能力变更时，应同步更新 `public/chat.js` 和后端 `routers/chat.py` 的知识说明。
+交互式 AI 入口由 `src/app/layout.tsx` 挂载的 `InsightAgentShell` 提供。`public/chat.js` 与 `/api/chat` 是未挂载的兼容实现，不构成产品入口。
 
 ## 质量门禁
 

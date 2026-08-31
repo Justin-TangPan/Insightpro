@@ -154,10 +154,13 @@ def ensure_runtime_schema() -> None:
             CREATE TABLE IF NOT EXISTS agent_sessions (
                 id UUID PRIMARY KEY, user_id UUID NOT NULL, context_type TEXT NOT NULL,
                 context_id TEXT NOT NULL, context_title TEXT NOT NULL,
-                context_snapshot JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                context_snapshot JSONB NOT NULL, title TEXT NOT NULL DEFAULT '新对话',
+                conversation JSONB NOT NULL DEFAULT '[]'::jsonb, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '新对话'")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS conversation JSONB NOT NULL DEFAULT '[]'::jsonb")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sessions_user_updated ON agent_sessions(user_id, updated_at DESC)")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agent_actions (

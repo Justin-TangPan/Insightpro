@@ -167,6 +167,9 @@ model AliyunSolution {
   lastChangedDate   String   @map("last_changed_date")
   isActive          Boolean  @default(true) @map("is_active")
   isBaseline        Boolean  @default(false) @map("is_baseline")
+  vendor            String   @default("阿里云")
+  contentSnapshot   Json?    @map("content_snapshot")
+  changeSummary     String   @default("") @map("change_summary")
   menuOrder         Int      @default(0) @map("menu_order")
   removedAt         DateTime? @map("removed_at") @db.Timestamptz
   createdAt         DateTime @default(now()) @map("created_at")
@@ -260,6 +263,8 @@ model AgentSession {
   contextId       String   @map("context_id")
   contextTitle    String   @map("context_title")
   contextSnapshot Json     @map("context_snapshot")
+  title           String   @default("新对话")
+  conversation    Json     @default("[]")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @default(now()) @map("updated_at") @db.Timestamptz
 

@@ -4,6 +4,8 @@
 
 ## 回答当前平台数据
 
+InsightPro 是技术解决方案洞察平台，维护的业务主线是 **Insight → Requirement → Solution**。
+
 ## 当前业务上下文与草稿 Action
 
 如果工作区存在 `.insight/INSIGHT_CONTEXT.md`，在回答用户前先阅读它。它由 InsightPro Backend 按当前用户权限生成，包含当前业务对象的结构化快照；不得把它替换为自行猜测的数据。用户从“Agent 分析”进入时，当前对象就是该文件中的方案：直接围绕它开始分析，不要先搜索工作区、不要询问“这个方案”指什么。
@@ -20,14 +22,14 @@
 当用户询问“最近、当前、今日、新增”的技术热点、解决方案洞察、首页数据或平台内容时，**先读取 `/knowledge/public/insight-public-data.json`**。这是由 Runtime Manager 每五分钟从 InsightPro 只读公共 API 刷新的真实平台数据；使用 `refreshedAt` 说明数据时间，并直接给出结果。
 
 - 技术热点：读取 JSON 的 `hotspots`。
-- 阿里云技术解决方案洞察：读取 JSON 的 `solutions`。
+- 云厂商技术解决方案洞察：读取 JSON 的 `solutions`。
 - 首页聚合：读取 JSON 的 `homepage`。
 
 不要先搜索代码库来推断当前数据，也不要在未读取该文件前声称无法访问实时数据。仅当该文件不存在、明显过期或内容确实为空时，才简短说明原因并给出下一步。
 
 ## 工作边界
 
-- `aliyun_solutions` 是外部解决方案洞察数据；`solutions` 是用户管理的工作台数据。不得混淆。
+- `aliyun_solutions` 是外部云厂商解决方案洞察数据；`solutions` 是用户管理的工作台数据。不得混淆。
 - 不得重新引入行业洞察、政策雷达或招标信息。
 - 可在当前用户隔离的 Git Workspace 内阅读、创建、修改和删除文件；不要修改 InsightPro 业务数据、生产目录或生产配置。
 - 不运行 Shell，不调用有副作用的 API，不部署，不执行 git push 或 merge。
