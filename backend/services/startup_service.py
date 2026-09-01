@@ -111,7 +111,7 @@ def ensure_runtime_schema() -> None:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_requirement_solutions_solution ON requirement_solutions(solution_id)")
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS opencode_sso_tickets (
+            CREATE TABLE IF NOT EXISTS agent_sso_tickets (
                 token_hash TEXT PRIMARY KEY,
                 user_id UUID NOT NULL,
                 target_user_id UUID,
@@ -121,10 +121,10 @@ def ensure_runtime_schema() -> None:
             )
             """
         )
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_tickets_expiry ON opencode_sso_tickets(expires_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sso_tickets_expiry ON agent_sso_tickets(expires_at)")
         cursor.execute(
             """
-            CREATE TABLE IF NOT EXISTS opencode_sso_sessions (
+            CREATE TABLE IF NOT EXISTS agent_sso_sessions (
                 token_hash TEXT PRIMARY KEY,
                 user_id UUID NOT NULL,
                 agent_user_id UUID NOT NULL,
@@ -137,17 +137,17 @@ def ensure_runtime_schema() -> None:
             )
             """
         )
-        cursor.execute("ALTER TABLE opencode_sso_tickets ADD COLUMN IF NOT EXISTS target_user_id UUID")
-        cursor.execute("ALTER TABLE opencode_sso_tickets ADD COLUMN IF NOT EXISTS agent_session_id UUID")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_user_id UUID")
-        cursor.execute("UPDATE opencode_sso_sessions SET agent_user_id=user_id WHERE agent_user_id IS NULL")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ALTER COLUMN agent_user_id SET NOT NULL")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS auth_role TEXT NOT NULL DEFAULT 'user'")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_role TEXT NOT NULL DEFAULT 'user'")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ADD COLUMN IF NOT EXISTS agent_session_id UUID")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_user ON opencode_sso_sessions(user_id, expires_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_opencode_sso_sessions_agent_user ON opencode_sso_sessions(agent_user_id, expires_at)")
+        cursor.execute("ALTER TABLE agent_sso_tickets ADD COLUMN IF NOT EXISTS target_user_id UUID")
+        cursor.execute("ALTER TABLE agent_sso_tickets ADD COLUMN IF NOT EXISTS agent_session_id UUID")
+        cursor.execute("ALTER TABLE agent_sso_sessions ADD COLUMN IF NOT EXISTS agent_user_id UUID")
+        cursor.execute("UPDATE agent_sso_sessions SET agent_user_id=user_id WHERE agent_user_id IS NULL")
+        cursor.execute("ALTER TABLE agent_sso_sessions ALTER COLUMN agent_user_id SET NOT NULL")
+        cursor.execute("ALTER TABLE agent_sso_sessions ADD COLUMN IF NOT EXISTS auth_role TEXT NOT NULL DEFAULT 'user'")
+        cursor.execute("ALTER TABLE agent_sso_sessions ADD COLUMN IF NOT EXISTS agent_role TEXT NOT NULL DEFAULT 'user'")
+        cursor.execute("ALTER TABLE agent_sso_sessions ADD COLUMN IF NOT EXISTS display_name TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE agent_sso_sessions ADD COLUMN IF NOT EXISTS agent_session_id UUID")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sso_sessions_user ON agent_sso_sessions(user_id, expires_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sso_sessions_agent_user ON agent_sso_sessions(agent_user_id, expires_at)")
         cursor.execute("CREATE TABLE IF NOT EXISTS agent_audit_events (id BIGSERIAL PRIMARY KEY, actor_user_id UUID NOT NULL, action TEXT NOT NULL, target_user_id UUID, detail TEXT NOT NULL DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_audit_events_created ON agent_audit_events(created_at DESC)")
         cursor.execute("""
@@ -161,6 +161,11 @@ def ensure_runtime_schema() -> None:
         """)
         cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '新对话'")
         cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS conversation JSONB NOT NULL DEFAULT '[]'::jsonb")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS task_key TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS task_title TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS task_status TEXT NOT NULL DEFAULT 'ready'")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS default_prompt TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS hermes_session_id TEXT NOT NULL DEFAULT ''")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_sessions_user_updated ON agent_sessions(user_id, updated_at DESC)")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS agent_actions (
@@ -171,13 +176,26 @@ def ensure_runtime_schema() -> None:
             )
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_actions_user_status ON agent_actions(user_id, status, created_at DESC)")
-        cursor.execute("ALTER TABLE opencode_sso_tickets ENABLE ROW LEVEL SECURITY")
-        cursor.execute("ALTER TABLE opencode_sso_sessions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS agent_artifacts (
+                id UUID PRIMARY KEY, user_id UUID NOT NULL, session_id UUID NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
+                task_key TEXT NOT NULL DEFAULT '', type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL,
+                source_type TEXT, source_id TEXT, requirement_id BIGINT, solution_id BIGINT,
+                knowledge_status TEXT NOT NULL DEFAULT 'private' CHECK (knowledge_status IN ('private','requested','published')),
+                knowledge_path TEXT, reviewed_by UUID, reviewed_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_artifacts_user_updated ON agent_artifacts(user_id, updated_at DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_artifacts_knowledge ON agent_artifacts(knowledge_status, updated_at)")
+        cursor.execute("ALTER TABLE agent_sso_tickets ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE agent_sso_sessions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirements ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE requirement_solutions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE agent_sessions ENABLE ROW LEVEL SECURITY")
         cursor.execute("ALTER TABLE agent_actions ENABLE ROW LEVEL SECURITY")
+        cursor.execute("ALTER TABLE agent_artifacts ENABLE ROW LEVEL SECURITY")
         cursor.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_github_trending_search ON github_trending USING GIN

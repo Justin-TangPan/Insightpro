@@ -25,6 +25,11 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def _category(value: str) -> str:
+    categories = [_clean(item) for item in re.split(r"[,，]", value) if _clean(item)]
+    return "AI" if "AI" in categories else (categories[0] if categories else "其他")
+
+
 def _parse_catalog(page: str) -> list[dict]:
     items, seen = [], set()
     for card in CARD_RE.findall(page):
@@ -33,11 +38,11 @@ def _parse_catalog(page: str) -> list[dict]:
         title, description = fields.get("caption", ""), fields.get("description", "")
         if not url.startswith("https://www.huaweicloud.com/solution/implementations/"):
             continue
-        url = html.unescape(url).split("?")[0]
+        url = re.sub(r"(?<=\.html).*$", "", html.unescape(url).split("?")[0])
         if url in seen:
             continue
         seen.add(url)
-        title, category = _clean(html.unescape(title)), _clean(html.unescape(category))
+        title, category = _clean(html.unescape(title)), _category(html.unescape(category))
         description = _clean(BeautifulSoup(html.unescape(description), "html.parser").get_text(" "))
         items.append({
             "title": title, "url": url,

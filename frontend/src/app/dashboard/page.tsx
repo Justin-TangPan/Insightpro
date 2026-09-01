@@ -12,7 +12,7 @@ import {
   Users, Activity, Eye, UserCheck
 } from "lucide-react";
 
-const COLORS = ["#176B46", "#2D8A60", "#0D4F34", "#6C7A71", "#425148"];
+const COLORS = ["var(--color-primary)", "var(--color-chart-secondary)", "var(--color-chart-tertiary)", "var(--color-ink-muted)", "var(--color-ink-secondary)"];
 
 interface AnalyticsData {
   today: { pv: number; uv: number };
@@ -35,12 +35,12 @@ const pageNameMap: Record<string, string> = {
 };
 
 const tooltipStyle = {
-  background: "#FFFFFF",
-  border: "none",
+  background: "var(--color-surface-elevated)",
+  border: "1px solid var(--color-grid)",
   borderRadius: "10px",
-  boxShadow: "0 8px 24px rgba(21, 34, 26, 0.08)",
+  boxShadow: "var(--shadow-card)",
   fontSize: "12px",
-  color: "#15221A",
+  color: "var(--color-ink)",
 };
 
 const kpiTiles = Array(4).fill("bg-primary-soft text-primary");
@@ -131,12 +131,12 @@ export default function DashboardPage() {
             {analytics?.daily && analytics.daily.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={analytics.daily}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" tickFormatter={(v) => v.slice(5)} />
-                  <YAxis tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-grid)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" tickFormatter={(v) => v.slice(5)} />
+                  <YAxis tick={{ fontSize: 10, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Area type="monotone" dataKey="pv" stroke="#0D4F34" fill="#0D4F34" fillOpacity={0.08} strokeWidth={2} name="PV" />
-                  <Area type="monotone" dataKey="uv" stroke="#2D8A60" fill="#2D8A60" fillOpacity={0.12} strokeWidth={2} name="UV" />
+                  <Area type="monotone" dataKey="pv" stroke="var(--color-primary)" fill="var(--color-primary)" fillOpacity={0.08} strokeWidth={2} name="PV" />
+                  <Area type="monotone" dataKey="uv" stroke="var(--color-chart-secondary)" fill="var(--color-chart-secondary)" fillOpacity={0.12} strokeWidth={2} name="UV" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -152,12 +152,12 @@ export default function DashboardPage() {
             {analytics?.pages && analytics.pages.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={analytics.pages.slice(0, 8).map((p) => ({ name: pageNameMap[p.page_path] || p.page_path, pv: p.pv, uv: p.uv }))} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
-                  <XAxis type="number" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "#6C7A71" }} stroke="#DCE4DF" width={80} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-grid)" />
+                  <XAxis type="number" tick={{ fontSize: 10, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" width={80} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="pv" fill="#0D4F34" name="PV" />
-                  <Bar dataKey="uv" fill="#2D8A60" name="UV" />
+                  <Bar dataKey="pv" fill="var(--color-primary)" name="PV" />
+                  <Bar dataKey="uv" fill="var(--color-chart-secondary)" name="UV" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -173,9 +173,9 @@ export default function DashboardPage() {
             {trendChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={trendChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#DCE4DF" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" tickFormatter={(v) => String(v).slice(5)} />
-                  <YAxis tick={{ fontSize: 10, fill: "#6C7A71" }} stroke="#DCE4DF" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-grid)" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" tickFormatter={(v) => String(v).slice(5)} />
+                  <YAxis tick={{ fontSize: 10, fill: "var(--color-ink-muted)" }} stroke="var(--color-grid)" />
                   <Tooltip contentStyle={tooltipStyle} />
                   {topPageNames.map((name, i) => (
                     <Line key={name} type="monotone" dataKey={name} stroke={COLORS[i % COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />

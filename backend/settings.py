@@ -17,6 +17,13 @@ def _secret_file(path: str) -> str:
         return ""
 
 
+def _required_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise RuntimeError(f"missing required environment variable: {name}")
+    return value
+
+
 class Settings:
     # ── AI ──
     CHAT_API_URL: str = os.getenv(
@@ -43,20 +50,11 @@ class Settings:
 
     # ── App ──
     BASE_URL: str = os.getenv("BASE_URL", "http://localhost:3000")
-    OPENCODE_PUBLIC_URL: str = os.getenv("OPENCODE_PUBLIC_URL", "http://159.138.89.233:4096").rstrip("/")
-    AGENT_RUNTIME_CONTROL_URL: str = os.getenv("AGENT_RUNTIME_CONTROL_URL", "http://host.docker.internal:4096").rstrip("/")
-    OPENCODE_SSO_SECRET: str = _secret_file(os.getenv("OPENCODE_SSO_SECRET_FILE", "")) or os.getenv("NEXTAUTH_SECRET", "")
-    OPENCODE_COOKIE_SECURE: bool = os.getenv("OPENCODE_COOKIE_SECURE", "false").lower() in {"1", "true", "yes", "on"}
     PUBLIC_IP: str = os.getenv("PUBLIC_IP", "localhost")
     STARTUP_CATCHUP_ENABLED: bool = os.getenv("STARTUP_CATCHUP_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
     CORS_ORIGINS: list[str] = [
         origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:3001,"
-            "http://127.0.0.1:3000,http://192.168.0.191:3000,"
-            "http://159.138.89.233:3000",
-        ).split(",")
+        for origin in _required_env("CORS_ORIGINS").split(",")
         if origin.strip()
     ]
 

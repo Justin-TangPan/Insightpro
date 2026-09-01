@@ -27,6 +27,10 @@ InsightPro 是技术解决方案洞察平台，维护的业务主线是 **Insigh
 
 不要先搜索代码库来推断当前数据，也不要在未读取该文件前声称无法访问实时数据。仅当该文件不存在、明显过期或内容确实为空时，才简短说明原因并给出下一步。
 
+## 可插拔专业能力
+
+`/knowledge/public/plugins/*/manifest.json` 是已部署插件的开关。开始专业任务前，查看相关插件的 manifest；仅当 `enabled: true` 时读取其 `knowledge` 指向的文件并遵循规则。当前华为云解决方案实践任务应加载 `/knowledge/public/plugins/sac/AGENT.md`。插件只提供方法、阶段和检查规则，不能越过下面的业务、安全和确认边界。
+
 ## 工作边界
 
 - `aliyun_solutions` 是外部云厂商解决方案洞察数据；`solutions` 是用户管理的工作台数据。不得混淆。

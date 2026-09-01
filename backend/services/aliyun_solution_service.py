@@ -2,6 +2,7 @@
 from __future__ import annotations
 import hashlib
 import json
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -12,6 +13,7 @@ import requests
 from db import get_db
 from settings import settings
 
+logger = logging.getLogger(__name__)
 
 INDEX_URL = "https://cn.aliyun.com/solution/tech-solution/"
 MENU_URL = "https://developer.aliyun.com/adc/api/skillBuilder/getMenuTree"
@@ -276,17 +278,25 @@ def refresh_aliyun_solutions() -> dict:
 
 
 def refresh_solution_catalogs() -> dict:
-    """Refresh both official catalogues in one scheduled/manual check."""
+    """Refresh each official catalogue independently so one outage keeps the other current."""
     from services.huawei_solution_service import refresh_huawei_solutions
-    aliyun = refresh_aliyun_solutions()
-    huawei = refresh_huawei_solutions()
+    vendors = {"阿里云": refresh_aliyun_solutions, "华为云": refresh_huawei_solutions}
+    results = {}
+    for vendor, refresh in vendors.items():
+        try:
+            results[vendor] = refresh()
+        except Exception as exc:
+            logger.exception("%s solution catalogue refresh failed", vendor)
+            results[vendor] = {"status": "failed", "error": str(exc)[:500]}
+    successful = [result for result in results.values() if result["status"] == "success"]
     return {
-        "status": "success", "checked_date": aliyun["checked_date"],
-        "total": aliyun["total"] + huawei["total"],
-        "new": aliyun["new"] + huawei["new"],
-        "updated": aliyun["updated"] + huawei["updated"],
-        "removed": aliyun["removed"] + huawei["removed"],
-        "vendors": {"阿里云": aliyun, "华为云": huawei},
+        "status": "success" if len(successful) == len(results) else "partial",
+        "checked_date": datetime.now().strftime("%Y-%m-%d"),
+        "total": sum(result.get("total", 0) for result in successful),
+        "new": sum(result.get("new", 0) for result in successful),
+        "updated": sum(result.get("updated", 0) for result in successful),
+        "removed": sum(result.get("removed", 0) for result in successful),
+        "vendors": results,
     }
 
 

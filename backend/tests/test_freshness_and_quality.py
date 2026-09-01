@@ -1,6 +1,7 @@
 from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
+from services import aliyun_solution_service
 from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree
 from services.huawei_solution_service import _parse_catalog
 from services.system_health_service import evaluate_readiness
@@ -69,6 +70,13 @@ def test_solution_changes_name_the_changed_content_and_huawei_cards_parse():
     assert "方案简介：旧说明 → 新说明" in summary
 
 
+def test_huawei_parser_normalizes_combined_category_and_polluted_url():
+    page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;运维监控,AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/yolo.html运维监控&quot;,&quot;caption&quot;:&quot;YOLO&quot;,&quot;description&quot;:&quot;视觉训练&quot;}'
+    item = _parse_catalog(page)[0]
+    assert item["category"] == "AI / 解决方案实践"
+    assert item["url"] == "https://www.huaweicloud.com/solution/implementations/yolo.html"
+
+
 def test_heuristic_technical_evaluation_is_displayable():
     result = _heuristic_score_project({
         "repo_name": "example/cloud-agent",
@@ -100,6 +108,17 @@ def test_solution_catalog_catchup_requires_both_vendors(monkeypatch):
     monkeypatch.setattr(startup_service, "solution_catalogs_fresh_today", lambda: True)
     assert not startup_service._run_solution_catalogs_if_stale(lambda: calls.append("again"))
     assert calls == ["refresh"]
+
+
+def test_catalog_refresh_keeps_healthy_vendor_when_the_other_fails(monkeypatch):
+    monkeypatch.setattr(aliyun_solution_service, "refresh_aliyun_solutions", lambda: {"status": "success", "total": 2, "new": 1, "updated": 0, "removed": 0})
+    import sys
+    from types import SimpleNamespace
+    monkeypatch.setitem(sys.modules, "services.huawei_solution_service", SimpleNamespace(refresh_huawei_solutions=lambda: (_ for _ in ()).throw(RuntimeError("source down"))))
+    result = aliyun_solution_service.refresh_solution_catalogs()
+    assert result["status"] == "partial"
+    assert result["total"] == 2
+    assert result["vendors"]["华为云"]["status"] == "failed"
 
 def test_readiness_requires_fresh_nonempty_technical_data():
     healthy = evaluate_readiness(

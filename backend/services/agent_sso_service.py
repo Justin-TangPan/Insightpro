@@ -1,10 +1,10 @@
-"""Short-lived, one-time SSO tickets and gateway sessions for OpenCode."""
+"""Short-lived, one-time SSO tickets and gateway sessions for Hermes Agent."""
 from __future__ import annotations
 
 import hashlib
 import secrets
 
-from repositories import opencode_sso_repository as repository
+from repositories import agent_sso_repository as repository
 
 TICKET_TTL_SECONDS = 60
 SESSION_TTL_SECONDS = 30 * 24 * 60 * 60

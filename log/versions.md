@@ -1,5 +1,157 @@
 # 版本日志
 
+## [0.8.1] - 2026-09-01
+
+### Solution Engineering 长期上下文
+- 新增 Insight-Agent 公共规则、解决方案实践背景、Solution Engineering Workflow、Solution Architect 角色与公共知识说明，并由 Native Runtime 按固定顺序加载。
+- 每次会话额外注入默认角色、按 Task 推导的工作阶段、当前 Task、期望输出与现有 Context Bridge 对象快照；UI 在“当前上下文”中显式展示角色和阶段。
+- 稳定知识不包含具体业务对象或凭据；Requirement、Solution、Insight 数据仍只来自用户隔离的动态 Context。
+
+## [0.8.0] - 2026-09-01
+
+### Insight-Agent Native Runtime（迁移第一阶段）
+- Agent 对话默认改由 InsightPro 自己的 Runtime 执行：直接使用现有 OpenAI 兼容模型流，而不再经 Hermes CLI、Dashboard 和 stdout 解析。
+- Task、显式 Context、会话历史、Markdown 输出与 Artifact 仍由 InsightPro 作为唯一业务事实源；模型只接收经过 Context Bridge 过滤后的当前用户数据。
+- 原生模型 token 直接以 SSE 传递至前端，解决 Hermes CLI 无法安全提供真实 token 流的问题。
+- Hermes 已从 Agent 对话、Session 删除和草稿导入链路移除；Insight-Agent Native Runtime 是唯一执行器。
+- 主 Compose 不再挂载 Hermes Gateway Secret，也不要求 Hermes URL；Hermes 容器与 Gateway 已停止并移除，历史持久化目录保留以避免误删。
+
+## [0.7.1] - 2026-09-01
+
+### Hermes 执行与上下文
+- 修复 Hermes CLI 未向 stdout 输出、但已持久化正式回答时被误判为执行失败的问题；Runtime 以 Hermes Session 的正式 assistant 内容为准。
+- 修复 Context Bridge 文件的工作区归属权限，Agent 现在可读取当前对象的显式上下文，而不是退回公共数据猜测对象。
+- 回答以安全的段流方式送达前端；不转发 Hermes CLI 的内部 Reasoning、扫描提示或工具过程。
+- SSE 明确关闭中间层缓冲，并在正式回答开始时发送“正在输出回答”状态；回答按 48 字符稳定增量渲染，避免完整文本一次性跳出。
+
+### 主题与交互
+- 将 Agent 抽屉、输入框、代码块、品牌阴影、滚动条和加载态全部改为主题令牌；黑白、橙、蓝、紫切换会同步影响面板层次与交互反馈。
+- 补齐按钮、选择框、输入框的柔和过渡与主题焦点态。
+- 数据大屏的图表、图例、坐标轴和浮层改为主题令牌；移除未挂载的旧 DeepSeek 问答浮窗，避免留下另一套不受主题控制的聊天界面。
+- 修复“经典绿”主题之前错误落到蓝色默认值的问题；五个主题均有独立的主色、表面、边框、图表和代码色。
+- 修复 Tailwind `@theme inline` 将主题工具类构建期固化为蓝色的问题；`bg-primary`、`text-primary`、`border-primary` 等现改为读取用户当前主题变量。
+
+## [0.7.0] - 2026-09-01
+
+### 统一 AI 工作台
+- 新增 `/workbench` 统一入口，聚合当前用户的 Requirement、Solution、Agent Session 与 Artifact，并按“需求 → 方案 → AI 工作 → 工作文件 → 成果”展示工作链。
+- 左侧一级导航合并 Requirements、Solutions 与 Insight-Agent，仅保留“AI 工作台”；原列表和详情页作为工作台内部页面继续复用。
+- 新增工作台内部导航：概览、需求、方案、AI 工作/文件/成果；快速动作会绑定最近的真实 Requirement 或 Solution。
+- AI 全屏入口迁移至 `/workbench/ai`，旧 `/insight-agent` 自动跳转兼容；最近 AI 工作可直接恢复指定 Session。
+- 用户侧统一使用“AI 工作台”“工作文件”命名，底层 Hermes Workspace 与隔离策略保持不变。
+
+### 验证
+- 前端 ESLint 0 errors（保留既有 Settings Hook warning），Next.js 生产构建和 TypeScript 检查通过。
+
+## [0.6.12] - 2026-09-01
+
+### 主题与 Agent 等待态
+- 将对话发送时的“正在连接 Hermes Agent”改为准确的“正在生成回答”，避免把已启动 Runtime 误显示为连接等待。
+- 为黑白、暖橙、商务蓝和科技紫补齐语义化卡片、面板、边框、警示和玻璃面板变量；固定 `bg-white` 面板会跟随当前主题表面色。
+- 渐变 Banner、卡片悬停态和玻璃容器改为使用主题色混合，主题切换不再只改变页面底色。
+
+## [0.6.11] - 2026-09-01
+
+### 华为云目录校正
+- 华为云复合分类“运维监控,AI”归一为 AI，修复分类文字误拼入方案 URL 的采集问题。
+- “新增方案置顶”改为仅展示当日首次确认且非基线的方案；目录内历史补录统一标记为“近期收录”，不再声称新增置顶。
+- 经华为云官方页面核实，DBSyncer 与轻量级多云管理平台是 2024 年既有方案，不属于本次新增。
+
+### 左侧导航
+- 系统设置与平台管理移至 AI 工作区之后的底部“系统管理”分组；平台管理仍仅管理员可见。
+
+### 验证
+- 后端相关测试 13 passed；前端 ESLint 0 errors（保留既有 warning），生产构建通过。
+
+## [0.6.10] - 2026-09-01
+
+### Agent Home 对象推荐
+- “深度调研”自动绑定当前技术热点，“方案分析”自动绑定 Solution Intelligence，“开始实现”自动绑定当前用户的 Managed Solution。
+- 快捷任务卡片显示实际对象名称，点击后直接经过 Agent Routing 创建带 Context 的 Session；没有对象时禁用并提示来源缺失。
+
+## [0.6.9] - 2026-09-01
+
+### 对话删除确认
+- 对话删除由浏览器原生 `confirm` 改为 Insight-Agent 内置确认浮层，显示会话名称、不可撤销说明、取消和删除中状态。
+- 点击遮罩可取消；删除请求失败时保留浮层并在 Agent 内显示错误。
+
+## [0.6.8] - 2026-09-01
+
+### Hermes 输出净化
+- Runtime Manager 改为读取 Hermes Session 最后一条正式 assistant content，避免 CLI 的安全扫描提示、内部 Reasoning 和工具过程进入用户对话。
+- Session API 不可用时仍保留 CLI 最终输出作为降级，不影响回答可用性。
+
+## [0.6.7] - 2026-09-01
+
+### Agent 卡住修复
+- Hermes 完成回答后的 Session 回查增加 3 秒超时和降级处理，不再因辅助查询阻塞回答返回。
+- 对话流每 10 秒返回 Hermes 的真实执行时长；执行异常会明确结束并提示重试，不再永久停留在“Agent 正在工作”。
+
+### 验证
+- 后端相关测试：30 passed；Runtime Manager 与 Python 语法检查通过。
+- 前端 ESLint：0 errors，保留既有 Settings Hook warning；Next.js 生产构建通过。
+
+## [0.6.6] - 2026-09-01
+
+### Hermes Agent 统一执行
+- Insight-Agent 交互式消息不再调用普通 `ai_service`，改为经受认证的 Runtime Manager 进入当前用户隔离 Workspace 中的 Hermes Agent 命名 Session。
+- 新增服务端 Hermes Chat 适配端点，限制消息和输出大小、执行预算及用户身份；未启用危险操作自动批准。
+- 建立 InsightPro Session 与 Hermes Session 映射；删除对话时先删除所属 Hermes Session，再删除业务映射。
+- 完成真实 Provider 调用、Session 映射和删除验证。
+
+### OpenCode 遗留清理
+- SSO 服务、Repository、API 路由、Cookie、环境变量和数据库表统一迁移为 Agent/Hermes 命名。
+- 已部署 SSO 表采用原地重命名保留数据；删除宿主机旧 `/etc/insight-opencode` 配置目录。
+
+### Markdown
+- Agent 回答使用安全的 GFM Markdown 渲染，支持标题、列表、表格、引用、链接、行内代码和代码块；原始 HTML 不执行。
+
+### 验证
+- 后端测试：57 passed。
+- 前端 ESLint：0 errors，保留既有 Settings Hook warning；Next.js 生产构建通过。
+- Hermes Runtime、Gateway、InsightPro 前后端健康检查通过。
+
+### 当前限制
+- Hermes CLI 适配层当前按完整回答返回，尚未提供逐 token 和结构化 Tool Event 流；前端 SSE 契约已保留，后续可替换为 Hermes JSON-RPC。
+
+## [0.6.5] - 2026-08-31
+
+### Insight-Agent 对话界面
+- 重做完整工作区为对话优先布局：保留 InsightPro 主侧栏，Agent 内部提供最近对话、新对话、中央欢迎态、轻量任务引导和固定输入区。
+- 会话历史增加所有者范围内的删除入口与二次确认；删除当前会话后回到新对话首页。
+- 移除会把用户困在独立界面的 Workspace iframe；文件上传、任务 Context、成果保存和下一步操作保留在同一对话界面。
+- 全局统一可点击按钮和链接的手型光标，禁用操作使用不可用光标。
+
+### 验证
+- 前端 ESLint：0 errors，保留既有 Settings Hook warning。
+- Next.js 生产构建及 TypeScript 检查通过。
+
+## [0.6.4] - 2026-08-31
+
+### 视觉主题
+- 默认主题由绿色切换为商务蓝，并把没有主题版本标记的历史默认绿色偏好迁移为蓝色；用户主动选择绿色后仍可保留该选项。
+- 基础页面、交互态、按钮阴影和输入框边框改为使用主题变量，避免默认主题仍残留绿色交互色。
+
+### 部署
+- Docker 重新构建并发布前后端；后端 57 项测试、前端生产构建、端到端健康检查均通过。
+
+## [0.6.3] - 2026-08-31
+
+### Insight-Agent V1 工作空间
+- 新增服务端 Agent Task Catalog 与 `POST /api/agent/routes`：业务对象、明确 AI Action、当前用户和服务端 Context Snapshot 统一路由为受隔离的 Agent Session。
+- Session 新增任务标识、任务状态和默认目标；热点、Solution Intelligence、Requirement、Managed Solution 的入口改为“深入研究 / AI 分析 / 完善需求 / 架构设计”，不再跳转空白聊天页。
+- 全局 Insight-Agent Shell 改为同一 Session 的 Floating、可调宽 Split 和 Full 三种视图；显示折叠的当前 Context、任务目标、下一步建议、最近工作，并在 Full 中复用既有 SSO 隔离 Workspace。
+- Sidebar 增加本地记忆的一级折叠状态；Split 会为主业务区域让出可调宽度。
+
+### Insight-Agent V2/V3 成果与知识
+- Session Context 支持刷新、补充文本与按区块排除；每次模型调用仍只使用当前用户服务端保存的快照。
+- 新增私有 `agent_artifacts`：从当前 Session 输出保存成果、关联来源业务对象 / Requirement / Solution，并在 Agent Home 显示最近成果。
+- Artifact 只能由所有者提交团队知识审核；Admin 审核后才写入既有 Public Knowledge 目录，Admin 页面增加待审核列表。
+
+### 验证
+- 后端 pytest：57 passed；新增 Agent Action Routing 和 Artifact 所有权/输出提取测试。
+- 前端 Next.js 生产构建通过，ESLint 无新增错误；保留既有 Settings Hook 警告。
+
 ## [0.6.2] - 2026-08-31
 
 ### Insight-Agent 子系统

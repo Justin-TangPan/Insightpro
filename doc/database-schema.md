@@ -2,14 +2,14 @@
 
 **基线日期**：2026-08-31
 
-**状态**：已与当前 PostgreSQL、后端 SQL 和 Prisma schema 对齐
+**状态**：已与当前 PostgreSQL 和后端 SQL 对齐
 
-**事实来源**：`frontend/prisma/schema.prisma`、`backend/services/startup_service.py`、后端读写 SQL
+**事实来源**：`backend/services/startup_service.py` 与后端读写 SQL
 
 ## 1. 约定
 
 - Supabase PostgreSQL 是唯一生产业务存储。
-- `frontend/prisma/schema.prisma` 用于记录 public 表契约；后端当前通过 `psycopg2` 直接访问数据库。
+- 后端通过 `psycopg2` 直接访问数据库；`startup_service.py` 是当前幂等 schema 演进入口。
 - Supabase Auth 用户位于认证系统，不在 public schema 建模。
 - Workbench 三张表启用 RLS 且不开放 Supabase Data API policy；数据只经登录后的 FastAPI 访问，Repository 按 `user_id` 二次隔离。
 - 站内搜索使用 PostgreSQL `pg_trgm`，为技术项目、外部方案、友商动态、Requirements 和 Solutions 的组合搜索文本建立 GIN 索引。
@@ -26,8 +26,8 @@
 | `requirements` | 用户管理的技术需求 | 自增 `id`，按 `user_id` 隔离 |
 | `solutions` | 用户管理的自有技术方案 | 自增 `id`，按 `user_id` 隔离 |
 | `requirement_solutions` | Requirement 与 Solution 多对多关联 | `requirement_id + solution_id` |
-| `opencode_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
-| `opencode_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
+| `agent_sso_tickets` | Insight-Agent 60 秒一次性 SSO ticket（保留历史表名） | SHA-256 `token_hash` |
+| `agent_sso_sessions` | 可撤销的 30 天 Gateway Session（保留历史表名） | SHA-256 `token_hash` |
 | `agent_audit_events` | AI Space 管理操作审计 | 自增 `id` |
 | `agent_sessions` | Insight-Agent 对话、上下文快照与持久消息 | UUID `id`，按 `user_id` 隔离 |
 | `agent_actions` | 用户确认前的 Agent Draft Action | UUID `id`，按 `user_id` 隔离 |
@@ -127,7 +127,7 @@
 
 字段：`requirement_id bigint`、`solution_id bigint`、`created_at timestamptz`。两个 ID 分别外键关联 `requirements`、`solutions`，删除任一业务对象时级联删除关联；复合主键阻止重复关联。
 
-### `opencode_sso_tickets` / `opencode_sso_sessions`
+### `agent_sso_tickets` / `agent_sso_sessions`
 
 两表启用 RLS 且只保存随机凭据的 SHA-256 摘要，不保存 Supabase Access Token 或模型密钥。表名为兼容已有数据暂不迁移；当前底层 Runtime 已替换为 Hermes Agent。
 
@@ -216,9 +216,7 @@ public 业务表 ──► API 查询 ──► 页面、搜索、问答、报�
 ## 5. 变更流程
 
 1. 先修改后端建表/迁移逻辑与 SQL。
-2. 同步 `frontend/prisma/schema.prisma`。
-3. 更新本文档。
-4. 执行 `cd frontend && npx prisma validate`。
-5. 在非生产环境运行幂等 schema 校准并验证现有数据。
+2. 更新本文档。
+3. 在非生产环境运行幂等 schema 校准并验证现有数据。
 
 日期字段迁移、列删除和类型收紧都属于独立数据库迁移，不应仅依赖启动时校准。

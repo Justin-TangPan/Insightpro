@@ -14,13 +14,14 @@ def _knowledge_url(path: str) -> str:
     return f"{settings.AGENT_RUNTIME_CONTROL_URL}/_insight/knowledge/{path}"
 
 
-def _headers(user_id: str = "", role: str = "", display_name: str = "") -> dict:
+def _headers(user_id: str = "", role: str = "", display_name: str = "", session_id: str = "") -> dict:
     return {
-        "X-Insight-Runtime-Secret": settings.OPENCODE_SSO_SECRET,
+        "X-Insight-Runtime-Secret": settings.HERMES_SSO_SECRET,
         "X-Insight-User-Id": user_id,
         "X-Insight-Agent-Role": role,
         "X-Insight-Auth-Role": "admin",
         "X-Insight-Display-Name": display_name,
+        "X-Insight-Agent-Session-Id": session_id,
     }
 
 
@@ -49,6 +50,25 @@ async def read_action(user_id: str, session_id: str) -> dict:
         response = await client.get(_url("action"), params={"session_id": session_id}, headers=_headers(user_id))
         response.raise_for_status()
         return response.json()
+
+
+async def chat(user_id: str, role: str, display_name: str, session_id: str, message: str) -> dict:
+    async with httpx.AsyncClient(timeout=320) as client:
+        response = await client.post(
+            _url("chat"), json={"message": message},
+            headers=_headers(user_id, role, display_name, session_id),
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def delete_session(user_id: str, role: str, display_name: str, session_id: str, hermes_session_id: str) -> None:
+    async with httpx.AsyncClient(timeout=40) as client:
+        response = await client.delete(
+            _url("session"), params={"hermes_session_id": hermes_session_id},
+            headers=_headers(user_id, role, display_name, session_id),
+        )
+        response.raise_for_status()
 
 
 async def knowledge_list(query: str = "") -> dict:

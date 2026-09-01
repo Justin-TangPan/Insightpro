@@ -3,18 +3,18 @@ services:
     container_name: insight-hermes
     image: insight-hermes:v2026.8.19
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: deploy/hermes/Dockerfile
     env_file:
       - /etc/insight-hermes/hermes.env
     environment:
       INSIGHT_PUBLIC_API_URL: "${INSIGHT_PUBLIC_API_URL:-http://host.docker.internal:8000/api}"
       INSIGHT_AGENT_DATA_ROOT: /srv/insight-agent
-      OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
+      HERMES_GATEWAY_SECRET: "${HERMES_GATEWAY_SECRET:?missing HERMES_GATEWAY_SECRET}"
       HERMES_PROVIDER_BASE_URL: "${HERMES_PROVIDER_BASE_URL:?missing HERMES_PROVIDER_BASE_URL}"
       HERMES_PROVIDER_API_KEY: "${HERMES_PROVIDER_API_KEY:?missing HERMES_PROVIDER_API_KEY}"
-      OPENCODE_MAX_ACTIVE: "${HERMES_MAX_ACTIVE:-6}"
-      OPENCODE_IDLE_SECONDS: "${HERMES_IDLE_SECONDS:-1800}"
+      HERMES_MAX_ACTIVE: "${HERMES_MAX_ACTIVE:-6}"
+      HERMES_IDLE_SECONDS: "${HERMES_IDLE_SECONDS:-1800}"
     working_dir: /srv/insight-agent
     expose:
       - "4096"
@@ -58,12 +58,12 @@ services:
     image: nginxinc/nginx-unprivileged:1.29.4-alpine
     user: "101:101"
     environment:
-      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|INSIGHT_APP_ORIGIN|OPENCODE_GATEWAY_SECRET)$"
-      INSIGHT_AUTH_VERIFY_URL: "${INSIGHT_AUTH_VERIFY_URL:-http://host.docker.internal:8000/api/auth/opencode/verify}"
-      INSIGHT_AUTH_CALLBACK_URL: "${INSIGHT_AUTH_CALLBACK_URL:-http://host.docker.internal:8000/api/auth/opencode/callback}"
-      INSIGHT_LOGIN_URL: "${INSIGHT_LOGIN_URL:-http://159.138.89.233:3000/auth/login}"
-      INSIGHT_APP_ORIGIN: "${INSIGHT_APP_ORIGIN:-http://159.138.89.233:3000}"
-      OPENCODE_GATEWAY_SECRET: "${OPENCODE_GATEWAY_SECRET:?missing OPENCODE_GATEWAY_SECRET}"
+      NGINX_ENVSUBST_FILTER: "^(INSIGHT_AUTH_VERIFY_URL|INSIGHT_AUTH_CALLBACK_URL|INSIGHT_LOGIN_URL|INSIGHT_APP_ORIGIN|HERMES_GATEWAY_SECRET)$"
+      INSIGHT_AUTH_VERIFY_URL: "${INSIGHT_AUTH_VERIFY_URL:-http://host.docker.internal:8000/api/auth/agent/verify}"
+      INSIGHT_AUTH_CALLBACK_URL: "${INSIGHT_AUTH_CALLBACK_URL:-http://host.docker.internal:8000/api/auth/agent/callback}"
+      INSIGHT_LOGIN_URL: "${INSIGHT_LOGIN_URL:?missing INSIGHT_LOGIN_URL}"
+      INSIGHT_APP_ORIGIN: "${INSIGHT_APP_ORIGIN:?missing INSIGHT_APP_ORIGIN}"
+      HERMES_GATEWAY_SECRET: "${HERMES_GATEWAY_SECRET:?missing HERMES_GATEWAY_SECRET}"
     extra_hosts:
       - "host.docker.internal:${INSIGHT_HOST_GATEWAY:-172.17.0.1}"
     ports:

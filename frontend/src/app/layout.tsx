@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" className={inter.variable} suppressHydrationWarning>
-      <head><script dangerouslySetInnerHTML={{ __html: `try{const p=JSON.parse(localStorage.getItem('insight_preferences')||'{}'),r=document.documentElement;r.dataset.theme=p.theme||'green';r.dataset.density=p.density||'comfortable';r.dataset.motion=String(p.motion!==false);r.lang=p.language==='en'?'en':'zh-CN'}catch{}` }} /></head>
+      <head><script dangerouslySetInnerHTML={{ __html: `try{const p=JSON.parse(localStorage.getItem('insight_preferences')||'{}'),r=document.documentElement;r.dataset.theme=p.theme||'blue';r.dataset.density=p.density||'comfortable';r.dataset.motion=String(p.motion!==false);r.lang=p.language==='en'?'en':'zh-CN'}catch{}` }} /></head>
       <body className="bg-paper text-ink antialiased">
         <AuthProvider>
           <PageTracker />
@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div id="sidebar-overlay" className="hidden fixed inset-0 bg-black/40 z-30 lg:hidden" />
 
           {/* Main */}
-          <main className="min-w-0 flex-1 lg:pl-[250px]">
+          <main id="app-main" className="min-w-0 flex-1 lg:pl-[250px]">
             <header className="sticky top-0 z-10 border-b border-grid/70 bg-paper/90 backdrop-blur-xl">
               <div className="flex h-16 items-center justify-between px-[var(--page-gutter)]">
                 <div className="flex items-center gap-3">

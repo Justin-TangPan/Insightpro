@@ -3,24 +3,31 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from fastapi.testclient import TestClient
 from main import app
+from settings import _required_env, settings
 
 client = TestClient(app)
 
 
 class TestAPIEndpoints:
+    def test_required_environment_config_has_no_fallback(self, monkeypatch):
+        monkeypatch.delenv("HERMES_PUBLIC_URL", raising=False)
+        with pytest.raises(RuntimeError, match="HERMES_PUBLIC_URL"):
+            _required_env("HERMES_PUBLIC_URL")
+
     def test_root(self):
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
         assert resp.json()["version"] == "0.6.2"
 
-    def test_lan_frontend_origin_is_allowed(self):
+    def test_configured_frontend_origin_is_allowed(self):
+        origin = settings.CORS_ORIGINS[0]
         resp = client.get(
             "/api/github-trending/business-eval",
-            headers={"Origin": "http://192.168.0.191:3000"},
+            headers={"Origin": origin},
         )
         assert resp.status_code == 200
-        assert resp.headers["access-control-allow-origin"] == "http://192.168.0.191:3000"
+        assert resp.headers["access-control-allow-origin"] == origin
 
     @pytest.mark.parametrize("method,path", [
         ("POST", "/api/github-trending/refresh"),
@@ -40,8 +47,8 @@ class TestAPIEndpoints:
         ("POST", "/api/workbench/requirements"),
         ("GET", "/api/workbench/solutions"),
         ("POST", "/api/workbench/solutions"),
-        ("POST", "/api/auth/opencode/ticket"),
-        ("POST", "/api/auth/opencode/revoke"),
+        ("POST", "/api/auth/agent/ticket"),
+        ("POST", "/api/auth/agent/revoke"),
         ("POST", "/api/agent/chat/stream"),
     ])
     def test_sensitive_endpoints_require_auth(self, method, path):

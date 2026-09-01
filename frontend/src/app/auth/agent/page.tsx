@@ -6,13 +6,13 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
-export default function InsightAgentLegacyLaunchPage() {
+export default function InsightAgentLaunchPage() {
   const { user, loading } = useAuth();
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (loading || !user) return;
-    void authenticatedFetch("/api/auth/opencode/ticket", { method: "POST" })
+    void authenticatedFetch("/api/auth/agent/ticket", { method: "POST" })
       .then(async (response) => {
         if (!response.ok) throw new Error(response.status === 403 ? "当前账号未获 Insight-Agent 访问权限" : "Insight-Agent 授权失败");
         return response.json() as Promise<{ redirect_url: string }>;

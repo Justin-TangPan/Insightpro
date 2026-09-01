@@ -77,7 +77,9 @@ DATABASE_URL=postgresql://user:password@host:6543/postgres
 DIRECT_URL=postgresql://user:password@host:5432/postgres
 
 BASE_URL=http://localhost:3000
-CORS_ORIGINS=http://localhost:3000
+HERMES_PUBLIC_URL=
+AGENT_RUNTIME_CONTROL_URL=
+CORS_ORIGINS=
 STARTUP_CATCHUP_ENABLED=true
 ```
 

@@ -1,0 +1,8 @@
+{
+  "id": "huawei-solution-practice",
+  "version": "0.1.0",
+  "enabled": true,
+  "name": "华为云解决方案实践",
+  "description": "将 InsightPro 的 Solution 工作流扩展为可审阅、可验证、可交付的华为云解决方案实践。",
+  "knowledge": "AGENT.md"
+}

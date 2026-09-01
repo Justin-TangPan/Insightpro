@@ -25,7 +25,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 | `src/app/` | 页面、根布局和全局样式 |
 | `src/components/` | 侧边栏、搜索、Insight-Agent Shell 和通用 UI |
 | `src/lib/` | API、认证、Workbench 数据契约和 Supabase 客户端 |
-| `prisma/schema.prisma` | 后端 public 表的数据契约镜像 |
 | `next.config.ts` | standalone 输出和 `/api` 同源代理 |
 
 交互式 AI 入口由 `src/app/layout.tsx` 挂载的 `InsightAgentShell` 提供。`public/chat.js` 与 `/api/chat` 是未挂载的兼容实现，不构成产品入口。
@@ -34,7 +33,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 
 ```bash
 npm run lint
-npx prisma validate
 npm run build
 ```
 

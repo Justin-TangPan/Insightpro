@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ArrowLeft, ArrowUpRight, Bot, Link2, Plus, Save, Trash2, Unlink } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
+import { AgentAction } from "@/components/agent-action";
 import {
   priorityLabels, Requirement, requirementStatusLabels, Solution, solutionStatusLabels, workbenchFetch,
 } from "@/lib/workbench";
@@ -91,7 +92,7 @@ export default function RequirementDetailPage() {
         badge="Insight → Requirement → Solution"
         title={item.title}
         subtitle={`${requirementStatusLabels[item.status]} · ${priorityLabels[item.priority]}优先级`}
-        action={<div className="flex gap-2"><Link href={`/insight-agent?context_type=requirement&context_id=${item.id}`} className="ui-button-primary"><Bot className="h-4 w-4" />使用 Agent 分析</Link><Link href="/workbench/requirements" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>}
+        action={<div className="flex gap-2"><AgentAction contextType="requirement" contextId={item.id} actionKey="refine" className="ui-button-primary"><Bot className="h-4 w-4" />完善需求</AgentAction><Link href="/workbench/requirements" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>}
       />
       {error && <ErrorBox message={error} />}
 

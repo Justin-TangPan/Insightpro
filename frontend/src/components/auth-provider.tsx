@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) {
-      await fetch("/api/auth/opencode/revoke", {
+      await fetch("/api/auth/agent/revoke", {
         method: "POST",
         headers: { Authorization: `Bearer ${session.access_token}` },
       }).catch(() => undefined)

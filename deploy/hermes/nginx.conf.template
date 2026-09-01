@@ -13,7 +13,7 @@ server {
         proxy_pass_request_body off;
         proxy_set_header Content-Length "";
         proxy_set_header Cookie $http_cookie;
-        proxy_set_header X-Insight-Gateway-Secret "${OPENCODE_GATEWAY_SECRET}";
+        proxy_set_header X-Insight-Gateway-Secret "${HERMES_GATEWAY_SECRET}";
     }
 
     location = /auth/callback {
@@ -26,8 +26,8 @@ server {
         proxy_set_header X-Insight-SSO-Ticket $sso_ticket;
     }
 
-    location ~ ^/_insight/runtime/(overview|status|start|stop|action)$ {
-        if ($http_x_insight_runtime_secret != "${OPENCODE_GATEWAY_SECRET}") { return 403; }
+    location ~ ^/_insight/runtime/(overview|status|start|stop|action|chat|session)$ {
+        if ($http_x_insight_runtime_secret != "${HERMES_GATEWAY_SECRET}") { return 403; }
         proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-Runtime-Secret $http_x_insight_runtime_secret;
         proxy_set_header X-Insight-User-Id $http_x_insight_user_id;
@@ -37,7 +37,7 @@ server {
     }
 
     location ~ ^/_insight/knowledge/(list|upload|delete)$ {
-        if ($http_x_insight_runtime_secret != "${OPENCODE_GATEWAY_SECRET}") { return 403; }
+        if ($http_x_insight_runtime_secret != "${HERMES_GATEWAY_SECRET}") { return 403; }
         proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-Runtime-Secret $http_x_insight_runtime_secret;
     }
@@ -56,7 +56,7 @@ server {
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
         proxy_set_header X-Insight-Agent-Session-Id $agent_session_id;
-        proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
+        proxy_set_header X-Insight-Runtime-Secret "${HERMES_GATEWAY_SECRET}";
     }
 
     location / {
@@ -80,7 +80,7 @@ server {
         proxy_set_header X-Insight-Auth-Role $auth_role;
         proxy_set_header X-Insight-Display-Name $display_name;
         proxy_set_header X-Insight-Agent-Session-Id $agent_session_id;
-        proxy_set_header X-Insight-Runtime-Secret "${OPENCODE_GATEWAY_SECRET}";
+        proxy_set_header X-Insight-Runtime-Secret "${HERMES_GATEWAY_SECRET}";
         proxy_buffering off;
         proxy_read_timeout 300s;
         proxy_hide_header WWW-Authenticate;
@@ -90,7 +90,7 @@ server {
     }
 
     location @insight_login {
-        return 302 "${INSIGHT_LOGIN_URL}?next=/auth/opencode";
+        return 302 "${INSIGHT_LOGIN_URL}?next=/auth/agent";
     }
 }
 

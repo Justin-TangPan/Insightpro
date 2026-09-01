@@ -9,7 +9,7 @@ export type Preferences = {
   motion: boolean;
 };
 
-export const defaultPreferences: Preferences = { theme: "green", language: "zh", density: "comfortable", motion: true };
+export const defaultPreferences: Preferences = { theme: "blue", language: "zh", density: "comfortable", motion: true };
 
 export function applyPreferences(value: Preferences) {
   const root = document.documentElement;
@@ -24,7 +24,9 @@ export function usePreferences() {
   useEffect(() => {
     const load = () => {
     try {
-      const stored = { ...defaultPreferences, ...JSON.parse(localStorage.getItem("insight_preferences") || "{}") };
+      const raw = JSON.parse(localStorage.getItem("insight_preferences") || "{}");
+      const stored = { ...defaultPreferences, ...raw, theme_version: 3 };
+      localStorage.setItem("insight_preferences", JSON.stringify(stored));
       setPreferences(stored);
       applyPreferences(stored);
     } catch {}

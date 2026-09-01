@@ -3,16 +3,13 @@ services:
     container_name: insight-backend
     image: insight-web-backend:0.6.2
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./backend/Dockerfile
     env_file:
       - ./.env
     environment:
       TZ: Asia/Shanghai
       STARTUP_CATCHUP_ENABLED: "true"
-      OPENCODE_SSO_SECRET_FILE: /run/secrets/opencode_sso_secret
-    volumes:
-      - /etc/insight-hermes/backend-gateway.secret:/run/secrets/opencode_sso_secret:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -42,7 +39,6 @@ services:
         API_PROXY_TARGET: http://backend:8000
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_OPENCODE_URL: ${NEXT_PUBLIC_OPENCODE_URL:-http://159.138.89.233:4096}
     environment:
       TZ: Asia/Shanghai
       API_PROXY_TARGET: http://backend:8000

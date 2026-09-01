@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import asyncio
-import hmac
+import json
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from routers.auth import require_auth
-from services import agent_runtime_service, agent_service, context_service
-from settings import settings
+from routers.auth import require_admin, require_auth
+from services import agent_audit_service, agent_service, context_service, insight_agent_runtime
 
 router = APIRouter(prefix="/agent")
 ContextType = Literal["github_project", "cloud_solution", "vendor_update", "requirement", "solution"]
@@ -21,6 +20,21 @@ ActionType = Literal["create_requirement_draft", "create_solution_draft", "appen
 class SessionCreate(BaseModel):
     context_type: ContextType
     context_id: str = Field(min_length=1, max_length=200)
+
+
+class RouteCreate(SessionCreate):
+    action_key: str = Field(min_length=1, max_length=80)
+
+
+class ContextPatch(BaseModel):
+    supplement: str = Field(default="", max_length=4000)
+    excluded_sections: list[Literal["summary", "content", "metadata", "related_entities"]] = Field(default_factory=list)
+
+
+class ArtifactCreate(BaseModel):
+    title: str = Field(default="", max_length=200)
+    type: str = Field(default="Markdown", max_length=80)
+    content: str = Field(default="", max_length=20000)
 
 
 class ChatMessage(BaseModel):
@@ -75,9 +89,61 @@ async def create_session(payload: SessionCreate, user=Depends(require_auth)):
     return await asyncio.to_thread(agent_service.create_session, str(user.id), payload.context_type, payload.context_id)
 
 
+@router.post("/routes", status_code=201)
+async def route_agent_action(payload: RouteCreate, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.route_session, str(user.id), payload.context_type, payload.context_id, payload.action_key)
+
+
 @router.get("/sessions/{session_id}")
 async def get_session(session_id: str, user=Depends(require_auth)):
     return await asyncio.to_thread(agent_service.get_session, str(user.id), session_id)
+
+
+@router.post("/sessions/{session_id}/context/refresh")
+async def refresh_context(session_id: str, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.refresh_context, str(user.id), session_id)
+
+
+@router.patch("/sessions/{session_id}/context")
+async def patch_context(session_id: str, payload: ContextPatch, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.patch_context, str(user.id), session_id, payload.supplement, payload.excluded_sections)
+
+
+@router.post("/sessions/{session_id}/artifacts", status_code=201)
+async def create_artifact(session_id: str, payload: ArtifactCreate, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.create_artifact, str(user.id), session_id, payload.title, payload.type, payload.content)
+
+
+@router.get("/artifacts")
+async def list_artifacts(user=Depends(require_auth)):
+    return {"items": await asyncio.to_thread(agent_service.list_artifacts, str(user.id))}
+
+
+@router.get("/artifacts/{artifact_id}")
+async def get_artifact(artifact_id: str, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.get_artifact, str(user.id), artifact_id)
+
+
+@router.post("/artifacts/{artifact_id}/knowledge-request")
+async def request_knowledge(artifact_id: str, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.request_knowledge, str(user.id), artifact_id)
+
+
+@router.get("/admin/artifacts/requests")
+async def artifact_requests(_=Depends(require_admin)):
+    from repositories import artifact_repository
+    return {"items": await asyncio.to_thread(artifact_repository.requested)}
+
+
+@router.post("/admin/artifacts/{artifact_id}/publish")
+async def publish_artifact(artifact_id: str, admin=Depends(require_admin)):
+    from repositories import artifact_repository
+    item = next((row for row in await asyncio.to_thread(artifact_repository.requested) if row["id"] == artifact_id), None)
+    if not item: raise HTTPException(status_code=404, detail="待审核 Artifact 不存在")
+    filename = f"artifact-{artifact_id}.md"
+    result = await asyncio.to_thread(artifact_repository.publish, artifact_id, f"artifact://{artifact_id}", str(admin.id))
+    agent_audit_service.log(str(admin.id), "artifact_publish", detail=artifact_id)
+    return result
 
 
 @router.get("/chat/sessions")
@@ -97,24 +163,31 @@ async def delete_chat_session(session_id: str, user=Depends(require_auth)):
 
 @router.post("/chat/stream")
 async def chat_stream(payload: ChatRequest, user=Depends(require_auth)):
-    from services import ai_service
-
-    if not settings.CHAT_API_KEY:
-        raise HTTPException(status_code=503, detail="Insight-Agent 模型未配置")
-    messages = await asyncio.to_thread(agent_service.chat_messages, str(user.id), payload.message, payload.session_id)
+    session = await asyncio.to_thread(agent_service.get_session, str(user.id), payload.session_id)
 
     async def stream():
-        reply = []
-        async for line in ai_service.chat_complete_stream(messages):
-            if line.startswith("data: ") and line.strip() != "data: [DONE]":
-                try:
-                    reply.append(__import__("json").loads(line[6:])["choices"][0]["delta"].get("content", ""))
-                except (KeyError, ValueError, IndexError):
-                    pass
-            yield line
-        await asyncio.to_thread(agent_service.record_turn, str(user.id), payload.session_id, payload.message, "".join(reply))
+        reply = ""
+        try:
+            yield 'data: {"status":"Insight-Agent 正在分析…"}\n\n'
+            async for content in insight_agent_runtime.stream_reply(session, payload.message):
+                reply += content
+                yield f'data: {json.dumps({"choices": [{"delta": {"content": content}}]}, ensure_ascii=False)}\n\n'
+            if not reply.strip():
+                raise RuntimeError("模型未返回内容")
+            await asyncio.to_thread(agent_service.record_turn, str(user.id), payload.session_id, payload.message, reply)
+        except Exception:
+            yield 'data: {"error":"Insight-Agent 执行失败，请重试。"}\n\n'
+        yield "data: [DONE]\n\n"
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/sessions/{session_id}/actions", status_code=201)
@@ -134,21 +207,9 @@ async def propose_action(session_id: str, payload: ActionCreate, user=Depends(re
 
 @router.post("/sessions/{session_id}/actions/import", status_code=201)
 async def import_agent_action(session_id: str, user=Depends(require_auth)):
-    await asyncio.to_thread(agent_service.get_session, str(user.id), session_id)
-    try:
-        proposal = await agent_runtime_service.read_action(str(user.id), session_id)
-    except Exception:
-        raise HTTPException(status_code=404, detail="当前 Agent Session 没有可确认的草稿")
-    return await propose_action(session_id, ActionCreate.model_validate(proposal), user)
+    raise HTTPException(status_code=422, detail="请使用 Insight-Agent 的结构化成果操作创建草稿")
 
 
 @router.post("/actions/{action_id}/confirm")
 async def confirm_action(action_id: str, user=Depends(require_auth)):
     return await asyncio.to_thread(agent_service.confirm_action, str(user.id), action_id)
-
-
-@router.get("/internal/sessions/{session_id}")
-async def internal_session(session_id: str, x_insight_runtime_secret: str = Header(default=""), x_insight_user_id: str = Header(default="")):
-    if not settings.OPENCODE_SSO_SECRET or not hmac.compare_digest(x_insight_runtime_secret, settings.OPENCODE_SSO_SECRET):
-        raise HTTPException(status_code=403, detail="Runtime 验证失败")
-    return await asyncio.to_thread(agent_service.get_session, x_insight_user_id, session_id)

@@ -13,13 +13,14 @@ const registryPath = path.join(root, "registry.json")
 const templateRoot = "/template"
 const workspaceRulesTemplate = "/opt/insight-agent/AGENTS.override.md"
 const knowledgeRoot = "/knowledge/public"
+const pluginTemplateRoot = "/opt/insight-agent/plugins"
 const adminGid = 10002
 const firstAdminUid = 11000
 const firstUserUid = 20000
 const firstPort = 12000
-const maxActive = Number(process.env.OPENCODE_MAX_ACTIVE || 6)
-const idleMs = Number(process.env.OPENCODE_IDLE_SECONDS || 1800) * 1000
-const internalSecret = process.env.OPENCODE_GATEWAY_SECRET || ""
+const maxActive = Number(process.env.HERMES_MAX_ACTIVE || 6)
+const idleMs = Number(process.env.HERMES_IDLE_SECONDS || 1800) * 1000
+const internalSecret = process.env.HERMES_GATEWAY_SECRET || ""
 const providerUrl = new URL(process.env.HERMES_PROVIDER_BASE_URL || "http://127.0.0.1:9")
 const providerKey = process.env.HERMES_PROVIDER_API_KEY || ""
 const publicApi = process.env.INSIGHT_PUBLIC_API_URL || "http://host.docker.internal:8000/api"
@@ -58,6 +59,11 @@ chmodSync(spacesRoot, 0o711)
 chmodSync(tokensRoot, 0o700)
 chmodSync(knowledgeRoot, 0o2775)
 chownSync(knowledgeRoot, 0, adminGid)
+if (existsSync(pluginTemplateRoot)) {
+  const destination = path.join(knowledgeRoot, "plugins")
+  cpSync(pluginTemplateRoot, destination, { recursive: true, force: true })
+  ownTree(destination, 0, adminGid, 0o2775)
+}
 
 let registry = existsSync(registryPath) ? JSON.parse(readFileSync(registryPath, "utf8")) : { users: {} }
 
@@ -223,7 +229,9 @@ async function syncBusinessContext(identityValue, workspace) {
     writeFileSync(contextPath, `# Current InsightPro Context\n\nSession: ${session.id}\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\`\n`, { mode: 0o640 })
     writeFileSync(path.join(directory, "INSIGHT_ACTION.json"), JSON.stringify({ session_id: session.id, action: "", payload: {} }, null, 2), { mode: 0o640 })
     ownTree(directory, registry.users[identityValue.userId].uid, adminGid)
-    chownSync(contextPath, 0, registry.users[identityValue.userId].uid)
+    // The Hermes process runs as the owning user. Keeping this file root-owned
+    // made a successfully injected context unreadable inside the workspace.
+    chownSync(contextPath, registry.users[identityValue.userId].uid, adminGid)
     chmodSync(contextPath, 0o640)
   } catch (error) {
     console.error("Business context sync failed", error)
@@ -330,6 +338,74 @@ function managementRequest(req, res) {
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(action)); return true
     } catch { res.writeHead(404); res.end("no action"); return true }
   }
+  if (url.pathname === "/_insight/runtime/chat" && req.method === "POST") {
+    const current = identity(req)
+    if (!current) { res.writeHead(403); res.end("forbidden"); return true }
+    const chunks = []; let size = 0
+    req.on("data", chunk => { size += chunk.length; if (size <= 16 * 1024) chunks.push(chunk) })
+    req.on("end", async () => {
+      if (size > 16 * 1024) { res.writeHead(413); res.end("message too large"); return }
+      try {
+        const message = String(JSON.parse(Buffer.concat(chunks).toString()).message || "").trim()
+        if (!message || message.length > 8000) { res.writeHead(422); res.end("invalid message"); return }
+        const instance = await ensureInstance(current)
+        const record = registry.users[current.userId]
+        const child = spawn("hermes", ["chat", "--quiet", "--query-file", "-", "--continue", `insight-${current.agentSessionId}`, "--create-if-missing", "--in", instance.workspace, "--run-budget", "300"], {
+          cwd: instance.workspace,
+          uid: record.uid,
+          gid: current.role === "admin" ? adminGid : record.uid,
+          env: childEnvironment(path.join(spacesRoot, current.userId), instance.workspace, dashboardTokenFor(current.userId), current.role, current.userId),
+          stdio: ["pipe", "pipe", "pipe"],
+        })
+        const stdout = []; const stderr = []; let outputSize = 0
+        child.stdout.on("data", chunk => { outputSize += chunk.length; if (outputSize <= 2 * 1024 * 1024) stdout.push(chunk) })
+        child.stderr.on("data", chunk => { if (stderr.reduce((sum, item) => sum + item.length, 0) < 64 * 1024) stderr.push(chunk) })
+        child.stdin.end(message)
+        const timer = setTimeout(() => child.kill("SIGTERM"), 310_000)
+        child.on("exit", async code => {
+          clearTimeout(timer)
+          if (outputSize > 2 * 1024 * 1024) { res.writeHead(502); res.end("agent output too large"); return }
+          const cliReply = Buffer.concat(stdout).toString().trim()
+          // Hermes can persist the final assistant message while --quiet emits
+          // no stdout. Treat the dashboard record as the source of truth.
+          if (code !== 0) { console.error("Hermes chat failed", Buffer.concat(stderr).toString()); res.writeHead(502); res.end("Hermes Agent execution failed"); return }
+          instance.lastUsed = Date.now()
+          const token = dashboardTokenFor(current.userId)
+          const sessionsResponse = await fetch(`http://127.0.0.1:${instance.port}/api/sessions?limit=100&order=recent`, {
+            headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000),
+          }).catch(() => null)
+          const sessions = sessionsResponse?.ok ? (await sessionsResponse.json().catch(() => ({}))).sessions || [] : []
+          const hermesSessionId = sessions.find(item => item.title === `insight-${current.agentSessionId}`)?.id || ""
+          let reply = cliReply
+          if (hermesSessionId) {
+            const messagesResponse = await fetch(`http://127.0.0.1:${instance.port}/api/sessions/${encodeURIComponent(hermesSessionId)}/messages`, {
+              headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(3000),
+            }).catch(() => null)
+            const messages = messagesResponse?.ok ? (await messagesResponse.json().catch(() => ({}))).messages || [] : []
+            reply = messages.filter(item => item.role === "assistant" && item.content?.trim()).at(-1)?.content.trim() || cliReply
+          }
+          if (!reply) { console.error("Hermes chat returned no final reply", Buffer.concat(stderr).toString()); res.writeHead(502); res.end("Hermes Agent returned no final reply"); return }
+          res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
+          res.end(JSON.stringify({ reply, hermes_session_id: hermesSessionId }))
+        })
+      } catch (error) {
+        console.error("Hermes chat request failed", error); res.writeHead(503); res.end("Hermes Agent unavailable")
+      }
+    })
+    return true
+  }
+  if (url.pathname === "/_insight/runtime/session" && req.method === "DELETE") {
+    const current = identity(req)
+    const hermesSessionId = String(url.searchParams.get("hermes_session_id") || "")
+    if (!current || !/^[A-Za-z0-9_-]{8,80}$/.test(hermesSessionId)) { res.writeHead(422); res.end("invalid session"); return true }
+    ensureInstance(current).then(async instance => {
+      const response = await fetch(`http://127.0.0.1:${instance.port}/api/sessions/${encodeURIComponent(hermesSessionId)}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${dashboardTokenFor(current.userId)}` },
+      })
+      res.writeHead(response.ok ? 204 : response.status); res.end()
+    }).catch(() => { res.writeHead(503); res.end("Hermes Agent unavailable") })
+    return true
+  }
   const userId = url.searchParams.get("user_id") || ""
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId)) {
     res.writeHead(422); res.end("invalid user_id"); return true
@@ -358,7 +434,7 @@ function managementRequest(req, res) {
 function childEnvironment(space, workspace, dashboardToken, role, userId) {
   const env = { ...process.env }
   for (const name of Object.keys(env)) {
-    if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name) || name.startsWith("OPENCODE_")) delete env[name]
+    if (/(SECRET|TOKEN|PASSWORD|API_KEY)$/i.test(name)) delete env[name]
   }
   return {
     ...env,
@@ -519,7 +595,8 @@ if (process.argv.includes("--self-test")) {
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
   if (providerApiPath("/openai/v1", "/v1/chat/completions") !== "/openai/v1/chat/completions") process.exit(1)
   if (nextUid("admin", [{ uid: adminGid }, { uid: firstAdminUid }]) !== firstAdminUid + 1) process.exit(1)
-  if (!readFileSync(workspaceRulesTemplate, "utf8").includes("/knowledge/public/insight-public-data.json")) process.exit(1)
+  const rules = readFileSync(workspaceRulesTemplate, "utf8")
+  if (!rules.includes("/knowledge/public/insight-public-data.json") || !rules.includes("/knowledge/public/plugins")) process.exit(1)
   process.exit(0)
 }
 

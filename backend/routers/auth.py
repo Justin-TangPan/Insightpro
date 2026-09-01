@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 from supabase import create_client, Client
 from settings import settings
-from services import agent_audit_service, agent_runtime_service, opencode_sso_service
+from services import agent_audit_service, agent_runtime_service, agent_sso_service
 
 router = APIRouter()
 security = HTTPBearer(auto_error=False)
@@ -105,9 +105,9 @@ async def _require_active_agent_user(user):
 
 
 def _gateway_secret() -> str:
-    if len(settings.OPENCODE_SSO_SECRET) < 32:
+    if len(settings.HERMES_SSO_SECRET) < 32:
         raise HTTPException(status_code=503, detail="Insight-Agent SSO 尚未配置")
-    return settings.OPENCODE_SSO_SECRET
+    return settings.HERMES_SSO_SECRET
 
 
 @router.post("/auth/login")
@@ -215,7 +215,7 @@ async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(req
     try:
         updated = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, str(user_id), {"app_metadata": metadata})).user
         if req.disabled or req.role is not None:
-            await asyncio.to_thread(opencode_sso_service.revoke_member_gateway_sessions, str(user_id))
+            await asyncio.to_thread(agent_sso_service.revoke_member_gateway_sessions, str(user_id))
             try:
                 await agent_runtime_service.stop(str(user_id))
             except Exception:
@@ -313,8 +313,8 @@ async def auth_logout(user=Depends(get_current_user)):
     return {"message": "已登出"}
 
 
-@router.post("/auth/opencode/ticket")
-async def create_opencode_ticket(req: Optional[AgentTicketRequest] = None, user=Depends(require_auth)):
+@router.post("/auth/agent/ticket")
+async def create_agent_ticket(req: Optional[AgentTicketRequest] = None, user=Depends(require_auth)):
     await _require_active_agent_user(user)
     target_user_id = str(req.target_user_id) if req and req.target_user_id else None
     if target_user_id and target_user_id != str(user.id):
@@ -329,14 +329,13 @@ async def create_opencode_ticket(req: Optional[AgentTicketRequest] = None, user=
     if agent_session_id:
         from services import agent_service
         await asyncio.to_thread(agent_service.get_session, str(user.id), agent_session_id)
-    ticket = await asyncio.to_thread(opencode_sso_service.issue_ticket, str(user.id), target_user_id, agent_session_id)
-    query = urlencode({"ticket": ticket})
-    return {"redirect_url": f"{settings.OPENCODE_PUBLIC_URL}/auth/callback?{query}"}
+    query = urlencode({"session": agent_session_id}) if agent_session_id else ""
+    return {"redirect_url": f"{settings.BASE_URL.rstrip('/')}/workbench/ai{f'?{query}' if query else ''}"}
 
 
-@router.get("/auth/opencode/callback")
-async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
-    ticket = await asyncio.to_thread(opencode_sso_service.consume_ticket, x_insight_sso_ticket)
+@router.get("/auth/agent/callback")
+async def agent_callback(x_insight_sso_ticket: str = Header(default="")):
+    ticket = await asyncio.to_thread(agent_sso_service.consume_ticket, x_insight_sso_ticket)
     if not ticket:
         raise HTTPException(status_code=401, detail="SSO ticket 无效、已过期或已使用")
     try:
@@ -352,39 +351,39 @@ async def opencode_callback(x_insight_sso_ticket: str = Header(default="")):
     await _require_active_agent_user(agent_account)
     display_name = ((agent_account.user_metadata or {}).get("name") or (agent_account.email or "").split("@")[0]).strip()[:80]
     session = await asyncio.to_thread(
-        opencode_sso_service.create_gateway_session,
+        agent_sso_service.create_gateway_session,
         ticket["user_id"], ticket["agent_user_id"], auth_role, agent_role, display_name, ticket.get("agent_session_id"),
     )
-    response = RedirectResponse(f"{settings.OPENCODE_PUBLIC_URL}/chat", status_code=303)
+    response = RedirectResponse(f"{settings.HERMES_PUBLIC_URL}/chat", status_code=303)
     response.set_cookie(
-        "insight_opencode_session",
+        "insight_agent_session",
         session,
-        max_age=opencode_sso_service.SESSION_TTL_SECONDS,
+        max_age=agent_sso_service.SESSION_TTL_SECONDS,
         httponly=True,
-        secure=settings.OPENCODE_COOKIE_SECURE,
+        secure=settings.HERMES_COOKIE_SECURE,
         samesite="lax",
         path="/",
     )
     if display_name:
         response.set_cookie(
             "insight_agent_name", quote(display_name, safe=""),
-            max_age=opencode_sso_service.SESSION_TTL_SECONDS,
-            secure=settings.OPENCODE_COOKIE_SECURE, samesite="lax", path="/",
+            max_age=agent_sso_service.SESSION_TTL_SECONDS,
+            secure=settings.HERMES_COOKIE_SECURE, samesite="lax", path="/",
         )
     response.headers["Cache-Control"] = "no-store"
     return response
 
 
-@router.get("/auth/opencode/verify")
-async def verify_opencode_gateway(
+@router.get("/auth/agent/verify")
+async def verify_agent_gateway(
     request: Request,
     x_insight_gateway_secret: str = Header(default=""),
 ):
     secret = _gateway_secret()
     if not hmac.compare_digest(x_insight_gateway_secret, secret):
         raise HTTPException(status_code=403, detail="Gateway 验证失败")
-    token = request.cookies.get("insight_opencode_session", "")
-    session = await asyncio.to_thread(opencode_sso_service.verify_gateway_session, token)
+    token = request.cookies.get("insight_agent_session", "")
+    session = await asyncio.to_thread(agent_sso_service.verify_gateway_session, token)
     if not session:
         raise HTTPException(status_code=401, detail="Insight-Agent 授权已过期")
     return Response(status_code=204, headers={
@@ -397,10 +396,10 @@ async def verify_opencode_gateway(
     })
 
 
-@router.post("/auth/opencode/revoke", status_code=204)
-async def revoke_opencode_sessions(user=Depends(require_auth)):
-    await asyncio.to_thread(opencode_sso_service.revoke_gateway_sessions, str(user.id))
+@router.post("/auth/agent/revoke", status_code=204)
+async def revoke_agent_sessions(user=Depends(require_auth)):
+    await asyncio.to_thread(agent_sso_service.revoke_gateway_sessions, str(user.id))
     response = Response(status_code=204)
-    response.delete_cookie("insight_opencode_session", path="/")
+    response.delete_cookie("insight_agent_session", path="/")
     response.delete_cookie("insight_agent_name", path="/")
     return response

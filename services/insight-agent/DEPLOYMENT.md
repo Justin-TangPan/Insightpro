@@ -4,9 +4,9 @@
 
 - `deploy/hermes/Dockerfile`：固定官方 Hermes Agent 镜像和 Runtime Manager。
 - `deploy/hermes/compose.yaml`：独立 Compose、资源限制、隔离 Workspace 和健康检查。
-- `deploy/hermes/nginx.conf.template`：SSO Gateway 与 iframe 来源限制。
+- `deploy/hermes/nginx.conf.template`：认证 Gateway 与 Runtime 管理接口保护。
 - `deploy/hermes/manage.sh`：bootstrap/start/stop/upgrade/health/logs。
-- `deploy/hermes/runtime-manager.mjs`：按 `user_id` 配置、启动和代理 Hermes Dashboard 子进程。
+- `deploy/hermes/runtime-manager.mjs`：按 `user_id` 配置、启动 Hermes，并为 InsightPro Agent API 提供受认证的 Chat、Session 和管理桥接。
 
 当前生产运行由独立 Docker Compose project 管理；不要把它加入 InsightPro 根 Compose，也不要让主系统的 `--remove-orphans` 操作接管它。
 
@@ -14,7 +14,7 @@
 
 运行配置位于 `/etc/insight-hermes/hermes.env`，权限应为 `0600`。Gateway Secret 主副本和后端只读副本位于同一目录。不要提交这些文件。
 
-必要变量参见 `deploy/hermes/hermes.env.example`。嵌入部署必须将 `INSIGHT_APP_ORIGIN` 设置为准确的 InsightPro Origin。
+必要变量参见 `deploy/hermes/hermes.env.example`。`INSIGHT_APP_ORIGIN` 必须设置为准确的 InsightPro Origin。
 
 持久化根目录默认 `/var/lib/insight-hermes`：
 
@@ -23,7 +23,7 @@
 - `knowledge/public/`：普通用户只读、管理员可维护的公共知识库；
 - `template/`：首次创建 Workspace 使用的无 Secret 项目模板。
 
-`OPENCODE_MAX_ACTIVE` 和 `OPENCODE_IDLE_SECONDS` 控制同时运行的用户进程及闲置回收。回收只停止进程，不删除任何持久化数据。
+`HERMES_MAX_ACTIVE` 和 `HERMES_IDLE_SECONDS` 控制同时运行的用户进程及闲置回收。回收只停止进程，不删除任何持久化数据。
 
 ## 发布与验证
 

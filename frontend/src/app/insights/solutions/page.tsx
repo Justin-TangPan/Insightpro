@@ -8,6 +8,7 @@ import {
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { AgentAction } from "@/components/agent-action";
 
 interface SolutionItem {
   id: number;
@@ -114,7 +115,7 @@ export default function SolutionInsightsPage() {
 
   const activePrimary = directory.find((group) => group.name === selectedPrimary) || directory[0];
   const activeSecondary = activePrimary?.secondary.find((group) => group.name === selectedSecondary) || activePrimary?.secondary[0];
-  const newItems = vendorItems.filter((item) => item.is_recent && item.change_type === "new");
+  const newItems = vendorItems.filter((item) => !item.is_baseline && item.change_type === "new" && item.first_seen_date === dailyInsight?.date);
   const totalPages = Math.max(1, Math.ceil((activeSecondary?.items.length || 0) / PAGE_SIZE));
   const activePage = Math.min(currentPage, totalPages);
   const pageStart = (activePage - 1) * PAGE_SIZE;
@@ -187,7 +188,7 @@ export default function SolutionInsightsPage() {
       {!loading && newItems.length > 0 && (
         <section className="rounded-2xl bg-warning-soft p-3 sm:p-5">
           <div className="flex items-end justify-between gap-4 px-2 pb-4">
-            <div><p className="swiss-kicker text-warning">New since previous catalog</p><h2 className="mt-1 type-h2 text-ink">新增方案置顶</h2></div>
+            <div><p className="swiss-kicker text-warning">Verified today</p><h2 className="mt-1 type-h2 text-ink">今日确认新增</h2></div>
             <span className="ui-tag ui-tag-warning">{newItems.length} 项</span>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">{newItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
@@ -266,7 +267,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
     <article className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]">
       <div className="flex min-h-7 items-start justify-between gap-5">
         <p className="swiss-kicker text-ink-muted">{item.vendor} / {item.vendor === "华为云" ? item.primary_category : `${item.primary_category} / ${item.secondary_category}`}</p>
-        {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? "新增置顶" : "内容更新"}</span>}
+        {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? "近期收录" : "内容更新"}</span>}
       </div>
       <h3 className="mt-3 type-h3 text-ink">{item.title}</h3>
       <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary">{item.summary}</p>
@@ -275,7 +276,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
         <span className="text-[11px] text-ink-muted">{item.is_baseline ? "普通方案" : `最近变化 ${item.last_changed_date}`}</span>
         <div className="flex items-center gap-3">
-          <Link href={`/insight-agent?context_type=cloud_solution&context_id=${item.id}`} className="ui-button-secondary px-3 py-2 text-xs">Agent 分析</Link>
+          <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">AI 分析</AgentAction>
           <Link href={{ pathname: "/workbench/requirements/new", query: { source_type: "cloud_solution", source_id: String(item.id), source_url: item.url, title: item.title } }} className="ui-button-secondary px-3 py-2 text-xs">创建需求</Link>
           <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
         </div>

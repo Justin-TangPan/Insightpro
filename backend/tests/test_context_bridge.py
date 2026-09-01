@@ -1,6 +1,8 @@
+import asyncio
 from types import SimpleNamespace
 
 from services import agent_service, context_service
+from routers import agent
 
 
 def test_requirement_context_is_user_scoped(monkeypatch):
@@ -28,9 +30,21 @@ def test_confirm_requirement_action_creates_draft_from_snapshot(monkeypatch):
     assert created[0][1]["source_id"] == "dify"
 
 
-def test_chat_messages_only_accept_server_owned_context(monkeypatch):
-    monkeypatch.setattr(agent_service, "get_session", lambda *_: {"context_type": "cloud_solution", "context_snapshot": {"title": "方案 A"}, "conversation": [{"role": "assistant", "content": "前文"}]})
-    messages = agent_service.chat_messages("user-1", "分析它", "session-1")
-    assert messages[0]["role"] == "system"
-    assert "方案 A" in messages[0]["content"]
-    assert messages[-1] == {"role": "user", "content": "分析它"}
+def test_agent_chat_runs_in_native_runtime(monkeypatch):
+    monkeypatch.setattr(agent.agent_service, "get_session", lambda *_: {"id": "session-1", "conversation": []})
+    monkeypatch.setattr(agent.agent_service, "record_turn", lambda *_: None)
+    called = []
+
+    async def native_stream(session, message):
+        called.append((session["id"], message))
+        yield "# Insight-Agent 结果"
+
+    monkeypatch.setattr(agent.insight_agent_runtime, "stream_reply", native_stream)
+    user = SimpleNamespace(id="user-1", email="user@example.com", app_metadata={"role": "user"}, user_metadata={"name": "User"})
+    response = asyncio.run(agent.chat_stream(agent.ChatRequest(message="分析它", session_id="session-1"), user))
+
+    async def body():
+        return b"".join([chunk if isinstance(chunk, bytes) else chunk.encode() async for chunk in response.body_iterator])
+
+    assert "Insight-Agent 结果" in asyncio.run(body()).decode()
+    assert called == [("session-1", "分析它")]

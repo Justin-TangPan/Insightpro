@@ -35,7 +35,4 @@
 
 ## 看门狗
 
-- 看门狗脚本：`scripts/watchdog.ps1`（监控 3000 和 8000 端口，每 30 秒检测一次）
-- 通过计划任务 `InsightProWatchdog` 实现开机自启
-- 如果看门狗未运行，手动启动：`scripts/watchdog.ps1`
-- 看门狗日志：`scripts/watchdog.log`
+- Linux Docker 部署由 `insight-docker-health-guard.timer` 负责健康守护；使用 `scripts/health-check.sh full` 检查。

@@ -5,14 +5,7 @@ DEPLOY_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$DEPLOY_DIR/../.." && pwd)"
 ENV_FILE="/etc/insight-hermes/hermes.env"
 
-migrate_legacy_config() {
-  if [[ ! -f "$ENV_FILE" && -f /etc/insight-opencode/opencode.env ]]; then
-    install -D -m 0600 /etc/insight-opencode/opencode.env "$ENV_FILE"
-  fi
-}
-
 load_env() {
-  migrate_legacy_config
   [[ -f "$ENV_FILE" ]] || { echo "Missing $ENV_FILE" >&2; exit 1; }
   set -a
   # shellcheck disable=SC1090
@@ -23,13 +16,13 @@ load_env() {
   HERMES_DISK_BUDGET_MB="${HERMES_DISK_BUDGET_MB:-20480}"
   HERMES_MAX_ACTIVE="${HERMES_MAX_ACTIVE:-6}"
   HERMES_IDLE_SECONDS="${HERMES_IDLE_SECONDS:-1800}"
-  HERMES_PROVIDER_BASE_URL="${HERMES_PROVIDER_BASE_URL:-${OPENCODE_PROVIDER_BASE_URL:-}}"
-  HERMES_PROVIDER_API_KEY="${HERMES_PROVIDER_API_KEY:-${OPENCODE_PROVIDER_API_KEY:-}}"
+  HERMES_PROVIDER_BASE_URL="${HERMES_PROVIDER_BASE_URL:-}"
+  HERMES_PROVIDER_API_KEY="${HERMES_PROVIDER_API_KEY:-}"
   : "${HERMES_PROVIDER_BASE_URL:?missing HERMES_PROVIDER_BASE_URL}"
   : "${HERMES_PROVIDER_API_KEY:?missing HERMES_PROVIDER_API_KEY}"
   if [[ -f /etc/insight-hermes/gateway.secret ]]; then
-    OPENCODE_GATEWAY_SECRET="$(</etc/insight-hermes/gateway.secret)"
-    export OPENCODE_GATEWAY_SECRET
+    HERMES_GATEWAY_SECRET="$(</etc/insight-hermes/gateway.secret)"
+    export HERMES_GATEWAY_SECRET
   fi
   export HERMES_DATA_ROOT HERMES_PORT HERMES_DISK_BUDGET_MB HERMES_MAX_ACTIVE HERMES_IDLE_SECONDS HERMES_PROVIDER_BASE_URL HERMES_PROVIDER_API_KEY
 }

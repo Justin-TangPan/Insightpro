@@ -10,12 +10,13 @@ WORKDIR /app
 RUN groupadd --gid 10001 insight \
     && useradd --uid 10001 --gid insight --create-home insight
 
-COPY requirements.txt ./requirements.txt
+COPY backend/requirements.txt ./requirements.txt
 RUN python -m pip install --upgrade pip \
     && python -m pip install -r requirements.txt \
     && chmod -R a+rX /usr/local/lib/python3.11/site-packages /usr/local/bin
 
-COPY --chown=insight:insight . .
+COPY --chown=insight:insight backend/ .
+COPY --chown=insight:insight services/insight-agent/ ./agent_knowledge/
 
 USER insight
 

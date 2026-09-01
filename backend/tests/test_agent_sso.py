@@ -1,4 +1,4 @@
-from services import opencode_sso_service as sso
+from services import agent_sso_service as sso
 from types import SimpleNamespace
 import asyncio
 
@@ -33,13 +33,10 @@ def test_ticket_and_gateway_session_are_one_time_and_revocable(monkeypatch):
 
 def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
     user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user"})
-    issued = []
-    monkeypatch.setattr(auth.opencode_sso_service, "issue_ticket", lambda user_id, target, session=None: issued.append((user_id, target)) or "ticket")
-    result = asyncio.run(auth.create_opencode_ticket(None, user))
-    assert result["redirect_url"].endswith("ticket=ticket")
-    assert issued == [(str(user.id), None)]
+    result = asyncio.run(auth.create_agent_ticket(None, user))
+    assert result["redirect_url"].endswith("/workbench/ai")
     with pytest.raises(HTTPException) as error:
-        asyncio.run(auth.create_opencode_ticket(
+        asyncio.run(auth.create_agent_ticket(
             auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), user,
         ))
     assert error.value.status_code == 403
@@ -48,18 +45,17 @@ def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
 def test_disabled_user_cannot_start_agent_runtime():
     user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user", "status": "disabled"})
     with pytest.raises(HTTPException) as error:
-        asyncio.run(auth.create_opencode_ticket(None, user))
+        asyncio.run(auth.create_agent_ticket(None, user))
     assert error.value.status_code == 403
 
 
 def test_admin_can_target_another_agent_identity(monkeypatch):
     admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
     monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda user_id: SimpleNamespace(user=SimpleNamespace(id=user_id)))
-    monkeypatch.setattr(auth.opencode_sso_service, "issue_ticket", lambda user_id, target, session=None: f"{user_id}:{target}")
-    result = asyncio.run(auth.create_opencode_ticket(
+    result = asyncio.run(auth.create_agent_ticket(
         auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), admin,
     ))
-    assert "00000000-0000-4000-8000-000000000002" in result["redirect_url"]
+    assert result["redirect_url"].endswith("/workbench/ai")
 
 
 def test_admin_user_directory_exposes_no_credentials(monkeypatch):
@@ -82,7 +78,7 @@ def test_admin_can_disable_member_and_revoke_agent_sessions(monkeypatch):
     monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda _: SimpleNamespace(user=member))
     monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**member.__dict__, "app_metadata": values["app_metadata"]})))
     revoked = []
-    monkeypatch.setattr(auth.opencode_sso_service, "revoke_member_gateway_sessions", revoked.append)
+    monkeypatch.setattr(auth.agent_sso_service, "revoke_member_gateway_sessions", revoked.append)
     async def stop(_):
         return None
     monkeypatch.setattr(auth.agent_runtime_service, "stop", stop)

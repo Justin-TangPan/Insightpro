@@ -77,7 +77,7 @@ export default function HomePage() {
 
   return (
     <div className="page-stack">
-      <section className="overflow-hidden rounded-2xl bg-primary-dark text-white shadow-[0_18px_50px_rgba(13,79,52,0.18)]">
+      <section className="overflow-hidden rounded-2xl bg-primary-dark text-white shadow-[var(--shadow-brand)]">
         <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
           <div className="flex flex-col justify-center px-6 py-10 md:px-10 md:py-12 lg:px-12">
             <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/80">
