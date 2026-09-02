@@ -70,13 +70,14 @@ def get_agent_session(user_id: str, session_id: str) -> dict | None:
         return dict(row) if row else None
 
 
-def create_chat_session(session_id: str, user_id: str) -> dict:
+def create_chat_session(session_id: str, user_id: str, page_title: str = "", page_path: str = "") -> dict:
+    context = {"page_title": page_title, "page_path": page_path} if page_title else {}
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot, task_key, task_title, task_status)
-               VALUES (%s,%s,'chat',%s,'', '{}'::jsonb,'free_chat','自由讨论','ready') RETURNING *""",
-            (session_id, user_id, session_id),
+               VALUES (%s,%s,'chat',%s,%s,%s::jsonb,%s,%s,'ready') RETURNING *""",
+            (session_id, user_id, session_id, page_title, __import__("json").dumps(context), "page_analysis" if page_title else "free_chat", "分析当前页面" if page_title else "自由讨论"),
         )
         return dict(cursor.fetchone())
 

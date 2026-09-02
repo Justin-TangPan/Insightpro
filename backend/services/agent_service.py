@@ -19,8 +19,8 @@ def route_session(user_id: str, context_type: str, context_id: str, action_key: 
     return repository.create_agent_session(str(uuid4()), user_id, context, task_key, task["title"], task["status"], task["prompt"])
 
 
-def create_chat_session(user_id: str) -> dict:
-    return repository.create_chat_session(str(uuid4()), user_id)
+def create_chat_session(user_id: str, page_title: str = "", page_path: str = "") -> dict:
+    return repository.create_chat_session(str(uuid4()), user_id, page_title, page_path)
 
 
 def list_sessions(user_id: str) -> list[dict]:

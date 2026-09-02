@@ -47,6 +47,11 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=64)
 
 
+class PageChatCreate(BaseModel):
+    title: str = Field(default="当前页面", min_length=1, max_length=200)
+    path: str = Field(default="/", pattern=r"^/[A-Za-z0-9_./?=&-]{0,500}$")
+
+
 class ActionCreate(BaseModel):
     action: ActionType
     payload: dict = Field(default_factory=dict)
@@ -152,8 +157,8 @@ async def list_chat_sessions(user=Depends(require_auth)):
 
 
 @router.post("/chat/sessions", status_code=201)
-async def create_chat_session(user=Depends(require_auth)):
-    return await asyncio.to_thread(agent_service.create_chat_session, str(user.id))
+async def create_chat_session(payload: Optional[PageChatCreate] = None, user=Depends(require_auth)):
+    return await asyncio.to_thread(agent_service.create_chat_session, str(user.id), payload.title if payload else "", payload.path if payload else "")
 
 
 @router.delete("/chat/sessions/{session_id}", status_code=204)

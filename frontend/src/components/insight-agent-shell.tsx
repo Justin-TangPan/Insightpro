@@ -7,13 +7,13 @@ import {
   ChevronDown,
   ChevronUp,
   Code2,
-  Expand,
   FolderOpen,
   GripHorizontal,
   Maximize2,
   MessageSquarePlus,
   Minimize2,
   Paperclip,
+  PanelRightOpen,
   Send,
   Sparkles,
   Trash2,
@@ -129,7 +129,16 @@ export function InsightAgentShell() {
   const [splitWidth, setSplitWidth] = useState(50);
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showWelcomeTip, setShowWelcomeTip] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const sessionRef = useRef<Session | null>(null);
+  const messagesRef = useRef<Message[]>([]);
+  const sendingRef = useRef(false);
+  useEffect(() => {
+    sessionRef.current = session;
+    messagesRef.current = messages;
+    sendingRef.current = sending;
+  }, [session, messages, sending]);
 
   const refreshSessions = async () => {
     if (!user) return [];
@@ -176,9 +185,11 @@ export function InsightAgentShell() {
     setMode("floating");
     void refreshSessions().catch(() => undefined);
   };
-  const startFreeChat = async (): Promise<Session> => {
+  const startFreeChat = async (forCurrentPage = false): Promise<Session> => {
     const response = await authenticatedFetch("/api/agent/chat/sessions", {
       method: "POST",
+      headers: forCurrentPage ? { "Content-Type": "application/json" } : undefined,
+      body: forCurrentPage ? JSON.stringify({ title: document.title || "当前页面", path: pathname || "/" }) : undefined,
     });
     if (!response.ok) throw new Error("无法创建自由讨论");
     const item = (await response.json()) as Session;
@@ -189,6 +200,16 @@ export function InsightAgentShell() {
     setError("");
     void refreshSessions().catch(() => undefined);
     return item;
+  };
+  const discardEmptySession = async (candidate = session) => {
+    if (!candidate || messages.length || sending) return;
+    await authenticatedFetch(`/api/agent/chat/sessions/${candidate.id}`, { method: "DELETE" });
+    if (session?.id === candidate.id) {
+      setSession(null);
+      setMessages([]);
+      setInput("");
+    }
+    void refreshSessions().catch(() => undefined);
   };
   const deleteSession = async (id: string) => {
     setPendingDelete(sessions.find((item) => item.id === id) || null);
@@ -340,6 +361,10 @@ export function InsightAgentShell() {
       });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (user && localStorage.getItem("insight_agent_welcome_dismissed") !== "1")
+      queueMicrotask(() => setShowWelcomeTip(true));
+  }, [user]);
+  useEffect(() => {
     const handler = (event: Event) => {
       void route((event as CustomEvent<RouteDetail>).detail).catch((reason) =>
         setError(reason instanceof Error ? reason.message : "无法启动 AI 工作"),
@@ -358,6 +383,14 @@ export function InsightAgentShell() {
         setError(reason instanceof Error ? reason.message : "无法打开 AI 工作"),
       ));
   }, [requestedSession, routeFull, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!routeFull) return;
+    return () => {
+      const current = sessionRef.current;
+      if (current && !messagesRef.current.length && !sendingRef.current)
+        void authenticatedFetch(`/api/agent/chat/sessions/${current.id}`, { method: "DELETE" });
+    };
+  }, [routeFull]);
   useEffect(() => {
     if (activeMode !== "floating" || !panelRef.current) return;
     for (const property of ["left", "top", "right", "bottom"])
@@ -410,35 +443,37 @@ export function InsightAgentShell() {
     window.addEventListener("pointerup", stop);
   };
   const closeAgent = () => {
+    void discardEmptySession().catch(() => undefined);
     setOpen(false);
     setMinimized(false);
     setMode("floating");
     if (routeFull) router.push("/workbench");
   };
   const leaveFull = () => {
+    void discardEmptySession().catch(() => undefined);
     setMode("floating");
     if (routeFull) router.back();
   };
   if (loading) return null;
   if (!activeOpen)
     return (
-      <button
-        type="button"
-        onClick={() =>
-          user
-            ? (setOpen(true),
-              setMinimized(false),
-              void refreshSessions().catch(() => undefined))
-            : router.push(
-                `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
-              )
-        }
-        className="fixed bottom-6 right-6 z-50 flex h-14 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[var(--shadow-elevated)] transition hover:bg-primary-dark"
-        aria-label="打开 AI 工作台"
-      >
-        <Bot className="h-5 w-5" />
-        AI 工作台
-      </button>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+        {user && showWelcomeTip && (
+          <div className="max-w-56 rounded-xl border border-grid bg-white p-3 text-xs text-ink-secondary shadow-[var(--shadow-elevated)]">
+            <p>这里可以直接分析当前页面。</p>
+            <button type="button" onClick={() => { localStorage.setItem("insight_agent_welcome_dismissed", "1"); setShowWelcomeTip(false); }} className="mt-2 text-xs font-medium text-primary">不再提示</button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => user ? void startFreeChat(true).catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话")) : router.push(`/auth/login?next=${encodeURIComponent(pathname || "/")}`)}
+          className="flex h-14 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[var(--shadow-elevated)] transition hover:bg-primary-dark"
+          aria-label="分析当前页面"
+        >
+          <Bot className="h-5 w-5" />
+          AI 工作台
+        </button>
+      </div>
     );
   if (minimized)
     return (
@@ -559,13 +594,22 @@ export function InsightAgentShell() {
           </div>
           <div className="flex items-center gap-1">
             {!full && (
+              <>
+                <select value={session?.id || ""} onChange={(event) => event.target.value && void openSession(event.target.value).catch((reason) => setError(reason instanceof Error ? reason.message : "无法打开对话"))} className="max-w-28 rounded border border-grid bg-white px-1 py-1 text-xs text-ink-secondary" aria-label="切换对话">
+                  <option value="">对话</option>
+                  {sessions.map((item) => <option key={item.id} value={item.id}>{item.task_title || item.title}</option>)}
+                </select>
+                <button type="button" onClick={() => void startFreeChat().catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话"))} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="新对话"><MessageSquarePlus className="h-4 w-4" /></button>
+              </>
+            )}
+            {!full && (
               <button
                 type="button"
                 onClick={() => setMode(split ? "floating" : "split")}
                 className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
                 aria-label={split ? "还原浮窗" : "在右侧展开"}
               >
-                <Expand className="h-4 w-4" />
+                <PanelRightOpen className="h-4 w-4" />
               </button>
             )}
             <button

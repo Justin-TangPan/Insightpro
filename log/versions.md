@@ -929,3 +929,8 @@ systemd (PID 1)
 - **后端引擎优化**：
     - 新增 `/api/daily-insight` 接口，支持多维度数据的聚合。
     - 优化了 AI 提示词工程，以生成更具深度和实战建议的商业研报。
+# v0.6.3 — 2026-09-02
+
+- Agent 小窗支持切换历史会话、新建会话、当前页面上下文和首次分析提示。
+- 空白小窗 / AI 工作区会话在关闭或离开时自动删除。
+- 验证：`pytest -q backend/tests/test_agent_tasks.py backend/tests/test_solution_engineering_context.py`、`npm run lint`。

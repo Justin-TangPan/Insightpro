@@ -30,3 +30,10 @@ def test_artifact_uses_only_the_callers_session_output(monkeypatch):
     assert agent_service.create_artifact("user-1", "session-1", "", "Markdown") == {"id": "artifact-1"}
     assert stored[0][0] == "user-1"
     assert stored[0][-1] == "最终结论"
+
+
+def test_page_chat_keeps_the_opening_page_context(monkeypatch):
+    captured = []
+    monkeypatch.setattr(agent_service.repository, "create_chat_session", lambda *args: captured.append(args) or {"id": args[0]})
+    agent_service.create_chat_session("user-1", "方案详情", "/workbench/solutions/7")
+    assert captured[0][2:] == ("方案详情", "/workbench/solutions/7")
