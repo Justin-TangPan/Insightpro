@@ -1,0 +1,13 @@
+name: small-change
+description: 小型维护变更，仅 Builder 单阶段
+phases:
+  - id: builder
+    skill: sac-implementation
+    description: 执行小型变更（变量、输出、文档等）
+    inputs:
+      - practice_path
+      - change
+    outputs:
+      - terraform_files
+    gate:
+      type: terraform_valid

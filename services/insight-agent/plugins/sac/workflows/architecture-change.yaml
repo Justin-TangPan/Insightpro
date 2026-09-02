@@ -1,0 +1,46 @@
+name: architecture-change
+description: 对现有 Practice 进行架构级变更，需重新走 Architect 确认
+phases:
+  - id: architect
+    skill: sac-architecture
+    description: 评估变更影响、更新架构合同、确认门控
+    inputs:
+      - practice_path
+      - changes
+    outputs:
+      - architecture_contract
+    gate:
+      type: contract_complete
+      schema: schemas/architecture_contract.json
+
+  - id: builder
+    skill: sac-implementation
+    description: 按新架构合同实现变更
+    inputs:
+      - architecture_contract
+    outputs:
+      - terraform_files
+    gate:
+      type: terraform_valid
+
+  - id: reviewer
+    skill: sac-quality
+    description: 审查新实现与架构合同的一致性
+    inputs:
+      - terraform_files
+      - architecture_contract
+    outputs:
+      - review_findings
+    gate:
+      type: no_blocker
+
+  - id: builder_fix
+    skill: sac-implementation
+    description: 修复审查问题
+    inputs:
+      - terraform_files
+      - review_findings
+    outputs:
+      - terraform_files_fixed
+    gate:
+      type: terraform_valid

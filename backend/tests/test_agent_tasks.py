@@ -1,10 +1,12 @@
 import pytest
 import asyncio
+import json
 from types import SimpleNamespace
 
 from fastapi import HTTPException
 
 from routers import agent
+from repositories import context_repository
 from services import agent_task_service
 from services import agent_service
 from services import insight_agent_runtime
@@ -58,8 +60,56 @@ def test_artifact_uses_only_the_callers_session_output(monkeypatch):
 def test_page_chat_keeps_the_opening_page_context(monkeypatch):
     captured = []
     monkeypatch.setattr(agent_service.repository, "create_chat_session", lambda *args: captured.append(args) or {"id": args[0]})
-    agent_service.create_chat_session("user-1", "方案详情", "/workbench/solutions/7")
-    assert captured[0][2:] == ("方案详情", "/workbench/solutions/7")
+    monkeypatch.setattr(agent_service.context_service, "get_context", lambda *_: {"title": "实践七", "content": "完整背景"})
+    agent_service.create_chat_session("user-1", "方案详情", "/workbench/solutions/7", " 页面可见正文\0 ")
+    assert captured[0][2:] == ("方案详情", "/workbench/solutions/7", "页面可见正文", {"title": "实践七", "content": "完整背景"})
+
+
+def test_page_chat_never_fetches_external_or_unowned_context(monkeypatch):
+    monkeypatch.setattr(agent_service.context_service, "get_context", lambda *_: (_ for _ in ()).throw(pytest.fail("must not fetch context")))
+    captured = []
+    monkeypatch.setattr(agent_service.repository, "create_chat_session", lambda *args: captured.append(args) or {"id": args[0]})
+    agent_service.create_chat_session("user-1", "外部页面", "/insights/solutions?url=https", "公开正文")
+    assert captured[0][-1] is None
+
+
+def test_empty_session_delete_is_user_scoped(monkeypatch):
+    deleted = []
+    monkeypatch.setattr(agent_service.repository, "delete_agent_session", lambda user_id, session_id: deleted.append((user_id, session_id)) or True)
+    agent_service.delete_session("user-1", "empty-session")
+    assert deleted == [("user-1", "empty-session")]
+
+
+def test_missing_or_unowned_session_cannot_be_deleted(monkeypatch):
+    monkeypatch.setattr(agent_service.repository, "delete_agent_session", lambda *_: False)
+    with pytest.raises(HTTPException) as error:
+        agent_service.delete_session("user-2", "empty-session")
+    assert error.value.status_code == 404
+
+
+def test_page_text_and_internal_context_are_persisted_in_snapshot(monkeypatch):
+    class Cursor:
+        params = ()
+
+        def execute(self, _query, params):
+            self.params = params
+
+        def fetchone(self):
+            return {"context_snapshot": json.loads(self.params[4])}
+
+    cursor = Cursor()
+
+    class Database:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return cursor
+
+    monkeypatch.setattr(context_repository, "get_db", Database)
+    result = context_repository.create_chat_session("session-1", "user-1", "方案详情", "/workbench/solutions/7", "页面正文", {"title": "实践七", "content": "完整背景"})
+    assert result["context_snapshot"] == {
+        "page_title": "方案详情", "page_path": "/workbench/solutions/7", "page_text": "页面正文",
+        "business_context": {"title": "实践七", "content": "完整背景"},
+    }
 
 
 def test_generated_text_files_are_parsed_and_validated(monkeypatch):

@@ -1,0 +1,34 @@
+name: maintain-practice
+description: 维护现有 SAC Practice，小改动走 Builder → Reviewer 循环
+phases:
+  - id: builder
+    skill: sac-implementation
+    description: 对现有 Practice 进行 Terraform 或文档变更
+    inputs:
+      - practice_path
+      - changes
+    outputs:
+      - terraform_files
+    gate:
+      type: terraform_valid
+
+  - id: reviewer
+    skill: sac-quality
+    description: 审查变更，确认无 blocker
+    inputs:
+      - terraform_files
+    outputs:
+      - review_findings
+    gate:
+      type: no_blocker
+
+  - id: builder_fix
+    skill: sac-implementation
+    description: 修复审查发现的问题
+    inputs:
+      - terraform_files
+      - review_findings
+    outputs:
+      - terraform_files_fixed
+    gate:
+      type: terraform_valid

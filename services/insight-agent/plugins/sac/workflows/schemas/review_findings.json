@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewFindings",
+  "description": "Reviewer 阶段输出的审查结果",
+  "type": "object",
+  "required": ["findings", "passed"],
+  "properties": {
+    "passed": {
+      "type": "boolean",
+      "description": "是否通过审查（无 blocker）"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "category", "severity", "message"],
+        "properties": {
+          "id": { "type": "string" },
+          "category": {
+            "enum": ["syntax", "security", "deployability", "architecture", "documentation"]
+          },
+          "severity": { "enum": ["blocker", "non-blocking", "info"] },
+          "security_level": { "enum": ["critical", "high", "medium", "low"] },
+          "message": { "type": "string" },
+          "file": { "type": "string" },
+          "line": { "type": "number" },
+          "impact": { "type": "string" },
+          "remediation": { "type": "string" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total": { "type": "number" },
+        "blockers": { "type": "number" },
+        "non_blocking": { "type": "number" },
+        "info": { "type": "number" }
+      }
+    },
+    "commands_run": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "number" },
+          "skipped": { "type": "boolean" },
+          "skip_reason": { "type": "string" }
+        }
+      }
+    }
+  }
+}

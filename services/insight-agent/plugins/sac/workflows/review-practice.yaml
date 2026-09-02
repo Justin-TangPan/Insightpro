@@ -1,0 +1,12 @@
+name: review-practice
+description: 仅审查现有 Practice，不修改任何文件
+phases:
+  - id: reviewer
+    skill: sac-quality
+    description: 独立审查语法、安全、架构一致性、文档一致性
+    inputs:
+      - practice_path
+    outputs:
+      - review_findings
+    gate:
+      type: no_blocker

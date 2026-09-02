@@ -1,8 +1,8 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.4`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.5`
 
-[![Version](https://img.shields.io/badge/version-0.8.4-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-0.8.5-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
@@ -20,7 +20,7 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队：
 Insight → Requirement → Solution
 ```
 
-`v0.8.4` 支持方案实践背景信息 AI 填充、AI 空间模型切换，以及按 SAC 工作流执行的方案实践任务；InsightPro 仍是唯一账号、业务系统和写入边界。
+`v0.8.5` 将 SAC 核心技能与工作流作为可热插拔插件实际加载，并补齐页面上下文、首次提示、空会话和预置任务隔离；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 

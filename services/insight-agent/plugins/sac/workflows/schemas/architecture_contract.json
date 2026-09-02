@@ -1,0 +1,92 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ArchitectureContract",
+  "description": "Architect 阶段输出的结构化架构合同",
+  "type": "object",
+  "required": [
+    "project", "site", "region", "variant",
+    "components", "variables", "bootstrap_url", "bootstrap_sha256"
+  ],
+  "properties": {
+    "project": { "type": "string", "description": "Practice 名称（小写连字符）" },
+    "site": { "enum": ["cn", "intl"], "description": "站点" },
+    "region": { "type": "string", "description": "华为云 Region 代码，如 cn-north-4" },
+    "variant": { "enum": ["standard", "ha"], "description": "部署形态" },
+    "business_score": {
+      "type": "object",
+      "properties": {
+        "service_fit": { "type": "number", "minimum": 0, "maximum": 10 },
+        "market_value": { "type": "number", "minimum": 0, "maximum": 10 },
+        "scenario_value": { "type": "number", "minimum": 0, "maximum": 10 },
+        "cloud_value": { "type": "number", "minimum": 0, "maximum": 10 },
+        "average": { "type": "number", "minimum": 0, "maximum": 10 },
+        "recommendation": { "enum": ["formalize", "conditional", "reject"] }
+      }
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "resource"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "resource": { "type": "string" },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "variables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["default", "type", "description"],
+        "properties": {
+          "default": {},
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "nullable": { "type": "boolean" },
+          "sensitive": { "type": "boolean" }
+        }
+      }
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "vpc_cidr": { "type": "string" },
+        "subnet_cidr": { "type": "string" },
+        "ingress_ports": { "type": "array", "items": { "type": "number" } },
+        "remote_ip_prefix": { "type": "string" },
+        "eip_bandwidth": { "type": "number" },
+        "eip_charging_mode": { "type": "string" }
+      }
+    },
+    "compute": {
+      "type": "object",
+      "properties": {
+        "image": { "type": "string" },
+        "flavor": { "type": "string" },
+        "disk_type": { "type": "string" },
+        "disk_size": { "type": "number" },
+        "billing_mode": { "type": "string" }
+      }
+    },
+    "bootstrap_url": { "type": "string", "format": "uri" },
+    "bootstrap_sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "description"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "sensitive": { "type": "boolean" }
+        }
+      }
+    },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "deviations": { "type": "array", "items": { "type": "string" } },
+    "unknowns": { "type": "array", "items": { "type": "string" } }
+  }
+}

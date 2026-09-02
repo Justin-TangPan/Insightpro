@@ -1,8 +1,31 @@
 {
   "id": "huawei-solution-practice",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "enabled": true,
   "name": "华为云解决方案实践",
   "description": "将 InsightPro 的 Solution 工作流扩展为可审阅、可验证、可交付的华为云解决方案实践。",
-  "knowledge": "AGENT.md"
+  "knowledge": "AGENT.md",
+  "source": {
+    "repository": "https://github.com/Justin-TangPan/solution-practices",
+    "ref": "workflows",
+    "revision": "cd765e5713771d2258f7e5186d59b1345eeefbac"
+  },
+  "task_skills": {
+    "solution_analysis": ["sac-project", "sac-architecture"],
+    "solution_architecture": ["sac-project", "sac-architecture"],
+    "solution_practice": ["sac-project", "sac-architecture", "sac-implementation", "sac-quality", "sac-documentation"],
+    "poc_plan": ["sac-project", "sac-architecture", "sac-quality"],
+    "implementation": ["sac-project", "sac-implementation", "sac-quality"],
+    "validation": ["sac-project", "sac-quality"],
+    "materials": ["sac-project", "sac-documentation", "sac-quality"]
+  },
+  "task_workflows": {
+    "solution_architecture": "architecture-change",
+    "solution_practice": "new-practice",
+    "poc_plan": "architecture-change",
+    "implementation": "maintain-practice",
+    "validation": "review-practice",
+    "materials": "documentation-change"
+  },
+  "quality_command": "PYTHONPATH=services/insight-agent/plugins/sac python -m scripts.tests.runner"
 }

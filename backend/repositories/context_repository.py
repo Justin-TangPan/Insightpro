@@ -70,8 +70,10 @@ def get_agent_session(user_id: str, session_id: str) -> dict | None:
         return dict(row) if row else None
 
 
-def create_chat_session(session_id: str, user_id: str, page_title: str = "", page_path: str = "") -> dict:
-    context = {"page_title": page_title, "page_path": page_path} if page_title else {}
+def create_chat_session(session_id: str, user_id: str, page_title: str = "", page_path: str = "", page_text: str = "", business_context: dict | None = None) -> dict:
+    context = {"page_title": page_title, "page_path": page_path, "page_text": page_text} if page_title else {}
+    if business_context:
+        context["business_context"] = business_context
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(

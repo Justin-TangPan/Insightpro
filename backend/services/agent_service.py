@@ -1,6 +1,7 @@
 """Session snapshots and human-confirmed Insight-Agent business actions."""
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 from fastapi import HTTPException
 
@@ -31,8 +32,15 @@ def route_session(user_id: str, context_type: str, context_id: str, action_key: 
     return repository.create_agent_session(str(uuid4()), user_id, context, task_key, task["title"], task["status"], task["prompt"])
 
 
-def create_chat_session(user_id: str, page_title: str = "", page_path: str = "") -> dict:
-    return repository.create_chat_session(str(uuid4()), user_id, page_title, page_path)
+def create_chat_session(user_id: str, page_title: str = "", page_path: str = "", page_text: str = "") -> dict:
+    business_context = None
+    match = re.fullmatch(r"/workbench/solutions/(\d+)", page_path)
+    if match:
+        try:
+            business_context = context_service.get_context(user_id, "solution", match.group(1))
+        except HTTPException:
+            pass
+    return repository.create_chat_session(str(uuid4()), user_id, page_title, page_path, page_text.replace("\0", "").strip()[:12000], business_context)
 
 
 def list_sessions(user_id: str) -> list[dict]:

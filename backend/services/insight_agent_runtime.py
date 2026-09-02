@@ -56,7 +56,13 @@ def public_knowledge() -> str:
     return "\n\n".join(parts)
 
 
-def plugin_knowledge() -> str:
+def _plugin_file(root: Path, relative: str) -> Path:
+    path = (root / relative).resolve()
+    path.relative_to(root.resolve())
+    return path
+
+
+def plugin_knowledge(task_key: str | None = None) -> str:
     """Load enabled, versioned Agent plugins without hard-coding their names."""
     parts = []
     if not PLUGINS_ROOT.is_dir():
@@ -64,10 +70,19 @@ def plugin_knowledge() -> str:
     for manifest_path in sorted(PLUGINS_ROOT.glob("*/manifest.json")):
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            knowledge = (manifest_path.parent / manifest.get("knowledge", "")).resolve()
-            knowledge.relative_to(manifest_path.parent.resolve())
+            root = manifest_path.parent
+            knowledge = _plugin_file(root, manifest.get("knowledge", ""))
             if manifest.get("enabled") is True and knowledge.is_file():
                 parts.append(f"## Plugin: {manifest.get('name', manifest_path.parent.name)}\n{knowledge.read_text(encoding='utf-8').strip()}")
+                for skill in manifest.get("task_skills", {}).get(task_key, []):
+                    path = _plugin_file(root, f"skills/{skill}/SKILL.md")
+                    if path.is_file():
+                        parts.append(f"## Skill: {skill}\n{path.read_text(encoding='utf-8').strip()}")
+                workflow = manifest.get("task_workflows", {}).get(task_key)
+                if workflow:
+                    path = _plugin_file(root, f"workflows/{workflow}.yaml")
+                    if path.is_file():
+                        parts.append(f"## Workflow: {workflow}\n{path.read_text(encoding='utf-8').strip()}")
         except (OSError, ValueError, json.JSONDecodeError, TypeError):
             continue
     return "\n\n".join(parts)
@@ -94,7 +109,8 @@ def _context(session: dict) -> str:
 
 def messages_for(session: dict, message: str) -> list[dict]:
     task = session.get("task_title") or "自由讨论"
-    prompt = session.get("default_prompt") or "请基于已注入上下文给出准确、可执行的回答。"
+    prompt = (session.get("default_prompt") or "").strip()
+    preset = f"预置任务：{task}\n预置任务说明：{prompt}" if prompt and message.strip() == prompt else ""
     stage = STAGES.get(session.get("task_key"), "Understand")
     system = f"""你是 Insight-Agent，InsightPro 的 Solution Engineering Agent。
 
@@ -102,13 +118,12 @@ def messages_for(session: dict, message: str) -> list[dict]:
 {public_knowledge()}
 
 # 已启用插件
-{plugin_knowledge()}
+{plugin_knowledge(session.get("task_key"))}
 
 # 本次动态上下文
 当前用户角色：Solution Architect
 当前工作阶段：{stage}
-预置任务（仅在用户点击“开始任务”或明确要求继续时执行）：{task}
-预置任务说明：{prompt}
+{preset}
 当前业务对象 Context（仅使用其中可验证的信息，不要编造）：
 {_context(session)}
 
@@ -134,7 +149,7 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
     selected = resolve_model(model)
     source = json.dumps(payload, ensure_ascii=False)
     messages: list[dict[str, Any]] = [
-        {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge()}\n\n根据用户提供的方案实践名称、参考链接和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。"""},
+        {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge("solution_analysis")}\n\n根据用户提供的方案实践名称、参考链接和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。"""},
         {"role": "user", "content": source},
     ]
     async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15)) as client:

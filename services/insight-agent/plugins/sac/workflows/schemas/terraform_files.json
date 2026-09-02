@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TerraformBuildResult",
+  "description": "Builder 阶段输出的 Terraform 构建结果",
+  "type": "object",
+  "required": ["practice_dir", "terraform_files", "bootstrap_script"],
+  "properties": {
+    "practice_dir": { "type": "string", "description": "Practice 根目录路径" },
+    "terraform_files": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "生成的 Terraform 文件路径列表"
+    },
+    "bootstrap_script": {
+      "type": "string",
+      "description": "bootstrap 脚本路径"
+    },
+    "bootstrap_sha256": {
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$",
+      "description": "脚本 SHA-256 校验值"
+    },
+    "extension": {
+      "type": "object",
+      "description": ".extension 文件内容（可选）"
+    },
+    "validation": {
+      "type": "object",
+      "properties": {
+        "terraform_fmt": { "type": "boolean" },
+        "bash_syntax": { "type": "boolean" },
+        "sha256_match": { "type": "boolean" },
+        "rfs_policy": { "type": "boolean" }
+      }
+    }
+  }
+}

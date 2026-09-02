@@ -1,0 +1,13 @@
+name: documentation-change
+description: 仅更新文档，不涉及 Terraform 实现变更
+phases:
+  - id: builder
+    skill: sac-documentation
+    description: 生成或更新部署指南、方案详情、翻译、DOCX
+    inputs:
+      - practice_path
+      - changes
+    outputs:
+      - documents
+    gate:
+      type: docs_valid

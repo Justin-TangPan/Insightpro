@@ -1,0 +1,73 @@
+name: new-practice
+description: 从零创建正式 SAC Practice，覆盖架构设计、实现、审查、文档和本地交付全流程
+phases:
+  - id: architect
+    skill: sac-architecture
+    description: 上游评估、业务可行性评分、系统评估、云架构设计、确认门控、冻结架构合同
+    inputs:
+      - project_name
+      - upstream_url
+      - site
+      - region
+      - variant
+    outputs:
+      - architecture_contract
+    gate:
+      type: contract_complete
+      schema: schemas/architecture_contract.json
+
+  - id: builder
+    skill: sac-implementation
+    description: 按架构合同生成 Terraform、bootstrap 脚本、外链分发对象
+    inputs:
+      - architecture_contract
+    outputs:
+      - terraform_files
+      - bootstrap_script
+    gate:
+      type: terraform_valid
+
+  - id: reviewer
+    skill: sac-quality
+    description: 三问审查（语法正确性、安全基线、可部署性），分类 findings
+    inputs:
+      - terraform_files
+      - architecture_contract
+    outputs:
+      - review_findings
+    gate:
+      type: no_blocker
+
+  - id: builder_fix
+    skill: sac-implementation
+    description: 修复 Reviewer 发现的 blocker 和 non-blocking 问题
+    inputs:
+      - terraform_files
+      - review_findings
+    outputs:
+      - terraform_files_fixed
+    gate:
+      type: terraform_valid
+
+  - id: documentation
+    skill: sac-documentation
+    description: 生成部署指南、方案详情、中英文档、价格查询、质量门控
+    inputs:
+      - terraform_files
+      - architecture_contract
+    outputs:
+      - documents
+    gate:
+      type: docs_valid
+
+  - id: local_delivery
+    skill: sac-implementation
+    description: 打包、生成 SHA-256、更新版本记录
+    inputs:
+      - terraform_files
+      - documents
+    outputs:
+      - delivery_archive
+      - checksums
+    gate:
+      type: delivery_complete

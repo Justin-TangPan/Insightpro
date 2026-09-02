@@ -1,12 +1,13 @@
 {
   "name": "frontend",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/lib/*.test.ts"
   },
   "dependencies": {
     "@fontsource/mona-sans": "^5.2.8",

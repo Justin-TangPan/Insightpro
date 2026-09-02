@@ -26,6 +26,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { agentWelcomeStorageKey, extractPageText } from "@/lib/agent-page-context";
 
 type Mode = "floating" | "split" | "full";
 type Message = { role: "user" | "assistant"; content: string; artifacts?: Artifact[] };
@@ -170,6 +171,7 @@ export function InsightAgentShell() {
     setSelectedModel((current) => current || data.default);
   };
   const openSession = async (id: string, nextMode?: Mode) => {
+    if (session && session.id !== id) await discardEmptySession(session);
     const response = await authenticatedFetch(`/api/agent/sessions/${id}`);
     if (!response.ok) throw new Error("无法读取当前工作");
     const item = (await response.json()) as Session;
@@ -185,6 +187,7 @@ export function InsightAgentShell() {
       return router.push(
         `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
       );
+    await discardEmptySession();
     const response = await authenticatedFetch("/api/agent/routes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -204,13 +207,14 @@ export function InsightAgentShell() {
     setOpen(true);
     setMinimized(false);
     setMode("floating");
-    void refreshSessions().catch(() => undefined);
+    await refreshSessions().catch(() => []);
   };
   const startFreeChat = async (forCurrentPage = false): Promise<Session> => {
+    await discardEmptySession();
     const response = await authenticatedFetch("/api/agent/chat/sessions", {
       method: "POST",
       headers: forCurrentPage ? { "Content-Type": "application/json" } : undefined,
-      body: forCurrentPage ? JSON.stringify({ title: document.title || "当前页面", path: pathname || "/" }) : undefined,
+      body: forCurrentPage ? JSON.stringify({ title: document.title || "当前页面", path: pathname || "/", page_text: extractPageText(document.getElementById("app-main")) }) : undefined,
     });
     if (!response.ok) throw new Error("无法创建自由讨论");
     const item = (await response.json()) as Session;
@@ -219,7 +223,7 @@ export function InsightAgentShell() {
     setOpen(true);
     setMinimized(false);
     setError("");
-    void refreshSessions().catch(() => undefined);
+    await refreshSessions().catch(() => []);
     return item;
   };
   const discardEmptySession = async (candidate = session) => {
@@ -230,7 +234,7 @@ export function InsightAgentShell() {
       setMessages([]);
       setInput("");
     }
-    void refreshSessions().catch(() => undefined);
+    await refreshSessions().catch(() => []);
   };
   const deleteSession = async (id: string) => {
     setPendingDelete(sessions.find((item) => item.id === id) || null);
@@ -413,8 +417,8 @@ export function InsightAgentShell() {
       });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!user || localStorage.getItem("insight_agent_welcome_dismissed") === "1") return;
-    localStorage.setItem("insight_agent_welcome_dismissed", "1");
+    if (!user || localStorage.getItem(agentWelcomeStorageKey(user.id)) === "1") return;
+    localStorage.setItem(agentWelcomeStorageKey(user.id), "1");
     const show = window.setTimeout(() => setShowWelcomeTip(true), 0);
     const timer = window.setTimeout(() => {
       setShowWelcomeTip(false);
@@ -518,7 +522,7 @@ export function InsightAgentShell() {
         {user && showWelcomeTip && (
           <div className="max-w-56 rounded-xl border border-grid bg-white p-3 text-xs text-ink-secondary shadow-[var(--shadow-elevated)]">
             <p>这里可以直接分析当前页面。</p>
-            <button type="button" onClick={() => { localStorage.setItem("insight_agent_welcome_dismissed", "1"); setShowWelcomeTip(false); }} className="mt-2 text-xs font-medium text-primary">不再提示</button>
+            <button type="button" onClick={() => { localStorage.setItem(agentWelcomeStorageKey(user.id), "1"); setShowWelcomeTip(false); }} className="mt-2 text-xs font-medium text-primary">不再提示</button>
           </div>
         )}
         <button
