@@ -5,8 +5,7 @@ import { usePathname } from "next/navigation";
 
 const sections = [
   ["/workbench", "概览"],
-  ["/workbench/requirements", "需求"],
-  ["/workbench/solutions", "方案"],
+  ["/workbench/solutions", "方案实践"],
   ["/workbench/ai", "AI 工作 · 文件 · 成果"],
 ] as const;
 

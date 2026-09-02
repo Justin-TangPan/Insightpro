@@ -31,7 +31,7 @@ const navItems: NavItem[] = [
   { href: "/", icon: BarChart3, label: "首页洞察", description: "技术方案简报" },
   { href: "/insights/hotspots", icon: Radio, label: "技术热点", description: "GitHub 项目" },
   { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "方案目录与变化" },
-  { href: "/workbench", icon: Bot, label: "AI 工作台", description: "需求、方案与 AI 工作" },
+  { href: "/workbench", icon: Bot, label: "AI 工作台", description: "方案实践与 AI 工作" },
 ];
 
 export function Sidebar() {

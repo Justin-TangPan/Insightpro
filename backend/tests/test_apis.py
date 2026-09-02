@@ -50,6 +50,7 @@ class TestAPIEndpoints:
         ("POST", "/api/auth/agent/ticket"),
         ("POST", "/api/auth/agent/revoke"),
         ("POST", "/api/agent/chat/stream"),
+        ("GET", "/api/agent/artifacts/missing/download"),
     ])
     def test_sensitive_endpoints_require_auth(self, method, path):
         response = client.request(method, path)

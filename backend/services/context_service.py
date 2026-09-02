@@ -39,7 +39,8 @@ def get_context(user_id: str, context_type: str, context_id: str) -> dict:
     if context_type == "solution":
         item = workbench_service.get_solution(user_id, int(context_id))
         related = [{"type": "requirement", "id": str(r["id"]), "title": r["title"], "source_type": r["source_type"], "source_id": r["source_id"], "source_url": r["source_url"]} for r in item["requirements"]]
-        return _context(context_type, context_id, item["name"], item["description"], {"category": item["category"], "status": item["status"], "version": item["version"]}, _content(f"Solution: {item['name']}", item["description"]), item["reference_url"], related)
+        sources = [f"背景材料：{row['title']}\n{row['description']}" for row in item["requirements"]]
+        return _context(context_type, context_id, item["name"], item["description"], {"category": item["category"], "status": item["status"], "version": item["version"], "background_count": len(sources)}, _content(f"方案实践：{item['name']}", item["description"], *sources), item["reference_url"], related)
     if context_type == "github_project":
         item = repository.github_project(context_id)
         if not item:

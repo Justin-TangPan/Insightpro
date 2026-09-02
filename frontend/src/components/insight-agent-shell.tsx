@@ -7,7 +7,9 @@ import {
   ChevronDown,
   ChevronUp,
   Code2,
+  Download,
   FolderOpen,
+  FileText,
   GripHorizontal,
   Maximize2,
   MessageSquarePlus,
@@ -61,6 +63,7 @@ type Artifact = {
   type: string;
   knowledge_status: string;
   created_at: string;
+  content?: string;
 };
 
 const nextActions: Record<string, string[]> = {
@@ -129,6 +132,8 @@ export function InsightAgentShell() {
   const [splitWidth, setSplitWidth] = useState(50);
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [showArtifacts, setShowArtifacts] = useState(false);
+  const [artifactPreview, setArtifactPreview] = useState<Artifact | null>(null);
   const [showWelcomeTip, setShowWelcomeTip] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
@@ -240,6 +245,21 @@ export function InsightAgentShell() {
     const response = await authenticatedFetch("/api/agent/artifacts");
     if (!response.ok) return;
     setArtifacts(((await response.json()) as { items: Artifact[] }).items);
+  };
+  const openArtifact = async (id: string) => {
+    const response = await authenticatedFetch(`/api/agent/artifacts/${id}`);
+    if (!response.ok) throw new Error("无法读取文件");
+    setArtifactPreview((await response.json()) as Artifact);
+  };
+  const downloadArtifact = async (id: string) => {
+    const response = await authenticatedFetch(`/api/agent/artifacts/${id}/download`);
+    if (!response.ok) throw new Error("无法下载文件");
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "agent-output.md";
+    link.click();
+    URL.revokeObjectURL(url);
   };
   const refreshContext = async () => {
     if (!session) return;
@@ -546,6 +566,17 @@ export function InsightAgentShell() {
           </div>
         </div>
       )}
+      {showArtifacts && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label="工作文件" onMouseDown={(event) => event.target === event.currentTarget && setShowArtifacts(false)}>
+          <div className="flex max-h-[min(680px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]">
+            <div className="flex items-center justify-between border-b border-grid px-5 py-4"><div><p className="swiss-kicker text-primary">Agent outputs</p><h2 className="mt-1 text-base font-semibold text-ink">工作文件与成果</h2></div><button type="button" onClick={() => setShowArtifacts(false)} className="rounded p-2 text-ink-muted hover:bg-surface-subtle" aria-label="关闭"><X className="h-4 w-4" /></button></div>
+            <div className="grid min-h-0 flex-1 md:grid-cols-[220px_minmax(0,1fr)]">
+              <div className="min-h-0 overflow-y-auto border-r border-grid p-3">{artifacts.length ? artifacts.map((item) => <div key={item.id} className={`mb-1 flex items-center gap-1 rounded-lg ${artifactPreview?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取文件"))} className="min-w-0 flex-1 px-3 py-2 text-left"><p className="truncate text-sm font-medium text-ink-secondary">{item.title}</p><p className="text-[10px] text-ink-muted">{item.type} · {new Date(item.created_at).toLocaleDateString("zh-CN")}</p></button><button type="button" onClick={() => void downloadArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="rounded p-2 text-ink-muted hover:text-primary" aria-label={`下载 ${item.title}`}><Download className="h-4 w-4" /></button></div>) : <p className="p-4 text-center text-sm text-ink-muted">还没有可下载文件。</p>}</div>
+              <div className="min-h-0 overflow-y-auto p-5">{artifactPreview ? <><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold text-ink">{artifactPreview.title}</h3><button type="button" onClick={() => void downloadArtifact(artifactPreview.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="ui-button-secondary text-xs"><Download className="h-3.5 w-3.5" />下载 Markdown</button></div><MarkdownMessage>{artifactPreview.content || ""}</MarkdownMessage></> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">选择一个文件预览。</div>}</div>
+            </div>
+          </div>
+        </div>
+      )}
       {split && (
         <button
           type="button"
@@ -593,6 +624,7 @@ export function InsightAgentShell() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button type="button" onClick={() => { setShowArtifacts(true); if (!artifactPreview && artifacts[0]) void openArtifact(artifacts[0].id).catch(() => undefined); }} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="查看工作文件"><FileText className="h-4 w-4" /></button>
             {!full && (
               <>
                 <select value={session?.id || ""} onChange={(event) => event.target.value && void openSession(event.target.value).catch((reason) => setError(reason instanceof Error ? reason.message : "无法打开对话"))} className="max-w-28 rounded border border-grid bg-white px-1 py-1 text-xs text-ink-secondary" aria-label="切换对话">

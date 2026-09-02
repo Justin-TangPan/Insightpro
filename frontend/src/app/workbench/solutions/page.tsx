@@ -50,9 +50,9 @@ export default function SolutionsPage() {
     <div className="page-stack">
       <SectionHeader
         badge="Workbench / Solutions"
-        title="Solutions"
-        subtitle="管理团队自己的技术方案，并追溯它解决的 Requirements。"
-        action={<Link href="/workbench/solutions/new" className="ui-button-primary"><Plus className="h-4 w-4" />创建 Solution</Link>}
+        title="方案实践"
+        subtitle="收纳方案背景、来源材料和 AI 工作上下文。"
+        action={<Link href="/workbench/solutions/new" className="ui-button-primary"><Plus className="h-4 w-4" />创建方案实践</Link>}
       />
       {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}</div>}
       {loading || authLoading ? (
@@ -66,7 +66,7 @@ export default function SolutionsPage() {
                 <button onClick={() => void remove(item)} aria-label={`删除 ${item.name}`} className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-warning-soft hover:text-warning"><Trash2 className="h-4 w-4" /></button>
               </div>
               <h2 className="mt-5 type-h3 text-ink">{item.name}</h2>
-              <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted">{item.description || "尚未补充方案描述"}</p>
+              <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted">{item.description || "尚未补充背景信息"}</p>
               <div className="mt-auto flex items-end justify-between gap-4 pt-6">
                 <div className="text-xs leading-5 text-ink-muted"><p className="flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5" />{item.requirement_count || 0} 个关联 Requirement</p><p>更新于 {formatWorkbenchDate(item.updated_at)}</p></div>
                 <Link href={`/workbench/solutions/${item.id}`} className="ui-link flex items-center gap-1.5 text-sm">查看详情<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
@@ -75,7 +75,7 @@ export default function SolutionsPage() {
           ))}
         </div>
       ) : (
-        <div className="ui-card flex min-h-72 flex-col items-center justify-center text-center"><Blocks className="h-8 w-8 text-primary" /><h2 className="mt-4 type-h3 text-ink">还没有 Solution</h2><p className="mt-2 text-sm text-ink-muted">创建自己的技术方案，或从 Requirement 发起创建。</p><Link href="/workbench/solutions/new" className="ui-button-primary mt-5">创建 Solution</Link></div>
+        <div className="ui-card flex min-h-72 flex-col items-center justify-center text-center"><Blocks className="h-8 w-8 text-primary" /><h2 className="mt-4 type-h3 text-ink">还没有方案实践</h2><p className="mt-2 text-sm text-ink-muted">先收纳方案背景，再进入 AI 工作区分析。</p><Link href="/workbench/solutions/new" className="ui-button-primary mt-5">创建方案实践</Link></div>
       )}
     </div>
   );

@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+from urllib.parse import quote
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from routers.auth import require_admin, require_auth
@@ -127,6 +129,13 @@ async def list_artifacts(user=Depends(require_auth)):
 @router.get("/artifacts/{artifact_id}")
 async def get_artifact(artifact_id: str, user=Depends(require_auth)):
     return await asyncio.to_thread(agent_service.get_artifact, str(user.id), artifact_id)
+
+
+@router.get("/artifacts/{artifact_id}/download")
+async def download_artifact(artifact_id: str, user=Depends(require_auth)):
+    item = await asyncio.to_thread(agent_service.get_artifact, str(user.id), artifact_id)
+    filename = quote(f"{item['title'] or 'agent-output'}.md")
+    return Response(item["content"], media_type="text/markdown; charset=utf-8", headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
 
 
 @router.post("/artifacts/{artifact_id}/knowledge-request")
