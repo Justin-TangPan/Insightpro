@@ -18,7 +18,7 @@ class TestAPIEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
-        assert resp.json()["version"] == "0.6.2"
+        assert resp.json()["version"] == "0.8.3"
 
     def test_configured_frontend_origin_is_allowed(self):
         origin = settings.CORS_ORIGINS[0]

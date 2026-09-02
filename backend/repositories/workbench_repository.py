@@ -16,7 +16,8 @@ def list_requirements(user_id: str, status: str | None = None) -> list[dict]:
             SELECT r.*, COUNT(rs.solution_id)::int AS solution_count
             FROM requirements r
             LEFT JOIN requirement_solutions rs ON rs.requirement_id = r.id
-            WHERE r.user_id = %s AND (%s IS NULL OR r.status = %s)
+            WHERE r.user_id = %s AND r.absorbed_at IS NULL
+              AND (%s IS NULL OR r.status = %s)
             GROUP BY r.id
             ORDER BY r.updated_at DESC
             """,
@@ -65,6 +66,51 @@ def create_requirement(user_id: str, data: dict) -> dict:
         result = dict(cursor.fetchone())
         result["solutions"] = []
         return result
+
+
+def absorb_requirements_into_solutions() -> int:
+    """Turn each legacy requirement into one canonical solution, once."""
+    status_map = {"active": "active", "planned": "active", "completed": "archived", "archived": "archived"}
+    absorbed = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM requirements WHERE absorbed_at IS NULL ORDER BY id FOR UPDATE")
+        for requirement in _rows(cursor):
+            cursor.execute(
+                """
+                SELECT s.id FROM solutions s
+                JOIN requirement_solutions rs ON rs.solution_id=s.id
+                WHERE rs.requirement_id=%s AND s.user_id=%s
+                ORDER BY s.id LIMIT 1
+                """,
+                (requirement["id"], requirement["user_id"]),
+            )
+            linked = cursor.fetchone()
+            if not linked:
+                cursor.execute(
+                    """
+                    INSERT INTO solutions
+                      (user_id, name, description, category, status, version, reference_url)
+                    VALUES (%s, %s, %s, %s, %s, 'v0.1.0', %s)
+                    RETURNING id
+                    """,
+                    (
+                        requirement["user_id"], requirement["title"], requirement["description"],
+                        requirement.get("source_type") or "未分类",
+                        status_map.get(requirement["status"], "draft"), requirement.get("source_url"),
+                    ),
+                )
+                linked = cursor.fetchone()
+                cursor.execute(
+                    """
+                    INSERT INTO requirement_solutions (requirement_id, solution_id)
+                    VALUES (%s, %s) ON CONFLICT DO NOTHING
+                    """,
+                    (requirement["id"], linked["id"]),
+                )
+            cursor.execute("UPDATE requirements SET absorbed_at=NOW() WHERE id=%s", (requirement["id"],))
+            absorbed += 1
+    return absorbed
 
 
 def update_requirement(user_id: str, requirement_id: int, data: dict) -> dict | None:
@@ -227,7 +273,7 @@ def get_summary(user_id: str) -> dict:
         cursor.execute(
             """
             SELECT
-              (SELECT COUNT(*) FROM requirements WHERE user_id=%s)::int AS requirement_count,
+              (SELECT COUNT(*) FROM requirements WHERE user_id=%s AND absorbed_at IS NULL)::int AS requirement_count,
               (SELECT COUNT(*) FROM solutions WHERE user_id=%s)::int AS solution_count
             """,
             (user_id, user_id),
@@ -236,7 +282,9 @@ def get_summary(user_id: str) -> dict:
         cursor.execute(
             """
             SELECT id, title, status, priority, updated_at
-            FROM requirements WHERE user_id=%s ORDER BY updated_at DESC LIMIT 5
+            FROM requirements
+            WHERE user_id=%s AND absorbed_at IS NULL
+            ORDER BY updated_at DESC LIMIT 5
             """,
             (user_id,),
         )

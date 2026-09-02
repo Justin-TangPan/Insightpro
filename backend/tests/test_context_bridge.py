@@ -15,6 +15,30 @@ def test_requirement_context_is_user_scoped(monkeypatch):
     assert context["metadata"]["priority"] == "high"
 
 
+def test_solution_context_includes_every_background_source_within_limit(monkeypatch):
+    requested = []
+    monkeypatch.setattr(context_service.workbench_service, "get_solution", lambda user_id, solution_id: requested.append((user_id, solution_id)) or {
+        "name": "统一方案实践", "description": "方案背景", "category": "AI", "status": "draft",
+        "version": "v0.1.0", "reference_url": "https://example.com/practice",
+        "requirements": [
+            {"id": 1, "title": "材料一", "description": "甲" * 20_000, "source_type": "github_project", "source_id": "repo-1", "source_url": "https://example.com/one"},
+            {"id": 2, "title": "材料二", "description": "乙" * 20_000, "source_type": "cloud_solution", "source_id": "2", "source_url": "https://example.com/two"},
+        ],
+    })
+
+    context = context_service.get_context("user-1", "solution", "9")
+
+    assert requested == [("user-1", 9)]
+    assert len(context["content"]) <= context_service.MAX_CONTENT
+    assert "方案实践：统一方案实践" in context["content"]
+    assert "来源：https://example.com/practice" in context["content"]
+    assert "背景材料：材料一" in context["content"]
+    assert "github_project / repo-1 / https://example.com/one" in context["content"]
+    assert "背景材料：材料二" in context["content"]
+    assert "cloud_solution / 2 / https://example.com/two" in context["content"]
+    assert context["metadata"]["background_count"] == 2
+
+
 def test_confirm_requirement_action_creates_draft_from_snapshot(monkeypatch):
     proposal = {"status": "proposed", "session_id": "session-1", "action": "create_requirement_draft", "payload": {"title": "AI 草稿", "description": "背景", "priority": "medium"}}
     monkeypatch.setattr(agent_service.repository, "get_agent_action", lambda *_: proposal)

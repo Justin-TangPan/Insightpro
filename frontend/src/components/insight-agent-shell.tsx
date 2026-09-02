@@ -28,7 +28,7 @@ import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 
 type Mode = "floating" | "split" | "full";
-type Message = { role: "user" | "assistant"; content: string };
+type Message = { role: "user" | "assistant"; content: string; artifacts?: Artifact[] };
 type Context = {
   title: string;
   summary?: string;
@@ -59,7 +59,11 @@ type RouteDetail = {
 };
 type Artifact = {
   id: string;
+  session_id?: string;
   title: string;
+  filename?: string;
+  mime_type?: string;
+  size_bytes?: number;
   type: string;
   knowledge_status: string;
   created_at: string;
@@ -67,13 +71,13 @@ type Artifact = {
 };
 
 const nextActions: Record<string, string[]> = {
-  technology_research: ["创建 Requirement", "对比技术路线", "规划 PoC"],
-  technology_value: ["创建 Requirement", "深入研究", "规划 PoC"],
-  solution_analysis: ["技术架构分析", "形成我的 Solution", "规划 PoC"],
-  solution_architecture: ["规划 PoC", "形成我的 Solution", "开始实现"],
+  technology_research: ["收纳为方案实践", "对比技术路线", "规划 PoC"],
+  technology_value: ["收纳为方案实践", "深入研究", "规划 PoC"],
+  solution_analysis: ["技术架构分析", "收纳为方案实践", "规划 PoC"],
+  solution_architecture: ["规划 PoC", "完善方案实践", "开始实现"],
   solution_design: ["规划 PoC", "开始实现", "生成技术材料"],
-  requirement_analysis: ["完善需求", "设计 Solution", "关联已有 Solution"],
-  requirement_refine: ["确认 Draft", "设计 Solution", "规划 PoC"],
+  requirement_analysis: ["完善背景", "形成方案实践", "关联已有实践"],
+  requirement_refine: ["确认背景", "形成方案实践", "规划 PoC"],
   poc_plan: ["开始验证", "开始实现", "生成部署材料"],
   validation: ["回到架构设计", "开始实现", "生成测试报告"],
   implementation: ["查看工作文件", "开始验证", "生成部署材料"],
@@ -111,6 +115,8 @@ function MarkdownMessage({ children }: { children: string }) {
     </div>
   );
 }
+
+const formatBytes = (size = 0) => size < 1024 ? `${size} B` : `${(size / 1024).toFixed(size < 10240 ? 1 : 0)} KB`;
 
 export function InsightAgentShell() {
   const pathname = usePathname();
@@ -250,14 +256,15 @@ export function InsightAgentShell() {
     const response = await authenticatedFetch(`/api/agent/artifacts/${id}`);
     if (!response.ok) throw new Error("无法读取文件");
     setArtifactPreview((await response.json()) as Artifact);
+    setShowArtifacts(true);
   };
-  const downloadArtifact = async (id: string) => {
-    const response = await authenticatedFetch(`/api/agent/artifacts/${id}/download`);
+  const downloadArtifact = async (artifact: Artifact) => {
+    const response = await authenticatedFetch(`/api/agent/artifacts/${artifact.id}/download`);
     if (!response.ok) throw new Error("无法下载文件");
     const url = URL.createObjectURL(await response.blob());
     const link = document.createElement("a");
     link.href = url;
-    link.download = "agent-output.md";
+    link.download = artifact.filename || artifact.title || "agent-output";
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -349,6 +356,20 @@ export function InsightAgentShell() {
             const packet = JSON.parse(line.slice(6));
             if (packet.error) throw new Error(packet.error);
             if (packet.status) setWorkingStatus(packet.status);
+            if (packet.artifacts?.length) {
+              const nextArtifacts = packet.artifacts as Artifact[];
+              setArtifacts((current) => [
+                ...nextArtifacts,
+                ...current.filter((item) => !nextArtifacts.some((next) => next.id === item.id)),
+              ]);
+              setMessages((current) =>
+                current.map((item, index) =>
+                  index === current.length - 1
+                    ? { ...item, artifacts: [...(item.artifacts || []), ...nextArtifacts] }
+                    : item,
+                ),
+              );
+            }
             const content = packet.choices?.[0]?.delta?.content || "";
             if (content)
               flushSync(() =>
@@ -571,8 +592,8 @@ export function InsightAgentShell() {
           <div className="flex max-h-[min(680px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]">
             <div className="flex items-center justify-between border-b border-grid px-5 py-4"><div><p className="swiss-kicker text-primary">Agent outputs</p><h2 className="mt-1 text-base font-semibold text-ink">工作文件与成果</h2></div><button type="button" onClick={() => setShowArtifacts(false)} className="rounded p-2 text-ink-muted hover:bg-surface-subtle" aria-label="关闭"><X className="h-4 w-4" /></button></div>
             <div className="grid min-h-0 flex-1 md:grid-cols-[220px_minmax(0,1fr)]">
-              <div className="min-h-0 overflow-y-auto border-r border-grid p-3">{artifacts.length ? artifacts.map((item) => <div key={item.id} className={`mb-1 flex items-center gap-1 rounded-lg ${artifactPreview?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取文件"))} className="min-w-0 flex-1 px-3 py-2 text-left"><p className="truncate text-sm font-medium text-ink-secondary">{item.title}</p><p className="text-[10px] text-ink-muted">{item.type} · {new Date(item.created_at).toLocaleDateString("zh-CN")}</p></button><button type="button" onClick={() => void downloadArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="rounded p-2 text-ink-muted hover:text-primary" aria-label={`下载 ${item.title}`}><Download className="h-4 w-4" /></button></div>) : <p className="p-4 text-center text-sm text-ink-muted">还没有可下载文件。</p>}</div>
-              <div className="min-h-0 overflow-y-auto p-5">{artifactPreview ? <><div className="mb-4 flex items-center justify-between"><h3 className="font-semibold text-ink">{artifactPreview.title}</h3><button type="button" onClick={() => void downloadArtifact(artifactPreview.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="ui-button-secondary text-xs"><Download className="h-3.5 w-3.5" />下载 Markdown</button></div><MarkdownMessage>{artifactPreview.content || ""}</MarkdownMessage></> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">选择一个文件预览。</div>}</div>
+              <div className="min-h-0 overflow-y-auto border-r border-grid p-3">{artifacts.length ? artifacts.map((item) => <div key={item.id} className={`mb-1 flex items-center gap-1 rounded-lg ${artifactPreview?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取文件"))} className="min-w-0 flex-1 px-3 py-2 text-left"><p className="truncate text-sm font-medium text-ink-secondary">{item.filename || item.title}</p><p className="text-[10px] text-ink-muted">{item.mime_type || item.type} · {formatBytes(item.size_bytes)} · {new Date(item.created_at).toLocaleDateString("zh-CN")}</p></button><button type="button" onClick={() => void downloadArtifact(item).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="rounded p-2 text-ink-muted hover:text-primary" aria-label={`下载 ${item.filename || item.title}`}><Download className="h-4 w-4" /></button></div>) : <p className="p-4 text-center text-sm text-ink-muted">还没有可下载文件。</p>}</div>
+              <div className="min-h-0 overflow-y-auto p-5">{artifactPreview ? <><div className="mb-4 flex items-center justify-between gap-4"><div className="min-w-0"><h3 className="truncate font-semibold text-ink">{artifactPreview.filename || artifactPreview.title}</h3><p className="text-xs text-ink-muted">{artifactPreview.mime_type || artifactPreview.type} · {formatBytes(artifactPreview.size_bytes)}</p></div><button type="button" onClick={() => void downloadArtifact(artifactPreview).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="ui-button-secondary shrink-0 text-xs"><Download className="h-3.5 w-3.5" />下载</button></div>{artifactPreview.mime_type === "text/markdown" || artifactPreview.filename?.endsWith(".md") ? <MarkdownMessage>{artifactPreview.content || ""}</MarkdownMessage> : <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-surface-subtle p-4 text-xs leading-6 text-ink-secondary">{artifactPreview.content || ""}</pre>}</> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">选择一个文件预览。</div>}</div>
             </div>
           </div>
         </div>
@@ -619,7 +640,7 @@ export function InsightAgentShell() {
               <p className="truncate text-[11px] text-ink-muted">
                 {session
                   ? `${session.context_title || "自由讨论"} · ${session.task_status === "waiting_confirmation" ? "等待确认" : "准备就绪"}`
-                  : "需求、方案与 AI 工作"}
+                  : "方案实践与 AI 工作"}
               </p>
             </div>
           </div>
@@ -725,6 +746,8 @@ export function InsightAgentShell() {
               workingStatus={workingStatus}
               send={send}
               saveArtifact={saveArtifact}
+              openArtifact={openArtifact}
+              downloadArtifact={downloadArtifact}
               error={error}
               setError={setError}
             />
@@ -846,6 +869,8 @@ function WorkPanel({
   workingStatus,
   send,
   saveArtifact,
+  openArtifact,
+  downloadArtifact,
   error,
   setError,
 }: {
@@ -857,6 +882,8 @@ function WorkPanel({
   workingStatus: string;
   send(text: string): void;
   saveArtifact(): Promise<void>;
+  openArtifact(id: string): Promise<void>;
+  downloadArtifact(artifact: Artifact): Promise<void>;
   error: string;
   setError(value: string): void;
 }) {
@@ -895,7 +922,7 @@ function WorkPanel({
                 {[
                   "调研一个新技术并给出结论",
                   "分析一个方案的架构与限制",
-                  "把需求整理成可实施方案",
+                  "把背景整理成方案实践",
                   "规划 PoC 或开始 Coding",
                 ].map((item) => (
                   <button
@@ -939,9 +966,24 @@ function WorkPanel({
                   <div
                     className={`max-w-[88%] text-sm leading-7 ${message.role === "user" ? "whitespace-pre-wrap rounded-2xl bg-primary-soft px-4 py-2.5 text-ink" : "min-w-0 text-ink"}`}
                   >
-                    {message.content ? (
+                    {message.content || message.artifacts?.length ? (
                       message.role === "assistant" ? (
-                        <MarkdownMessage>{message.content}</MarkdownMessage>
+                        <>
+                          {message.content && <MarkdownMessage>{message.content}</MarkdownMessage>}
+                          {!!message.artifacts?.length && (
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                              {message.artifacts.map((artifact) => (
+                                <div key={artifact.id} className="flex min-w-0 items-center gap-3 rounded-xl border border-grid bg-white p-3 shadow-sm">
+                                  <button type="button" onClick={() => void openArtifact(artifact.id).catch(() => setError("无法读取文件"))} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><FileText className="h-4 w-4" /></span>
+                                    <span className="min-w-0"><span className="block truncate text-xs font-semibold text-ink">{artifact.filename || artifact.title}</span><span className="block truncate text-[10px] text-ink-muted">{artifact.mime_type || artifact.type} · {formatBytes(artifact.size_bytes)}</span></span>
+                                  </button>
+                                  <button type="button" onClick={() => void downloadArtifact(artifact).catch(() => setError("无法下载文件"))} className="rounded-lg p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label={`下载 ${artifact.filename || artifact.title}`}><Download className="h-4 w-4" /></button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       ) : (
                         message.content
                       )
@@ -1083,7 +1125,7 @@ function AgentHome({
       const solution = pick<{ id: number; name: string }>(solutions);
       setSuggestions([
         { icon: Sparkles, title: "深度调研", object: hotspot?.repo_name || "暂无技术热点", route: hotspot && { contextType: "github_project", contextId: hotspot.repo_name, actionKey: "deep_research" } },
-        { icon: Code2, title: "开始实现", object: solution?.name || "请先创建 Solution", route: solution && { contextType: "solution", contextId: String(solution.id), actionKey: "implement" } },
+        { icon: Code2, title: "开始实现", object: solution?.name || "请先收纳方案实践", route: solution && { contextType: "solution", contextId: String(solution.id), actionKey: "implement" } },
         { icon: FolderOpen, title: "方案分析", object: catalogItem?.title || "暂无 Solution Intelligence", route: catalogItem && { contextType: "cloud_solution", contextId: String(catalogItem.id), actionKey: "analyze" } },
       ]);
     };
@@ -1162,7 +1204,7 @@ function AgentHome({
             rows={1}
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="描述要推进的需求、方案或任务"
+            placeholder="描述要推进的方案实践或任务"
             className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
           />
           <button

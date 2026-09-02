@@ -7,6 +7,18 @@ from fastapi import HTTPException
 from repositories import artifact_repository, context_repository as repository
 from services import agent_task_service, context_service, workbench_service
 
+MAX_ARTIFACT_BYTES = 100 * 1024
+MIME_TYPES = {
+    ".md": "text/markdown", ".txt": "text/plain", ".csv": "text/csv",
+    ".json": "application/json", ".yaml": "application/yaml", ".yml": "application/yaml",
+    ".tf": "text/plain", ".py": "text/x-python", ".js": "text/javascript",
+    ".jsx": "text/javascript", ".ts": "text/typescript", ".tsx": "text/typescript",
+    ".sh": "text/x-shellscript", ".sql": "application/sql", ".html": "text/html",
+    ".css": "text/css", ".xml": "application/xml", ".toml": "application/toml",
+    ".ini": "text/plain", ".go": "text/plain", ".java": "text/plain",
+    ".c": "text/plain", ".h": "text/plain", ".cpp": "text/plain", ".rs": "text/plain",
+}
+
 
 def create_session(user_id: str, context_type: str, context_id: str) -> dict:
     context = context_service.get_context(user_id, context_type, context_id)
@@ -32,8 +44,8 @@ def delete_session(user_id: str, session_id: str) -> None:
         raise HTTPException(status_code=404, detail="Agent Session 不存在")
 
 
-def record_turn(user_id: str, session_id: str, message: str, reply: str) -> None:
-    repository.append_conversation(user_id, session_id, message, reply)
+def record_turn(user_id: str, session_id: str, message: str, reply: str, artifacts: list[dict] | None = None) -> None:
+    repository.append_conversation(user_id, session_id, message, reply, artifacts or [])
 
 
 def get_session(user_id: str, session_id: str) -> dict:
@@ -61,14 +73,43 @@ def patch_context(user_id: str, session_id: str, supplement: str, excluded_secti
     return repository.update_context_snapshot(user_id, session_id, snapshot) or (_ for _ in ()).throw(HTTPException(status_code=404, detail="Agent Session 不存在"))
 
 
-def create_artifact(user_id: str, session_id: str, title: str, artifact_type: str, content: str = "") -> dict:
+def _file_details(filename: str, content: str) -> tuple[str, str]:
+    filename = filename.strip()
+    if not filename or len(filename.encode("utf-8")) > 255 or filename in {".", ".."} or any(char in filename for char in "/\\\r\n\0"):
+        raise HTTPException(status_code=422, detail="文件名无效")
+    suffix = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    if suffix not in MIME_TYPES:
+        raise HTTPException(status_code=422, detail="仅支持安全白名单内的文本文件")
+    size = len(content.encode("utf-8"))
+    if not size or size > MAX_ARTIFACT_BYTES or "\0" in content:
+        raise HTTPException(status_code=422, detail="文件必须为 1B–100KB 的 UTF-8 文本")
+    return filename, MIME_TYPES[suffix]
+
+
+def create_artifact(user_id: str, session_id: str, title: str, artifact_type: str, content: str = "", filename: str = "") -> dict:
     session = get_session(user_id, session_id)
     if not content:
         replies = [item["content"] for item in session.get("conversation", []) if item.get("role") == "assistant" and item.get("content")]
         content = replies[-1] if replies else ""
     if not content.strip():
         raise HTTPException(status_code=422, detail="当前 Session 没有可保存的 Agent 输出")
-    return artifact_repository.create(user_id, session, str(uuid4()), title.strip() or session.get("task_title") or "Agent 成果", artifact_type, content[:20000])
+    title = title.strip() or session.get("task_title") or "Agent 成果"
+    safe_title = "".join("-" if char in "/\\\r\n\0" else char for char in title).strip(". ")[:80] or "agent-output"
+    filename, mime_type = _file_details(filename or (safe_title if safe_title.lower().endswith(".md") else f"{safe_title}.md"), content)
+    return artifact_repository.create(user_id, session, str(uuid4()), title, artifact_type, content, filename, mime_type)
+
+
+def create_generated_artifacts(user_id: str, session_id: str, files: list[dict]) -> list[dict]:
+    session = get_session(user_id, session_id)
+    created = []
+    for item in files:
+        try:
+            filename, mime_type = _file_details(item.get("filename", ""), item.get("content", ""))
+        except HTTPException:
+            continue
+        suffix = filename.rsplit(".", 1)[-1].upper()
+        created.append(artifact_repository.create(user_id, session, str(uuid4()), filename, suffix, item["content"], filename, mime_type))
+    return created
 
 
 def list_artifacts(user_id: str) -> list[dict]:

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
-import { Requirement, workbenchFetch } from "@/lib/workbench";
+import { Solution, workbenchFetch } from "@/lib/workbench";
 import { AgentAction } from "@/components/agent-action";
 import {
   Star, GitFork, TrendingUp, CalendarDays, RefreshCw,
@@ -115,23 +115,23 @@ export default function HotspotsPage() {
   const [savedRepos, setSavedRepos] = useState<Set<string>>(new Set());
   const [saveError, setSaveError] = useState("");
 
-  const saveRequirement = async (item: TrendingItem) => {
+  const savePractice = async (item: TrendingItem) => {
     if (!user) return router.push("/auth/login?next=/insights/hotspots");
     setSavingRepo(item.repo_url);
     setSaveError("");
     try {
-      await workbenchFetch<Requirement>("/requirements", {
+      await workbenchFetch<Solution>("/solutions", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: `评估 GitHub 项目：${item.repo_name}`,
+          name: `评估 GitHub 项目：${item.repo_name}`,
           description: item.description || "评估该项目的技术能力、适用场景与落地价值。",
-          status: "draft", priority: "medium", source_type: "github_trending",
-          source_id: item.repo_name, source_url: item.repo_url,
+          status: "draft", category: item.category || "GitHub 项目", version: "v0.1.0",
+          reference_url: item.repo_url,
         }),
       });
       setSavedRepos((current) => new Set(current).add(item.repo_url));
     } catch (reason) {
-      setSaveError(reason instanceof Error ? reason.message : "暂存需求失败");
+      setSaveError(reason instanceof Error ? reason.message : "收纳方案实践失败");
     } finally {
       setSavingRepo("");
     }
@@ -418,9 +418,9 @@ export default function HotspotsPage() {
                     <TrendingUp className="h-3 w-3" /> {item.today_stars}
                   </span>
                 )}
-                <button type="button" disabled={savingRepo === item.repo_url || savedRepos.has(item.repo_url)} onClick={() => saveRequirement(item)} className="ui-button-secondary ml-auto px-3 py-1.5 text-xs">
+                <button type="button" disabled={savingRepo === item.repo_url || savedRepos.has(item.repo_url)} onClick={() => savePractice(item)} className="ui-button-secondary ml-auto px-3 py-1.5 text-xs">
                   {savedRepos.has(item.repo_url) ? <Check className="h-3.5 w-3.5" /> : <BookmarkPlus className="h-3.5 w-3.5" />}
-                  {savingRepo === item.repo_url ? "暂存中" : savedRepos.has(item.repo_url) ? "已暂存" : "暂存需求"}
+                  {savingRepo === item.repo_url ? "收纳中" : savedRepos.has(item.repo_url) ? "已收纳" : "收纳方案实践"}
                 </button>
                 <AgentAction contextType="github_project" contextId={item.repo_name} actionKey="deep_research" className="ui-button-secondary px-3 py-1.5 text-xs"><Bot className="h-3.5 w-3.5" />深入研究</AgentAction>
               </div>

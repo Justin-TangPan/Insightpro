@@ -8,7 +8,6 @@ import {
   History,
   Layers3,
   Blocks,
-  ClipboardList,
   Radio,
   ShieldCheck,
 } from "lucide-react";
@@ -17,7 +16,7 @@ import { useEffect, useState } from "react";
 import { API } from "@/lib/api";
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
-import { Requirement, requirementStatusLabels, workbenchFetch } from "@/lib/workbench";
+import { Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
 
 interface InsightModule {
   id: string;
@@ -42,7 +41,7 @@ export default function HomePage() {
   const { user } = useAuth();
   const [dynamicModules, setDynamicModules] = useState(modules);
   const [stats, setStats] = useState<Record<string, number>>({});
-  const [workbench, setWorkbench] = useState<{ requirement_count: number; solution_count: number; recent_requirements: Requirement[] } | null>(null);
+  const [practices, setPractices] = useState<Solution[]>([]);
 
   useEffect(() => {
     const load = async () => {
@@ -68,12 +67,8 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!user) return;
-    void workbenchFetch<{ requirement_count: number; solution_count: number; recent_requirements: Requirement[] }>("/summary")
-      .then(setWorkbench)
-      .catch(() => setWorkbench(null));
+    void workbenchFetch<Solution[]>("/solutions").then(setPractices).catch(() => setPractices([]));
   }, [user]);
-
-  const workbenchData = user ? workbench : null;
 
   return (
     <div className="page-stack">
@@ -165,13 +160,12 @@ export default function HomePage() {
 
       <section className="rounded-2xl bg-surface-subtle p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Workbench</p><h2 className="mt-1 type-h2 text-ink">从洞察推进到方案</h2></div>
-          <div className="flex gap-2"><Link href="/workbench/requirements" className="ui-button-secondary">Requirements</Link><Link href="/workbench/solutions" className="ui-button-primary">Solutions</Link></div>
+          <div><p className="swiss-kicker text-primary">Workbench</p><h2 className="mt-1 type-h2 text-ink">从洞察推进到方案实践</h2></div>
+          <div className="flex gap-2"><Link href="/workbench/ai" className="ui-button-secondary">AI 工作</Link><Link href="/workbench/solutions/new" className="ui-button-primary">收纳方案实践</Link></div>
         </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
-          <Link href="/workbench/requirements" className="rounded-xl bg-white p-5 transition-shadow hover:shadow-[var(--shadow-card)]"><ClipboardList className="h-5 w-5 text-primary" /><p className="mt-5 swiss-kicker text-ink-muted">Requirement</p><p className="mt-1 serif-stat text-3xl text-ink">{workbenchData?.requirement_count ?? 0}</p></Link>
-          <Link href="/workbench/solutions" className="rounded-xl bg-white p-5 transition-shadow hover:shadow-[var(--shadow-card)]"><Blocks className="h-5 w-5 text-primary" /><p className="mt-5 swiss-kicker text-ink-muted">Solution</p><p className="mt-1 serif-stat text-3xl text-ink">{workbenchData?.solution_count ?? 0}</p></Link>
-          <div className="rounded-xl bg-white p-5"><div className="flex items-center justify-between"><h3 className="type-h3 text-ink">最近 Requirement</h3><Link href="/workbench/requirements/new" className="ui-link text-xs">创建需求</Link></div><div className="mt-3 space-y-2">{workbenchData?.recent_requirements.slice(0, 3).map((item) => <Link key={item.id} href={`/workbench/requirements/${item.id}`} className="flex items-center justify-between gap-3 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm transition-colors hover:bg-primary-soft"><span className="truncate font-medium text-ink-secondary">{item.title}</span><span className="ui-tag shrink-0">{requirementStatusLabels[item.status]}</span></Link>)}{!workbenchData?.recent_requirements.length && <p className="py-5 text-center text-sm text-ink-muted">{user ? "还没有 Requirement" : "登录后查看工作台信息"}</p>}</div></div>
+        <div className="mt-5 grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+          <Link href="/workbench/solutions" className="rounded-xl bg-white p-5 transition-shadow hover:shadow-[var(--shadow-card)]"><Blocks className="h-5 w-5 text-primary" /><p className="mt-5 swiss-kicker text-ink-muted">方案实践</p><p className="mt-1 serif-stat text-3xl text-ink">{user ? practices.length : 0}</p></Link>
+          <div className="rounded-xl bg-white p-5"><div className="flex items-center justify-between"><h3 className="type-h3 text-ink">最近方案实践</h3><Link href="/workbench/solutions/new" className="ui-link text-xs">收纳实践</Link></div><div className="mt-3 space-y-2">{practices.slice(0, 3).map((item) => <Link key={item.id} href={`/workbench/solutions/${item.id}`} className="flex items-center justify-between gap-3 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm transition-colors hover:bg-primary-soft"><span className="truncate font-medium text-ink-secondary">{item.name}</span><span className="ui-tag shrink-0">{solutionStatusLabels[item.status]}</span></Link>)}{!practices.length && <p className="py-5 text-center text-sm text-ink-muted">{user ? "还没有方案实践" : "登录后查看工作台信息"}</p>}</div></div>
         </div>
       </section>
 

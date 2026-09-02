@@ -19,7 +19,7 @@ export default function SolutionsPage() {
     try {
       setItems(await workbenchFetch<Solution[]>("/solutions"));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Solution 加载失败");
+      setError(reason instanceof Error ? reason.message : "方案实践加载失败");
     } finally {
       setLoading(false);
     }
@@ -28,7 +28,7 @@ export default function SolutionsPage() {
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
   const remove = async (item: Solution) => {
-    if (!window.confirm(`删除 Solution“${item.name}”？`)) return;
+    if (!window.confirm(`删除方案实践“${item.name}”？`)) return;
     try {
       await workbenchFetch(`/solutions/${item.id}`, { method: "DELETE" });
       await load();
@@ -40,8 +40,8 @@ export default function SolutionsPage() {
   if (!authLoading && !user) {
     return (
       <div className="ui-card mx-auto mt-20 flex max-w-lg flex-col items-center py-12 text-center">
-        <Blocks className="h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink">Solutions 工作台需要登录</h1>
-        <p className="mt-2 text-sm text-ink-muted">登录后可管理自己的技术方案。</p><Link href="/auth/login" className="ui-button-primary mt-5">前往登录</Link>
+        <Blocks className="h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink">方案实践需要登录</h1>
+        <p className="mt-2 text-sm text-ink-muted">登录后可管理自己的方案背景。</p><Link href="/auth/login" className="ui-button-primary mt-5">前往登录</Link>
       </div>
     );
   }
@@ -49,7 +49,7 @@ export default function SolutionsPage() {
   return (
     <div className="page-stack">
       <SectionHeader
-        badge="Workbench / Solutions"
+        badge="Workbench / Practices"
         title="方案实践"
         subtitle="收纳方案背景、来源材料和 AI 工作上下文。"
         action={<Link href="/workbench/solutions/new" className="ui-button-primary"><Plus className="h-4 w-4" />创建方案实践</Link>}
@@ -68,7 +68,7 @@ export default function SolutionsPage() {
               <h2 className="mt-5 type-h3 text-ink">{item.name}</h2>
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted">{item.description || "尚未补充背景信息"}</p>
               <div className="mt-auto flex items-end justify-between gap-4 pt-6">
-                <div className="text-xs leading-5 text-ink-muted"><p className="flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5" />{item.requirement_count || 0} 个关联 Requirement</p><p>更新于 {formatWorkbenchDate(item.updated_at)}</p></div>
+                <div className="text-xs leading-5 text-ink-muted"><p className="flex items-center gap-1.5"><ClipboardList className="h-3.5 w-3.5" />{item.requirement_count || 0} 项背景材料</p><p>更新于 {formatWorkbenchDate(item.updated_at)}</p></div>
                 <Link href={`/workbench/solutions/${item.id}`} className="ui-link flex items-center gap-1.5 text-sm">查看详情<ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /></Link>
               </div>
             </article>

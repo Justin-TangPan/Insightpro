@@ -17,7 +17,7 @@ export default function SolutionDetailPage() {
 
   const load = useCallback(async () => {
     try { setItem(await workbenchFetch<Solution>(`/solutions/${id}`)); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Solution 加载失败"); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "方案实践加载失败"); }
   }, [id]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
@@ -35,7 +35,7 @@ export default function SolutionDetailPage() {
   };
 
   const remove = async () => {
-    if (!item || !window.confirm(`删除 Solution“${item.name}”？`)) return;
+    if (!item || !window.confirm(`删除方案实践“${item.name}”？`)) return;
     try {
       await workbenchFetch(`/solutions/${id}`, { method: "DELETE" });
       router.push("/workbench/solutions");
@@ -67,11 +67,11 @@ export default function SolutionDetailPage() {
           <div className="flex items-center justify-between"><div><p className="swiss-kicker text-primary">Background</p><h2 className="mt-1 type-h3 text-ink">背景材料</h2></div><span className="ui-tag">{item.requirements?.length || 0}</span></div>
           <div className="mt-4 space-y-2">
             {item.requirements?.map((requirement) => (
-              <Link key={requirement.id} href={`/workbench/requirements/${requirement.id}`} className="block rounded-lg bg-white p-4 transition-shadow hover:shadow-[var(--shadow-card)]">
+              <div key={requirement.id} className="block rounded-lg bg-white p-4">
                 <div className="flex items-start gap-3"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><div><p className="text-sm font-semibold text-ink">{requirement.title}</p><p className="mt-1 text-xs text-ink-muted">{priorityLabels[requirement.priority]}优先级</p></div></div>
-              </Link>
+              </div>
             ))}
-            {!item.requirements?.length && <div className="rounded-lg bg-white p-5 text-center text-sm text-ink-muted">尚未关联 Requirement</div>}
+            {!item.requirements?.length && <div className="rounded-lg bg-white p-5 text-center text-sm text-ink-muted">尚未收纳背景材料</div>}
           </div>
         </aside>
       </div>

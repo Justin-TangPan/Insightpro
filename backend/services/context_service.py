@@ -15,6 +15,29 @@ def _content(*parts: str | None) -> str:
     return "\n\n".join(part.strip() for part in parts if part and part.strip())[:MAX_CONTENT]
 
 
+def _solution_content(item: dict) -> str:
+    requirements = item["requirements"]
+    lead = _content(
+        f"方案实践：{item['name']}",
+        f"来源：{item['reference_url']}" if item.get("reference_url") else None,
+        item.get("description"),
+    )
+    if not requirements:
+        return lead
+    remaining = max(0, MAX_CONTENT - len(lead) - 2)
+    allowance = max(1, remaining // len(requirements))
+    backgrounds = []
+    for row in requirements:
+        source = " / ".join(str(value) for value in (row.get("source_type"), row.get("source_id"), row.get("source_url")) if value)
+        block = _content(
+            f"背景材料：{row['title']}",
+            f"来源：{source}" if source else None,
+            row.get("description"),
+        )
+        backgrounds.append(block[:allowance])
+    return _content(lead, *backgrounds)
+
+
 def _context(context_type: str, context_id: str, title: str, summary: str, metadata: dict, content: str, source_url: str | None, related: list[dict] | None = None) -> dict:
     return {
         "context_type": context_type,
@@ -39,8 +62,7 @@ def get_context(user_id: str, context_type: str, context_id: str) -> dict:
     if context_type == "solution":
         item = workbench_service.get_solution(user_id, int(context_id))
         related = [{"type": "requirement", "id": str(r["id"]), "title": r["title"], "source_type": r["source_type"], "source_id": r["source_id"], "source_url": r["source_url"]} for r in item["requirements"]]
-        sources = [f"背景材料：{row['title']}\n{row['description']}" for row in item["requirements"]]
-        return _context(context_type, context_id, item["name"], item["description"], {"category": item["category"], "status": item["status"], "version": item["version"], "background_count": len(sources)}, _content(f"方案实践：{item['name']}", item["description"], *sources), item["reference_url"], related)
+        return _context(context_type, context_id, item["name"], item["description"], {"category": item["category"], "status": item["status"], "version": item["version"], "background_count": len(item["requirements"])}, _solution_content(item), item["reference_url"], related)
     if context_type == "github_project":
         item = repository.github_project(context_id)
         if not item:

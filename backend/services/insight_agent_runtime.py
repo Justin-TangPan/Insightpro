@@ -7,6 +7,7 @@ depending on Hermes' dashboard or CLI protocol.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import AsyncGenerator
 from pathlib import Path
 
@@ -40,6 +41,7 @@ STAGES = {
     "implementation": "Build",
     "materials": "Deliver",
 }
+FILE_BLOCK = re.compile(r"```file:([^\r\n]+)\r?\n(.*?)```", re.DOTALL)
 
 
 def public_knowledge() -> str:
@@ -98,9 +100,19 @@ def messages_for(session: dict, message: str) -> list[dict]:
 当前业务对象 Context（仅使用其中可验证的信息，不要编造）：
 {_context(session)}
 
-期望输出：与当前任务相匹配的结论、依据、风险、验证要点和下一步。"""
-    history = [item for item in session.get("conversation", []) if item.get("role") in {"user", "assistant"} and item.get("content")][-12:]
+期望输出：与当前任务相匹配的结论、依据、风险、验证要点和下一步。需要交付不超过 100KB 的文本文件时，使用 ```file:文件名.扩展名 换行 文件正文 换行 ```；仅使用常见文本/代码扩展名，不要输出服务器路径。"""
+    history = [{"role": item["role"], "content": item["content"]} for item in session.get("conversation", []) if item.get("role") in {"user", "assistant"} and item.get("content")][-12:]
     return [{"role": "system", "content": system}, *history, {"role": "user", "content": message}]
+
+
+def generated_files(reply: str) -> list[dict]:
+    """Extract model-produced text files; validation and persistence stay server-owned."""
+    return [{"filename": match.group(1).strip(), "content": match.group(2)} for match in FILE_BLOCK.finditer(reply)]
+
+
+def reply_without_files(reply: str, filenames: set[str]) -> str:
+    cleaned = FILE_BLOCK.sub(lambda match: "" if match.group(1).strip() in filenames else match.group(0), reply).strip()
+    return cleaned or "已生成文件。"
 
 
 async def stream_reply(session: dict, message: str) -> AsyncGenerator[str, None]:

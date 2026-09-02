@@ -74,11 +74,13 @@ def ensure_runtime_schema() -> None:
                 source_type TEXT NOT NULL DEFAULT 'manual',
                 source_id TEXT,
                 source_url TEXT,
+                absorbed_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             """
         )
+        cursor.execute("ALTER TABLE requirements ADD COLUMN IF NOT EXISTS absorbed_at TIMESTAMPTZ")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS solutions (
@@ -180,12 +182,15 @@ def ensure_runtime_schema() -> None:
             CREATE TABLE IF NOT EXISTS agent_artifacts (
                 id UUID PRIMARY KEY, user_id UUID NOT NULL, session_id UUID NOT NULL REFERENCES agent_sessions(id) ON DELETE CASCADE,
                 task_key TEXT NOT NULL DEFAULT '', type TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL,
+                filename TEXT NOT NULL DEFAULT '', mime_type TEXT NOT NULL DEFAULT 'text/markdown',
                 source_type TEXT, source_id TEXT, requirement_id BIGINT, solution_id BIGINT,
                 knowledge_status TEXT NOT NULL DEFAULT 'private' CHECK (knowledge_status IN ('private','requested','published')),
                 knowledge_path TEXT, reviewed_by UUID, reviewed_at TIMESTAMPTZ,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
         """)
+        cursor.execute("ALTER TABLE agent_artifacts ADD COLUMN IF NOT EXISTS filename TEXT NOT NULL DEFAULT ''")
+        cursor.execute("ALTER TABLE agent_artifacts ADD COLUMN IF NOT EXISTS mime_type TEXT NOT NULL DEFAULT 'text/markdown'")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_artifacts_user_updated ON agent_artifacts(user_id, updated_at DESC)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_agent_artifacts_knowledge ON agent_artifacts(knowledge_status, updated_at)")
         cursor.execute("ALTER TABLE agent_sso_tickets ENABLE ROW LEVEL SECURITY")
@@ -217,6 +222,9 @@ def ensure_runtime_schema() -> None:
             CREATE INDEX IF NOT EXISTS idx_solutions_search ON solutions USING GIN
             ((COALESCE(name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(category,'') || ' ' || COALESCE(version,'')) gin_trgm_ops)
         """)
+
+    from repositories.workbench_repository import absorb_requirements_into_solutions
+    absorb_requirements_into_solutions()
 
 
 def _technical_summaries_missing() -> bool:

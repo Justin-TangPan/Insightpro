@@ -277,7 +277,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
         <span className="text-[11px] text-ink-muted">{item.is_baseline ? "普通方案" : `最近变化 ${item.last_changed_date}`}</span>
         <div className="flex items-center gap-3">
           <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">AI 分析</AgentAction>
-          <Link href={{ pathname: "/workbench/requirements/new", query: { source_type: "cloud_solution", source_id: String(item.id), source_url: item.url, title: item.title } }} className="ui-button-secondary px-3 py-2 text-xs">创建需求</Link>
+          <Link href={{ pathname: "/workbench/solutions/new", query: { source_url: item.url, title: item.title, description: item.source_description || item.summary } }} className="ui-button-secondary px-3 py-2 text-xs">收纳方案实践</Link>
           <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
         </div>
       </div>

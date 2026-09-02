@@ -102,7 +102,7 @@ def set_hermes_session(user_id: str, session_id: str, hermes_session_id: str) ->
         cursor.execute("UPDATE agent_sessions SET hermes_session_id=%s WHERE id=%s AND user_id=%s", (hermes_session_id, session_id, user_id))
 
 
-def append_conversation(user_id: str, session_id: str, user_message: str, assistant_message: str) -> None:
+def append_conversation(user_id: str, session_id: str, user_message: str, assistant_message: str, artifacts: list[dict] | None = None) -> None:
     with get_db() as conn:
         cursor = conn.cursor()
         title = user_message.strip().replace("\n", " ")[:40] or "新对话"
@@ -112,7 +112,7 @@ def append_conversation(user_id: str, session_id: str, user_message: str, assist
                    title=CASE WHEN title='新对话' THEN %s ELSE title END,
                    task_status=CASE WHEN task_status='ready' THEN 'working' ELSE task_status END, updated_at=NOW()
                WHERE id=%s AND user_id=%s""",
-            (__import__("json").dumps([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_message}]), title, session_id, user_id),
+            (__import__("json").dumps([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_message, "artifacts": artifacts or []}], default=str), title, session_id, user_id),
         )
 
 

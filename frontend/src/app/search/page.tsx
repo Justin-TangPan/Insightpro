@@ -35,8 +35,8 @@ const typeConfig: Record<Exclude<SearchKind, "all">, { label: string; icon: Luci
   technical: { label: "技术项目", icon: Radio },
   solution: { label: "方案洞察", icon: Layers3 },
   competitor: { label: "友商动态", icon: ShieldCheck },
-  requirement: { label: "Requirement", icon: ClipboardList },
-  managed_solution: { label: "Solution", icon: Blocks },
+  requirement: { label: "方案背景", icon: ClipboardList },
+  managed_solution: { label: "方案实践", icon: Blocks },
 };
 
 const filters: { value: SearchKind; label: string }[] = [

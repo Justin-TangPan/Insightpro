@@ -36,7 +36,8 @@ class ContextPatch(BaseModel):
 class ArtifactCreate(BaseModel):
     title: str = Field(default="", max_length=200)
     type: str = Field(default="Markdown", max_length=80)
-    content: str = Field(default="", max_length=20000)
+    content: str = Field(default="", max_length=102400)
+    filename: str = Field(default="", max_length=255)
 
 
 class ChatMessage(BaseModel):
@@ -118,7 +119,7 @@ async def patch_context(session_id: str, payload: ContextPatch, user=Depends(req
 
 @router.post("/sessions/{session_id}/artifacts", status_code=201)
 async def create_artifact(session_id: str, payload: ArtifactCreate, user=Depends(require_auth)):
-    return await asyncio.to_thread(agent_service.create_artifact, str(user.id), session_id, payload.title, payload.type, payload.content)
+    return await asyncio.to_thread(agent_service.create_artifact, str(user.id), session_id, payload.title, payload.type, payload.content, payload.filename)
 
 
 @router.get("/artifacts")
@@ -134,8 +135,9 @@ async def get_artifact(artifact_id: str, user=Depends(require_auth)):
 @router.get("/artifacts/{artifact_id}/download")
 async def download_artifact(artifact_id: str, user=Depends(require_auth)):
     item = await asyncio.to_thread(agent_service.get_artifact, str(user.id), artifact_id)
-    filename = quote(f"{item['title'] or 'agent-output'}.md")
-    return Response(item["content"], media_type="text/markdown; charset=utf-8", headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"})
+    filename = quote(item.get("filename") or f"{item['title'] or 'agent-output'}.md")
+    mime_type = item.get("mime_type") or "text/markdown"
+    return Response(item["content"], media_type=f"{mime_type}; charset=utf-8", headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}", "X-Content-Type-Options": "nosniff"})
 
 
 @router.post("/artifacts/{artifact_id}/knowledge-request")
@@ -188,7 +190,11 @@ async def chat_stream(payload: ChatRequest, user=Depends(require_auth)):
                 yield f'data: {json.dumps({"choices": [{"delta": {"content": content}}]}, ensure_ascii=False)}\n\n'
             if not reply.strip():
                 raise RuntimeError("模型未返回内容")
-            await asyncio.to_thread(agent_service.record_turn, str(user.id), payload.session_id, payload.message, reply)
+            artifacts = await asyncio.to_thread(agent_service.create_generated_artifacts, str(user.id), payload.session_id, insight_agent_runtime.generated_files(reply))
+            references = [{key: item.get(key) for key in ("id", "session_id", "title", "filename", "mime_type", "size_bytes", "type", "knowledge_status", "created_at")} for item in artifacts]
+            await asyncio.to_thread(agent_service.record_turn, str(user.id), payload.session_id, payload.message, insight_agent_runtime.reply_without_files(reply, {item["filename"] for item in references}), references)
+            if references:
+                yield f'data: {json.dumps({"artifacts": references}, ensure_ascii=False, default=str)}\n\n'
         except Exception:
             yield 'data: {"error":"Insight-Agent 执行失败，请重试。"}\n\n'
         yield "data: [DONE]\n\n"
