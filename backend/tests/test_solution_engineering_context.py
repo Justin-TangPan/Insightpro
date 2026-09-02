@@ -1,6 +1,15 @@
 from services import insight_agent_runtime
 
 
+def test_practice_background_accepts_only_safe_github_readme_and_final_text():
+    urls = insight_agent_runtime.github_readme_urls("https://github.com/Gitlawb/openclaude.git")
+    assert urls[0] == "https://raw.githubusercontent.com/Gitlawb/openclaude/main/README.md"
+    assert insight_agent_runtime.github_readme_urls("http://github.com/Gitlawb/openclaude") == ()
+    assert insight_agent_runtime.github_readme_urls("https://example.com/Gitlawb/openclaude") == ()
+    assert insight_agent_runtime.valid_background("# 项目背景") is True
+    assert insight_agent_runtime.valid_background('<|tool_call_start|>{"name": "web_reader"}') is False
+
+
 def test_enabled_agent_plugin_is_loaded(monkeypatch, tmp_path):
     plugin = tmp_path / "sac"
     plugin.mkdir()

@@ -113,6 +113,8 @@ async def generate_practice_background(payload: PracticeBackgroundCreate, _=Depe
         content = await insight_agent_runtime.generate_practice_background(payload.model_dump(exclude={"model"}), payload.model)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
     return {"content": content}
 
 

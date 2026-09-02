@@ -11,6 +11,7 @@ import re
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -43,6 +44,20 @@ STAGES = {
     "materials": "Deliver",
 }
 FILE_BLOCK = re.compile(r"```file:([^\r\n]+)\r?\n(.*?)```", re.DOTALL)
+GITHUB_REPO = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
+TOOL_MARKERS = ("<|tool_call_start|>", "<|tool_call_end|>", '"name": "web_reader"')
+
+
+def github_readme_urls(reference: str) -> tuple[str, ...]:
+    parsed = urlparse(reference)
+    repo = parsed.path.strip("/").removesuffix(".git")
+    if parsed.scheme != "https" or parsed.hostname != "github.com" or not GITHUB_REPO.fullmatch(repo):
+        return ()
+    return tuple(f"https://raw.githubusercontent.com/{repo}/{branch}/README.md" for branch in ("main", "master"))
+
+
+def valid_background(content: str) -> bool:
+    return bool(content) and not any(marker in content for marker in TOOL_MARKERS)
 
 
 def public_knowledge() -> str:
@@ -147,22 +162,34 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
     if not settings.CHAT_API_KEY:
         raise RuntimeError("AI 模型未配置")
     selected = resolve_model(model)
-    source = json.dumps(payload, ensure_ascii=False)
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge("solution_analysis")}\n\n根据用户提供的方案实践名称、参考链接和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。"""},
-        {"role": "user", "content": source},
-    ]
+    reference = payload.get("reference_url") or ""
     async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15)) as client:
-        response = await client.post(
-            settings.CHAT_API_URL,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
-            json={"model": selected, "messages": messages, "temperature": 0.25, "max_tokens": 1600},
-        )
-    response.raise_for_status()
-    content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-    if not content:
-        raise RuntimeError("模型未返回背景信息")
-    return content[:5000]
+        for url in github_readme_urls(reference):
+            try:
+                readme = await client.get(url)
+                if readme.status_code == 200:
+                    payload["reference_content"] = readme.text[:20000]
+                    break
+            except httpx.HTTPError:
+                break
+        source = json.dumps(payload, ensure_ascii=False)
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge("solution_analysis")}\n\n根据用户提供的方案实践名称、参考链接、参考内容和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。只能输出最终 Markdown，禁止输出思考过程、工具调用、JSON 或 `<|tool_call...|>` 标记。参考内容缺失时应明确待补充，不能自行读取 URL。"""},
+            {"role": "user", "content": source},
+        ]
+        for attempt in range(2):
+            response = await client.post(
+                settings.CHAT_API_URL,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
+                json={"model": selected, "messages": messages, "temperature": 0.25, "max_tokens": 1600},
+            )
+            response.raise_for_status()
+            content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            if valid_background(content):
+                return content[:5000]
+            if attempt == 0:
+                messages.append({"role": "user", "content": "上一结果不是背景信息。请直接输出最终中文 Markdown，不要调用或描述任何工具。"})
+    raise RuntimeError("模型未返回有效背景信息，请重试")
 
 
 async def stream_reply(session: dict, message: str, model: str | None = None) -> AsyncGenerator[str, None]:
