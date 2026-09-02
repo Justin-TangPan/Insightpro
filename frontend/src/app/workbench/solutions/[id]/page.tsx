@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ArrowLeft, ArrowUpRight, Bot, ClipboardList, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Bot, ClipboardList, Save, Sparkles, Trash2 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { AgentAction } from "@/components/agent-action";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { priorityLabels, Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
 
 export default function SolutionDetailPage() {
@@ -13,6 +14,7 @@ export default function SolutionDetailPage() {
   const router = useRouter();
   const [item, setItem] = useState<Solution | null>(null);
   const [saving, setSaving] = useState(false);
+  const [filling, setFilling] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -43,6 +45,20 @@ export default function SolutionDetailPage() {
       setError(reason instanceof Error ? reason.message : "删除失败");
     }
   };
+  const fillBackground = async () => {
+    if (!item || filling) return;
+    setFilling(true); setError("");
+    try {
+      const response = await authenticatedFetch("/api/agent/practice-background", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: item.name, description: item.description, reference_url: item.reference_url || null }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.detail || "无法生成背景信息");
+      setItem({ ...item, description: data.content || "" });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "无法生成背景信息"); }
+    finally { setFilling(false); }
+  };
 
   if (!item) return <div className="page-stack">{error ? <ErrorBox message={error} /> : <div className="h-96 animate-shimmer rounded-xl bg-white" />}</div>;
   return (
@@ -53,7 +69,7 @@ export default function SolutionDetailPage() {
         <form onSubmit={save} className="ui-card space-y-5">
           <div><p className="swiss-kicker text-primary">方案实践</p><h2 className="mt-1 type-h2 text-ink">背景信息</h2></div>
           <Field label="实践名称"><input required value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} className="ui-input w-full px-4 py-3" /></Field>
-          <Field label="背景信息"><textarea rows={8} value={item.description} onChange={(event) => setItem({ ...item, description: event.target.value })} className="ui-input w-full resize-y px-4 py-3" /></Field>
+          <Field label="背景信息"><div className="mb-2 flex justify-end"><button type="button" disabled={filling} onClick={() => void fillBackground()} className="ui-button-secondary px-2.5 py-1.5 text-xs"><Sparkles className="h-3.5 w-3.5" />{filling ? "AI 填充中" : "AI 填充"}</button></div><textarea rows={8} value={item.description} onChange={(event) => setItem({ ...item, description: event.target.value })} className="ui-input w-full resize-y px-4 py-3" /></Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="分类"><input value={item.category} onChange={(event) => setItem({ ...item, category: event.target.value })} className="ui-input w-full px-3 py-3" /></Field>
             <Field label="状态"><select value={item.status} onChange={(event) => setItem({ ...item, status: event.target.value as Solution["status"] })} className="ui-input w-full px-3 py-3">{Object.entries(solutionStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>

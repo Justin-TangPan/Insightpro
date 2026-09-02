@@ -21,6 +21,10 @@ TASKS = {
         "title": "技术架构分析", "status": "ready",
         "prompt": "请拆解当前方案的技术架构、关键组件、依赖关系、集成边界和主要风险，给出可复用的架构建议。",
     },
+    "solution_practice": {
+        "title": "做成解决方案实践", "status": "ready",
+        "prompt": "请使用已启用的“华为云解决方案实践”插件，将当前方案实践按 sac-project、sac-architecture、sac-implementation、sac-quality、sac-documentation 的顺序整理为可审阅、可验证、可交付的实践。先给出事实、假设和待确认项；涉及拓扑、网络、数据、可用性或外部依赖时，先形成 Architecture Contract 并等待人工确认。不要声称未验证的部署已完成。",
+    },
     "solution_design": {
         "title": "Solution 设计", "status": "ready",
         "prompt": "请根据当前需求和已有方案，形成可执行的 Solution 设计：目标、架构、关键组件、实施阶段、风险和验收要点。",
@@ -56,7 +60,7 @@ ACTIONS = {
     "github_project": {"deep_research": "technology_research", "analyze_value": "technology_value"},
     "cloud_solution": {"analyze": "solution_analysis", "architecture": "solution_architecture", "design": "solution_design", "poc": "poc_plan"},
     "requirement": {"analyze": "requirement_analysis", "refine": "requirement_refine", "solution_design": "solution_design"},
-    "solution": {"research": "solution_analysis", "architecture": "solution_architecture", "poc": "poc_plan", "implement": "implementation", "validate": "validation", "materials": "materials"},
+    "solution": {"research": "solution_practice", "architecture": "solution_practice", "poc": "poc_plan", "implement": "implementation", "validate": "validation", "materials": "materials"},
 }
 
 

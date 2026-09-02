@@ -10,6 +10,7 @@ import json
 import re
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from typing import Any
 
 import httpx
 
@@ -72,6 +73,17 @@ def plugin_knowledge() -> str:
     return "\n\n".join(parts)
 
 
+def available_models() -> tuple[str, ...]:
+    return settings.CHAT_MODELS or (settings.CHAT_MODEL,)
+
+
+def resolve_model(model: str | None) -> str:
+    selected = (model or settings.CHAT_MODEL).strip()
+    if selected not in available_models():
+        raise ValueError("不支持的模型")
+    return selected
+
+
 def _context(session: dict) -> str:
     snapshot = dict(session.get("context_snapshot") or {})
     for key in snapshot.get("excluded_sections", []):
@@ -95,12 +107,12 @@ def messages_for(session: dict, message: str) -> list[dict]:
 # 本次动态上下文
 当前用户角色：Solution Architect
 当前工作阶段：{stage}
-当前任务：{task}
-任务目标：{prompt}
+预置任务（仅在用户点击“开始任务”或明确要求继续时执行）：{task}
+预置任务说明：{prompt}
 当前业务对象 Context（仅使用其中可验证的信息，不要编造）：
 {_context(session)}
 
-期望输出：与当前任务相匹配的结论、依据、风险、验证要点和下一步。需要交付不超过 100KB 的文本文件时，使用 ```file:文件名.扩展名 换行 文件正文 换行 ```；仅使用常见文本/代码扩展名，不要输出服务器路径。"""
+本轮用户消息优先于预置任务：用户提出其他问题时，只回答该问题，并把当前业务对象作为可选背景；不要自动套用预置任务。需要交付不超过 100KB 的文本文件时，使用 ```file:文件名.扩展名 换行 文件正文 换行 ```；仅使用常见文本/代码扩展名，不要输出服务器路径。"""
     history = [{"role": item["role"], "content": item["content"]} for item in session.get("conversation", []) if item.get("role") in {"user", "assistant"} and item.get("content")][-12:]
     return [{"role": "system", "content": system}, *history, {"role": "user", "content": message}]
 
@@ -115,7 +127,30 @@ def reply_without_files(reply: str, filenames: set[str]) -> str:
     return cleaned or "已生成文件。"
 
 
-async def stream_reply(session: dict, message: str) -> AsyncGenerator[str, None]:
+async def generate_practice_background(payload: dict[str, str], model: str | None = None) -> str:
+    """Generate editable background text; saving remains a user action."""
+    if not settings.CHAT_API_KEY:
+        raise RuntimeError("AI 模型未配置")
+    selected = resolve_model(model)
+    source = json.dumps(payload, ensure_ascii=False)
+    messages: list[dict[str, Any]] = [
+        {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge()}\n\n根据用户提供的方案实践名称、参考链接和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。"""},
+        {"role": "user", "content": source},
+    ]
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15)) as client:
+        response = await client.post(
+            settings.CHAT_API_URL,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
+            json={"model": selected, "messages": messages, "temperature": 0.25, "max_tokens": 1600},
+        )
+    response.raise_for_status()
+    content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+    if not content:
+        raise RuntimeError("模型未返回背景信息")
+    return content[:5000]
+
+
+async def stream_reply(session: dict, message: str, model: str | None = None) -> AsyncGenerator[str, None]:
     """Yield provider answer tokens only; reasoning and tool traces are never forwarded."""
     if not settings.CHAT_API_KEY:
         raise RuntimeError("AI 模型未配置")
@@ -124,7 +159,7 @@ async def stream_reply(session: dict, message: str) -> AsyncGenerator[str, None]
             "POST",
             settings.CHAT_API_URL,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
-            json={"model": settings.CHAT_MODEL, "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True},
+            json={"model": resolve_model(model), "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True},
         ) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():

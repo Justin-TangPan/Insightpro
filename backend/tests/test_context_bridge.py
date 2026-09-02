@@ -59,8 +59,8 @@ def test_agent_chat_runs_in_native_runtime(monkeypatch):
     monkeypatch.setattr(agent.agent_service, "record_turn", lambda *_: None)
     called = []
 
-    async def native_stream(session, message):
-        called.append((session["id"], message))
+    async def native_stream(session, message, model):
+        called.append((session["id"], message, model))
         yield "# Insight-Agent 结果"
 
     monkeypatch.setattr(agent.insight_agent_runtime, "stream_reply", native_stream)
@@ -71,4 +71,4 @@ def test_agent_chat_runs_in_native_runtime(monkeypatch):
         return b"".join([chunk if isinstance(chunk, bytes) else chunk.encode() async for chunk in response.body_iterator])
 
     assert "Insight-Agent 结果" in asyncio.run(body()).decode()
-    assert called == [("session-1", "分析它")]
+    assert called == [("session-1", "分析它", agent.settings.CHAT_MODEL)]

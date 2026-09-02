@@ -24,6 +24,18 @@ def test_solution_engineering_context_loads_public_rules_and_dynamic_context():
     assert "Discover" in system and "Validate" in system
     assert "企业 AI Gateway" in system
     assert "当前工作阶段：Understand" in system
+    assert "本轮用户消息优先于预置任务" in system
+
+
+def test_prebuilt_task_is_only_a_suggestion_for_a_different_user_question():
+    session = {
+        "task_key": "technology_research", "task_title": "技术深度调研",
+        "default_prompt": "评估成熟度和 PoC。",
+        "context_snapshot": {"title": "项目 A"}, "conversation": [],
+    }
+    system = insight_agent_runtime.messages_for(session, "解释 OAuth 的 PKCE")[0]["content"]
+    assert "仅在用户点击“开始任务”或明确要求继续时执行" in system
+    assert "用户提出其他问题时，只回答该问题" in system
 
 
 def test_solution_context_keeps_role_practice_and_expected_output_together():
@@ -37,4 +49,4 @@ def test_solution_context_keeps_role_practice_and_expected_output_together():
     assert "当前工作阶段：Design" in system
     assert "企业 AI Gateway" in system
     assert "资源创建 → 应用安装 → 服务健康" in system
-    assert "期望输出：与当前任务相匹配的结论、依据、风险、验证要点和下一步" in system
+    assert "本轮用户消息优先于预置任务" in system

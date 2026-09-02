@@ -24,6 +24,12 @@ def _required_env(name: str) -> str:
     return value
 
 
+def _chat_models() -> tuple[str, ...]:
+    default = os.getenv("CHAT_MODEL", "glm-5.2").strip()
+    configured = os.getenv("CHAT_MODELS", "")
+    return tuple(dict.fromkeys(item for item in [default, *(value.strip() for value in configured.split(","))] if item))
+
+
 class Settings:
     # ── AI ──
     CHAT_API_URL: str = os.getenv(
@@ -32,6 +38,7 @@ class Settings:
     )
     CHAT_API_KEY: str = os.getenv("CHAT_API_KEY", "")
     CHAT_MODEL: str = os.getenv("CHAT_MODEL", "glm-5.2")
+    CHAT_MODELS: tuple[str, ...] = _chat_models()
 
     # ── Database ──
     SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")

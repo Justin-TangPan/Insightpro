@@ -141,6 +141,8 @@ export function InsightAgentShell() {
   const [showArtifacts, setShowArtifacts] = useState(false);
   const [artifactPreview, setArtifactPreview] = useState<Artifact | null>(null);
   const [showWelcomeTip, setShowWelcomeTip] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<Session | null>(null);
   const messagesRef = useRef<Message[]>([]);
@@ -158,6 +160,14 @@ export function InsightAgentShell() {
     const items = ((await response.json()) as { items: Session[] }).items;
     setSessions(items);
     return items;
+  };
+  const refreshModels = async () => {
+    if (!user) return;
+    const response = await authenticatedFetch("/api/agent/models");
+    if (!response.ok) return;
+    const data = (await response.json()) as { items: string[]; default: string };
+    setModels(data.items);
+    setSelectedModel((current) => current || data.default);
   };
   const openSession = async (id: string, nextMode?: Mode) => {
     const response = await authenticatedFetch(`/api/agent/sessions/${id}`);
@@ -335,7 +345,7 @@ export function InsightAgentShell() {
       const response = await authenticatedFetch("/api/agent/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, session_id: targetSession.id }),
+        body: JSON.stringify({ message, session_id: targetSession.id, model: selectedModel || undefined }),
       });
       if (!response.ok || !response.body)
         throw new Error(
@@ -399,11 +409,17 @@ export function InsightAgentShell() {
       queueMicrotask(() => {
         void refreshSessions().catch(() => undefined);
         void refreshArtifacts();
+        void refreshModels();
       });
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (user && localStorage.getItem("insight_agent_welcome_dismissed") !== "1")
-      queueMicrotask(() => setShowWelcomeTip(true));
+    if (!user || localStorage.getItem("insight_agent_welcome_dismissed") === "1") return;
+    localStorage.setItem("insight_agent_welcome_dismissed", "1");
+    const show = window.setTimeout(() => setShowWelcomeTip(true), 0);
+    const timer = window.setTimeout(() => {
+      setShowWelcomeTip(false);
+    }, 2000);
+    return () => { window.clearTimeout(show); window.clearTimeout(timer); };
   }, [user]);
   useEffect(() => {
     const handler = (event: Event) => {
@@ -645,6 +661,9 @@ export function InsightAgentShell() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {!!models.length && <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="max-w-32 rounded border border-grid bg-white px-1 py-1 text-xs text-ink-secondary" aria-label="切换模型">
+              {models.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>}
             <button type="button" onClick={() => { setShowArtifacts(true); if (!artifactPreview && artifacts[0]) void openArtifact(artifacts[0].id).catch(() => undefined); }} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="查看工作文件"><FileText className="h-4 w-4" /></button>
             {!full && (
               <>

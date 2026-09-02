@@ -12,6 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from routers.auth import require_admin, require_auth
+from settings import settings
 from services import agent_audit_service, agent_service, context_service, insight_agent_runtime
 
 router = APIRouter(prefix="/agent")
@@ -48,6 +49,14 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
     session_id: str = Field(min_length=1, max_length=64)
+    model: Optional[str] = Field(default=None, max_length=100)
+
+
+class PracticeBackgroundCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=5000)
+    reference_url: Optional[str] = Field(default=None, max_length=2000)
+    model: Optional[str] = Field(default=None, max_length=100)
 
 
 class PageChatCreate(BaseModel):
@@ -90,6 +99,20 @@ class DraftUpdatePayload(BaseModel):
 @router.get("/context/{context_type}/{context_id}")
 async def get_context(context_type: ContextType, context_id: str, user=Depends(require_auth)):
     return await asyncio.to_thread(context_service.get_context, str(user.id), context_type, context_id)
+
+
+@router.get("/models")
+async def list_models(_=Depends(require_auth)):
+    return {"items": list(insight_agent_runtime.available_models()), "default": settings.CHAT_MODEL}
+
+
+@router.post("/practice-background")
+async def generate_practice_background(payload: PracticeBackgroundCreate, _=Depends(require_auth)):
+    try:
+        content = await insight_agent_runtime.generate_practice_background(payload.model_dump(exclude={"model"}), payload.model)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return {"content": content}
 
 
 @router.post("/sessions", status_code=201)
@@ -180,12 +203,16 @@ async def delete_chat_session(session_id: str, user=Depends(require_auth)):
 @router.post("/chat/stream")
 async def chat_stream(payload: ChatRequest, user=Depends(require_auth)):
     session = await asyncio.to_thread(agent_service.get_session, str(user.id), payload.session_id)
+    try:
+        model = insight_agent_runtime.resolve_model(payload.model)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     async def stream():
         reply = ""
         try:
             yield 'data: {"status":"Insight-Agent 正在分析…"}\n\n'
-            async for content in insight_agent_runtime.stream_reply(session, payload.message):
+            async for content in insight_agent_runtime.stream_reply(session, payload.message, model):
                 reply += content
                 yield f'data: {json.dumps({"choices": [{"delta": {"content": content}}]}, ensure_ascii=False)}\n\n'
             if not reply.strip():

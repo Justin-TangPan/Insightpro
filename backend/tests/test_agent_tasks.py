@@ -17,6 +17,23 @@ def test_business_action_resolves_to_a_server_owned_task():
     assert "技术架构" in task["prompt"]
 
 
+def test_solution_practice_action_uses_the_enabled_sac_workflow():
+    key, task = agent_task_service.resolve("solution", "architecture")
+    assert key == "solution_practice"
+    assert task["title"] == "做成解决方案实践"
+    assert "sac-project" in task["prompt"]
+    assert "Architecture Contract" in task["prompt"]
+
+
+def test_model_selection_is_limited_to_configured_models(monkeypatch):
+    monkeypatch.setattr(insight_agent_runtime.settings, "CHAT_MODEL", "fast")
+    monkeypatch.setattr(insight_agent_runtime.settings, "CHAT_MODELS", ("fast", "careful"))
+    assert insight_agent_runtime.resolve_model(None) == "fast"
+    assert insight_agent_runtime.resolve_model("careful") == "careful"
+    with pytest.raises(ValueError):
+        insight_agent_runtime.resolve_model("unknown")
+
+
 def test_unsupported_action_is_rejected_before_context_is_read():
     with pytest.raises(HTTPException) as error:
         agent_task_service.resolve("requirement", "implement")
