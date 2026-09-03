@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import { Bell } from "lucide-react";
+import { Bell, GitFork } from "lucide-react";
 import { SearchBar } from "@/components/search-bar";
 import { Sidebar } from "@/components/sidebar";
 import { MobileNavTrigger } from "@/components/mobile-nav";
@@ -51,6 +51,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <p className="text-sm font-semibold leading-tight tracking-tight text-ink">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                   </div>
                   <div className="hidden h-6 w-px bg-grid sm:block" />
+                  <a
+                    href="https://github.com/Justin-TangPan/Insightpro"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="打开 InsightPro GitHub 仓库"
+                    className="ui-icon-button bg-white text-ink-secondary shadow-[var(--shadow-card)] hover:bg-primary-soft hover:text-primary"
+                  >
+                    <GitFork className="h-4 w-4" aria-hidden="true" />
+                  </a>
                   <button aria-label="查看通知" className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white text-ink-secondary shadow-[var(--shadow-card)] transition-colors hover:bg-primary-soft hover:text-primary">
                     <Bell className="h-4 w-4" />
                     <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-warning ring-2 ring-white" />
