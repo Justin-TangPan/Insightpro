@@ -108,7 +108,9 @@ function recommendedActions(taskKey: string, turn: number) {
   return nextActions[taskKey] || ["继续处理", "生成实施建议"];
 }
 
-function freeChatPrompts(pathname: string) {
+function freeChatPrompts(pathname: string, title = "当前页面") {
+  const subject = title.trim().slice(0, 24) || "当前页面";
+  if (subject !== "当前页面") return [`“${subject}”解决什么问题？`, `分析“${subject}”的关键风险`, `提炼“${subject}”的核心结论`, `如何验证“${subject}”的可行性？`];
   if (pathname.includes("hotspots")) return ["这个项目解决什么问题？", "评估成熟度和落地风险", "给出 PoC 验证建议", "对比可替代技术"];
   if (pathname.includes("solutions")) return ["提炼这个方案的关键能力", "分析架构与适用边界", "整理成解决方案实践", "列出实施风险"];
   if (pathname.includes("workbench")) return ["继续完善当前方案", "检查背景信息缺口", "规划下一步实施", "生成可交付材料"];
@@ -970,9 +972,12 @@ function WorkPanel({
       setError("该附件无法读取，请上传文本类文件");
     }
   };
-  const [suggestedPrompts, setSuggestedPrompts] = useState(() => freeChatPrompts(pathname));
+  const businessTitle = (session.context_snapshot as (Context & { business_context?: { title?: string } }) | undefined)?.business_context?.title;
+  const contextualTitle = businessTitle || session.context_title;
+  const [suggestedPrompts, setSuggestedPrompts] = useState(() => freeChatPrompts(pathname, contextualTitle));
   useEffect(() => {
     if (session.context_type !== "chat" || messages.length) return;
+    setSuggestedPrompts(freeChatPrompts(pathname, contextualTitle));
     let active = true;
     void authenticatedFetch("/api/agent/suggestions", {
       method: "POST",
@@ -984,7 +989,7 @@ function WorkPanel({
       if (active && data.items?.length) setSuggestedPrompts(data.items);
     }).catch(() => undefined);
     return () => { active = false; };
-  }, [messages.length, pathname, session]);
+  }, [contextualTitle, messages.length, pathname, session]);
   const emptyChat = session.context_type === "chat" && !messages.length;
   return (
     <>
