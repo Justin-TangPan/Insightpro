@@ -1,5 +1,11 @@
 # 版本日志
 
+## [0.8.8] - 2026-09-03
+
+### AI 填充代理稳定性
+- `/api/agent/practice-background` 改为专用 Next Route Handler，保留用户 Authorization 并允许 110 秒模型生成，避免 rewrite 代理提前断开 socket。
+- 模型 Provider 异常统一返回可读的 502 响应，前端可以直接重试。
+
 ## [0.8.7] - 2026-09-03
 
 ### 方案实践 AI 填充校对

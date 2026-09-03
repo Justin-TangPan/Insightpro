@@ -6,6 +6,7 @@ import json
 from urllib.parse import quote
 from typing import Literal, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.responses import Response
@@ -113,7 +114,7 @@ async def generate_practice_background(payload: PracticeBackgroundCreate, _=Depe
         content = await insight_agent_runtime.generate_practice_background(payload.model_dump(exclude={"model"}), payload.model)
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
-    except RuntimeError as error:
+    except (RuntimeError, httpx.HTTPError) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     return {"content": content}
 
