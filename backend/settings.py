@@ -31,6 +31,7 @@ def _chat_models() -> tuple[str, ...]:
 
 
 class Settings:
+    APP_VERSION: str = os.getenv("APP_VERSION", "0.8.24")
     # ── AI ──
     CHAT_API_URL: str = os.getenv(
         "CHAT_API_URL",

@@ -2,7 +2,7 @@ from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
 from services import aliyun_solution_service
-from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree
+from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree, _summarize
 from services.huawei_solution_service import _parse_catalog
 from services.system_health_service import evaluate_readiness
 from deep_searcher_integration import context_to_str
@@ -49,6 +49,21 @@ def test_aliyun_solution_parser_and_summary_contract():
     summary = _fallback_summary("示例解决方案", "帮助企业快速部署智能体并自动完成复杂业务任务与流程协作。")
     assert 20 <= len(summary) <= 30
     assert 20 <= len(_fallback_summary("数据合规", "")) <= 30
+
+
+def test_solution_summaries_are_batched_instead_of_globally_downgraded(monkeypatch):
+    from services import ai_service
+    from services.aliyun_solution_service import settings as solution_settings
+
+    calls = []
+    monkeypatch.setattr(solution_settings, "CHAT_API_KEY", "configured")
+    monkeypatch.setattr(ai_service, "chat_complete", lambda **kwargs: calls.append(kwargs["user_prompt"]) or "[]")
+    items = [{"url": f"https://example.com/{index}", "title": f"方案{index}", "source_description": "帮助企业构建稳定可靠的云上业务系统"} for index in range(41)]
+
+    summaries = _summarize(items)
+
+    assert len(calls) == 3
+    assert len(summaries) == 41
 
 
 def test_aliyun_baseline_is_ordinary_and_real_new_item_is_recent():
@@ -123,7 +138,7 @@ def test_catalog_refresh_keeps_healthy_vendor_when_the_other_fails(monkeypatch):
 def test_readiness_requires_fresh_nonempty_technical_data():
     healthy = evaluate_readiness(
         {"status": "fresh", "datasets": []},
-        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10},
+        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10, "aliyun_solution_count": 10, "huawei_solution_count": 10},
     )
     assert healthy["status"] == "healthy"
     assert healthy["checks"]["database"] is True
@@ -131,7 +146,7 @@ def test_readiness_requires_fresh_nonempty_technical_data():
 
     empty_evaluation = evaluate_readiness(
         {"status": "fresh", "datasets": []},
-        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 0},
+        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 0, "aliyun_solution_count": 10, "huawei_solution_count": 10},
     )
     assert empty_evaluation["status"] == "unhealthy"
     assert "technical_evaluation_nonempty" in empty_evaluation["failed_checks"]
@@ -140,7 +155,16 @@ def test_readiness_requires_fresh_nonempty_technical_data():
 def test_readiness_rejects_stale_data_even_when_rows_exist():
     report = evaluate_readiness(
         {"status": "stale", "datasets": []},
-        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10},
+        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10, "aliyun_solution_count": 10, "huawei_solution_count": 10},
     )
     assert report["status"] == "unhealthy"
     assert "freshness" in report["failed_checks"]
+
+
+def test_readiness_rejects_missing_vendor_catalog():
+    report = evaluate_readiness(
+        {"status": "fresh", "datasets": []},
+        {"business_date": "2026-07-13", "trending_count": 17, "evaluation_count": 10, "aliyun_solution_count": 10, "huawei_solution_count": 0},
+    )
+    assert report["status"] == "unhealthy"
+    assert "huawei_solutions_nonempty" in report["failed_checks"]

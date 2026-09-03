@@ -103,23 +103,24 @@ def _fallback_summary(title: str, description: str) -> str:
 
 def _summarize(items: list[dict]) -> dict[str, str]:
     fallback = {item["url"]: _fallback_summary(item["title"], item["source_description"]) for item in items}
-    # ponytail: bulk imports use official descriptions; batch model calls only if editorial summaries become necessary.
-    if not items or len(items) > 20 or not settings.CHAT_API_KEY:
+    if not items or not settings.CHAT_API_KEY:
         return fallback
     from services.ai_service import chat_complete, extract_json_array
 
-    prompt = "请分析以下阿里云解决方案，输出 JSON 数组。每项只含 url 和 summary；summary 必须为20至30个中文字符，说明方案是什么和解决什么问题，不写营销套话。\n" + "\n".join(
-        f"{item['url']} | {item['title']} | {item['source_description']}" for item in items
-    )
-    try:
-        rows = extract_json_array(chat_complete(user_prompt=prompt, temperature=0.2, max_tokens=1200, timeout=90))
-        for row in rows:
-            url = row.get("url")
-            summary = _clean(row.get("summary", ""))
-            if url in fallback and 20 <= len(summary) <= 30:
-                fallback[url] = summary
-    except Exception as exc:
-        print(f"[Aliyun Solutions] AI 摘要失败，使用页面摘要: {exc}")
+    for offset in range(0, len(items), 20):
+        batch = items[offset:offset + 20]
+        prompt = "请分析以下云解决方案，输出 JSON 数组。每项只含 url 和 summary；summary 必须为20至30个中文字符，说明方案是什么和解决什么问题，不写营销套话。\n" + "\n".join(
+            f"{item['url']} | {item['title']} | {item['source_description']}" for item in batch
+        )
+        try:
+            rows = extract_json_array(chat_complete(user_prompt=prompt, temperature=0.2, max_tokens=1200, timeout=90))
+            for row in rows:
+                url = row.get("url")
+                summary = _clean(row.get("summary", ""))
+                if url in fallback and 20 <= len(summary) <= 30:
+                    fallback[url] = summary
+        except Exception as exc:
+            print(f"[Cloud Solutions] AI 摘要批次 {offset // 20 + 1} 失败，使用页面摘要: {exc}")
     return fallback
 
 
