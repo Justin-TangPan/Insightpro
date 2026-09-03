@@ -66,6 +66,13 @@ class PageChatCreate(BaseModel):
     page_text: str = Field(default="", max_length=12000)
 
 
+class SuggestionRequest(BaseModel):
+    title: str = Field(default="当前页面", max_length=200)
+    path: str = Field(default="/", max_length=500)
+    context: dict = Field(default_factory=dict)
+    model: Optional[str] = Field(default=None, max_length=100)
+
+
 class ActionCreate(BaseModel):
     action: ActionType
     payload: dict = Field(default_factory=dict)
@@ -117,6 +124,15 @@ async def generate_practice_background(payload: PracticeBackgroundCreate, user=D
     except (RuntimeError, httpx.HTTPError) as error:
         raise HTTPException(status_code=502, detail=str(error)) from error
     return {"content": content}
+
+
+@router.post("/suggestions")
+async def generate_suggestions(payload: SuggestionRequest, user=Depends(require_auth)):
+    try:
+        items = await insight_agent_runtime.generate_suggestions(payload.model_dump(exclude={"model"}), payload.model, str(user.id))
+    except (RuntimeError, ValueError, httpx.HTTPError) as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+    return {"items": items}
 
 
 @router.post("/sessions", status_code=201)

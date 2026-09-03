@@ -970,6 +970,21 @@ function WorkPanel({
       setError("该附件无法读取，请上传文本类文件");
     }
   };
+  const [suggestedPrompts, setSuggestedPrompts] = useState(() => freeChatPrompts(pathname));
+  useEffect(() => {
+    if (session.context_type !== "chat" || messages.length) return;
+    let active = true;
+    void authenticatedFetch("/api/agent/suggestions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: session.context_title || "当前页面", path: pathname, context: session.context_snapshot || {} }),
+    }).then(async (response) => {
+      if (!response.ok) return;
+      const data = (await response.json()) as { items?: string[] };
+      if (active && data.items?.length) setSuggestedPrompts(data.items);
+    }).catch(() => undefined);
+    return () => { active = false; };
+  }, [messages.length, pathname, session]);
   const emptyChat = session.context_type === "chat" && !messages.length;
   return (
     <>
@@ -989,7 +1004,7 @@ function WorkPanel({
                 研究、分析、设计和实现，都可以从这里开始。
               </p>
               <div className="mx-auto mt-7 grid max-w-xl gap-2 text-left sm:grid-cols-2">
-                {freeChatPrompts(pathname || "/").map((item) => (
+                {suggestedPrompts.map((item) => (
                   <button
                     key={item}
                     type="button"

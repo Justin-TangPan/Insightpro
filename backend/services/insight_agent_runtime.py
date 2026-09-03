@@ -198,6 +198,42 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
     raise RuntimeError("模型未返回有效背景信息，请重试")
 
 
+async def generate_suggestions(payload: dict[str, Any], model: str | None = None, user_id: str = "") -> list[str]:
+    """Generate short, context-grounded starter questions for a free discussion."""
+    if not settings.CHAT_API_KEY:
+        raise RuntimeError("AI 模型未配置")
+    selected = resolve_model(model)
+    context = json.dumps(payload, ensure_ascii=False, default=str)[:9000]
+    messages = [
+        {"role": "system", "content": "你是企业级 AI 洞察产品的对话引导器。根据当前页面上下文生成 4 个用户可以直接点击发送的中文问题。问题必须具体指向当前页面对象，避免‘继续完善’‘下一步做什么’等空泛表达；每条不超过 22 个汉字。只输出 JSON 字符串数组，不要 Markdown、解释或工具调用。"},
+        {"role": "user", "content": context},
+    ]
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10)) as client:
+        response = await client.post(settings.CHAT_API_URL, headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"}, json={"model": selected, "messages": messages, "temperature": 0.7, "max_tokens": 180})
+        response.raise_for_status()
+        result = response.json()
+    items = [str(item).strip() for item in _json_array(result.get("choices", [{}])[0].get("message", {}).get("content", "")) if str(item).strip()]
+    items = list(dict.fromkeys(item[:80] for item in items))[:4]
+    if len(items) < 3:
+        raise RuntimeError("模型未返回足够的上下文建议")
+    if user_id:
+        from services import ai_usage_service
+        ai_usage_service.record(user_id, selected, "suggestions", result.get("usage"))
+    return items
+
+
+def _json_array(raw: str) -> list[Any]:
+    text = (raw or "").strip().strip("`")
+    start, end = text.find("["), text.rfind("]")
+    if start < 0 or end <= start:
+        return []
+    try:
+        value = json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return []
+    return value if isinstance(value, list) else []
+
+
 async def stream_reply(session: dict, message: str, model: str | None = None) -> AsyncGenerator[str, None]:
     """Yield provider answer tokens only; reasoning and tool traces are never forwarded."""
     if not settings.CHAT_API_KEY:

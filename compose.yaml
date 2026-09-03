@@ -31,7 +31,7 @@ services:
 
   frontend:
     container_name: insight-frontend
-    image: insight-web-frontend:0.8.19
+    image: insight-web-frontend:0.8.20
     build:
       context: ./frontend
       dockerfile: Dockerfile
