@@ -109,9 +109,9 @@ async def list_models(_=Depends(require_auth)):
 
 
 @router.post("/practice-background")
-async def generate_practice_background(payload: PracticeBackgroundCreate, _=Depends(require_auth)):
+async def generate_practice_background(payload: PracticeBackgroundCreate, user=Depends(require_auth)):
     try:
-        content = await insight_agent_runtime.generate_practice_background(payload.model_dump(exclude={"model"}), payload.model)
+        content = await insight_agent_runtime.generate_practice_background(payload.model_dump(exclude={"model"}), payload.model, str(user.id))
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except (RuntimeError, httpx.HTTPError) as error:

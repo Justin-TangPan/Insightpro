@@ -61,7 +61,7 @@ function SolutionCreateForm() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <label className="block"><span className="mb-2 block text-sm font-semibold text-ink-secondary">{label}</span>{children}</label>;
+  return <div className="block"><span className="mb-2 block text-sm font-semibold text-ink-secondary">{label}</span>{children}</div>;
 }
 
 export default function SolutionCreatePage() {

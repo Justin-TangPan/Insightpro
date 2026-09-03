@@ -157,7 +157,7 @@ def reply_without_files(reply: str, filenames: set[str]) -> str:
     return cleaned or "已生成文件。"
 
 
-async def generate_practice_background(payload: dict[str, str], model: str | None = None) -> str:
+async def generate_practice_background(payload: dict[str, str], model: str | None = None, user_id: str = "") -> str:
     """Generate editable background text; saving remains a user action."""
     if not settings.CHAT_API_KEY:
         raise RuntimeError("AI 模型未配置")
@@ -184,8 +184,12 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
                 json={"model": selected, "messages": messages, "temperature": 0.25, "max_tokens": 1600},
             )
             response.raise_for_status()
-            content = response.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+            result = response.json()
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
             if valid_background(content):
+                if user_id:
+                    from services import ai_usage_service
+                    ai_usage_service.record(user_id, selected, "practice_background", result.get("usage"))
                 return content[:5000]
             if attempt == 0:
                 messages.append({"role": "user", "content": "上一结果不是背景信息。请直接输出最终中文 Markdown，不要调用或描述任何工具。"})
@@ -196,12 +200,14 @@ async def stream_reply(session: dict, message: str, model: str | None = None) ->
     """Yield provider answer tokens only; reasoning and tool traces are never forwarded."""
     if not settings.CHAT_API_KEY:
         raise RuntimeError("AI 模型未配置")
+    selected = resolve_model(model)
+    usage: dict[str, Any] | None = None
     async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
         async with client.stream(
             "POST",
             settings.CHAT_API_URL,
             headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
-            json={"model": resolve_model(model), "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True},
+            json={"model": selected, "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True},
         ) as response:
             response.raise_for_status()
             async for line in response.aiter_lines():
@@ -213,7 +219,10 @@ async def stream_reply(session: dict, message: str, model: str | None = None) ->
                 try:
                     event = json.loads(payload)
                     content = event.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                    usage = event.get("usage") or usage
                 except (json.JSONDecodeError, IndexError, TypeError):
                     continue
                 if content:
                     yield content
+    from services import ai_usage_service
+    ai_usage_service.record(str(session.get("user_id", "")), selected, "chat", usage)

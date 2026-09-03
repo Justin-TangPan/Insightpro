@@ -60,6 +60,9 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const [agentSummary, setAgentSummary] = useState({ ai_space_users: 0, active_runtimes: 0, max_active_runtimes: 0, today: { date: "", requests: 0, input_tokens: 0, output_tokens: 0 } });
   const [agentUsage, setAgentUsage] = useState<AgentUsage[]>([]);
   const [artifactRequests, setArtifactRequests] = useState<ArtifactRequest[]>([]);
+  const [runtimeConfig, setRuntimeConfig] = useState({ CHAT_API_URL: "", CHAT_MODEL: "", CHAT_MODELS: "" });
+  const [runtimeUsage, setRuntimeUsage] = useState({ today: { requests: 0, input_tokens: 0, output_tokens: 0 }, models: [] as { model: string; requests: number; input_tokens: number; output_tokens: number }[], apiKeyConfigured: false });
+  const [runtimeSaving, setRuntimeSaving] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<"user" | "admin">("user");
@@ -138,6 +141,18 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const fetchArtifactRequests = () => authenticatedFetch(`${API}/api/agent/admin/artifacts/requests`)
     .then(response => response.ok ? response.json() : Promise.reject())
     .then(data => setArtifactRequests(data.items || [])).catch(() => setArtifactRequests([]));
+  const fetchRuntimeConfig = () => authenticatedFetch(`${API}/api/auth/admin/runtime-config`)
+    .then(response => response.ok ? response.json() : Promise.reject())
+    .then(data => { setRuntimeConfig(data.config || {}); setRuntimeUsage({ today: data.usage?.today || { requests: 0, input_tokens: 0, output_tokens: 0 }, models: data.usage?.models || [], apiKeyConfigured: Boolean(data.api_key_configured) }); })
+    .catch(() => undefined);
+  const saveRuntimeConfig = async () => {
+    setRuntimeSaving(true);
+    const response = await authenticatedFetch(`${API}/api/auth/admin/runtime-config`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(runtimeConfig) });
+    const data = await response.json().catch(() => ({}));
+    setRuntimeSaving(false);
+    if (!response.ok) return setMemberStatus(data.detail || "AI 配置保存失败");
+    setRuntimeConfig(data.config); setMemberStatus("AI 运行配置已保存，后续请求立即生效"); void fetchRuntimeConfig();
+  };
   const publishArtifact = async (id: string) => {
     const response = await authenticatedFetch(`${API}/api/agent/admin/artifacts/${id}/publish`, { method: "POST" });
     setMemberStatus(response.ok ? "Artifact 已沉淀到公共知识库" : "Artifact 发布失败"); if (response.ok) { void fetchArtifactRequests(); void fetchKnowledge(); }
@@ -152,6 +167,7 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
     void fetchAgentSpaces();
     void fetchKnowledge("");
     void fetchArtifactRequests();
+    void fetchRuntimeConfig();
     fetch(`${API}/api/system/health/ready`)
       .then((res) => res.json())
       .then((report) => setDatabaseConnected(report.checks?.database === true))
@@ -573,6 +589,14 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
         </div>
 
         {/* Data Sources */}
+        {adminOnly && isAdmin && <div className="ui-card lg:col-span-2">
+          <div className="ui-card-header"><div><p className="swiss-kicker text-primary">Runtime configuration</p><h3 className="mt-1 type-h3 text-ink">AI 运行配置</h3></div><span className={`ui-tag ${runtimeUsage.apiKeyConfigured ? "" : "ui-tag-warning"}`}>{runtimeUsage.apiKeyConfigured ? "API Key 已配置" : "API Key 未配置"}</span></div>
+          <p className="mb-4 text-xs text-ink-muted">密钥不会通过管理台读取或保存；请通过部署环境的 <code>.env</code> 管理。以下非敏感配置保存后对后续 AI 请求立即生效。</p>
+          <div className="grid gap-3 md:grid-cols-3"><label className="text-xs font-semibold text-ink-muted">AI API 地址<input value={runtimeConfig.CHAT_API_URL} onChange={event => setRuntimeConfig(value => ({ ...value, CHAT_API_URL: event.target.value }))} className="ui-input mt-1.5 w-full px-3 py-2 text-sm font-normal" /></label><label className="text-xs font-semibold text-ink-muted">默认模型<input value={runtimeConfig.CHAT_MODEL} onChange={event => setRuntimeConfig(value => ({ ...value, CHAT_MODEL: event.target.value }))} className="ui-input mt-1.5 w-full px-3 py-2 text-sm font-normal" /></label><label className="text-xs font-semibold text-ink-muted">可选模型（逗号分隔）<input value={runtimeConfig.CHAT_MODELS} onChange={event => setRuntimeConfig(value => ({ ...value, CHAT_MODELS: event.target.value }))} className="ui-input mt-1.5 w-full px-3 py-2 text-sm font-normal" /></label></div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="text-xs text-ink-muted">今日：{runtimeUsage.today.requests} 次请求 · 输入 {runtimeUsage.today.input_tokens} Token · 输出 {runtimeUsage.today.output_tokens} Token</div><button type="button" onClick={() => void saveRuntimeConfig()} disabled={runtimeSaving} className="ui-button-primary">{runtimeSaving ? "保存中…" : "保存 AI 配置"}</button></div>
+          {!!runtimeUsage.models.length && <p className="mt-3 text-xs text-ink-muted">近 7 天模型用量：{runtimeUsage.models.map(item => `${item.model} ${item.requests} 次 / ${item.input_tokens + item.output_tokens} Token`).join(" · ")}</p>}
+        </div>}
+
         <div className="ui-card">
           <div className="ui-card-header">
             <Database className="h-4 w-4 text-ink-muted" />

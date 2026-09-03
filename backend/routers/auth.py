@@ -76,6 +76,12 @@ class MemberUpdateRequest(BaseModel):
     disabled: Optional[bool] = None
 
 
+class RuntimeConfigPatch(BaseModel):
+    CHAT_API_URL: Optional[str] = None
+    CHAT_MODEL: Optional[str] = None
+    CHAT_MODELS: Optional[str] = None
+
+
 def _member_status(account) -> str:
     return "disabled" if (getattr(account, "app_metadata", None) or {}).get("status") == "disabled" else "active"
 
@@ -242,6 +248,23 @@ async def agent_spaces(_=Depends(require_admin)):
         })
         spaces.append({**member, **state})
     return {**runtime, "spaces": spaces}
+
+
+@router.get("/auth/admin/runtime-config")
+async def runtime_config(_=Depends(require_admin)):
+    from services import ai_usage_service, runtime_config_service
+    return {"config": runtime_config_service._values(), "api_key_configured": bool(settings.CHAT_API_KEY), "usage": await asyncio.to_thread(ai_usage_service.summary)}
+
+
+@router.patch("/auth/admin/runtime-config")
+async def update_runtime_config(payload: RuntimeConfigPatch, admin=Depends(require_admin)):
+    from services import runtime_config_service
+    try:
+        config = await asyncio.to_thread(runtime_config_service.update, payload.model_dump(exclude_none=True))
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    agent_audit_service.log(str(admin.id), "runtime_config_update", detail=",".join(payload.model_dump(exclude_none=True)))
+    return {"config": config, "api_key_configured": bool(settings.CHAT_API_KEY)}
 
 
 @router.post("/auth/agent-spaces/{user_id}/start")
