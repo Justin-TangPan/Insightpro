@@ -87,6 +87,34 @@ const nextActions: Record<string, string[]> = {
   implementation: ["查看工作文件", "开始验证", "生成部署材料"],
 };
 
+const nextActionVariants: Record<string, string[][]> = {
+  technology_research: [["提炼关键结论", "补充竞品对比", "列出 PoC 验证项"], ["判断落地价值", "识别技术风险", "生成调研摘要"], ["输出选型建议", "拆解依赖条件", "形成决策清单"]],
+  technology_value: [["量化业务价值", "识别落地依赖", "给出是否验证建议"], ["分析替代方案", "补齐风险证据", "生成决策摘要"]],
+  solution_analysis: [["提炼方案亮点", "识别架构限制", "给出适用边界"], ["对比替代路线", "补充风险与缺口", "整理决策摘要"]],
+  solution_architecture: [["输出组件关系", "检查集成边界", "列出架构风险"], ["补齐非功能要求", "生成部署拓扑", "规划验证路径"]],
+  solution_practice: [["校对实践背景", "补齐事实与缺口", "整理方案目录"], ["生成架构契约", "规划实施步骤", "检查交付材料"]],
+  solution_design: [["细化实施阶段", "补充验收标准", "识别设计风险"], ["输出组件清单", "规划部署路径", "生成技术摘要"]],
+  requirement_analysis: [["补齐需求缺口", "提炼验收标准", "识别范围风险"], ["整理业务目标", "拆解非功能要求", "形成需求摘要"]],
+  requirement_refine: [["检查需求边界", "补充约束条件", "生成确认清单"], ["完善验收标准", "整理待确认项", "形成可执行草稿"]],
+  poc_plan: [["定义成功指标", "拆解验证步骤", "列出环境依赖"], ["补充退出条件", "识别 PoC 风险", "生成执行清单"]],
+  validation: [["列出验证证据", "检查通过标准", "整理测试范围"], ["补充异常场景", "生成验证报告", "规划后续处置"]],
+  implementation: [["拆解文件变更", "制定测试策略", "检查实现风险"], ["生成执行计划", "识别依赖阻塞", "准备部署材料"]],
+  materials: [["整理交付目录", "检查引用完整性", "生成材料摘要"], ["补充待确认内容", "统一术语格式", "导出交付清单"]],
+};
+
+function recommendedActions(taskKey: string, turn: number) {
+  const variants = nextActionVariants[taskKey];
+  if (variants?.length) return variants[turn % variants.length];
+  return nextActions[taskKey] || ["继续处理", "生成实施建议"];
+}
+
+function freeChatPrompts(pathname: string) {
+  if (pathname.includes("hotspots")) return ["这个项目解决什么问题？", "评估成熟度和落地风险", "给出 PoC 验证建议", "对比可替代技术"];
+  if (pathname.includes("solutions")) return ["提炼这个方案的关键能力", "分析架构与适用边界", "整理成解决方案实践", "列出实施风险"];
+  if (pathname.includes("workbench")) return ["继续完善当前方案", "检查背景信息缺口", "规划下一步实施", "生成可交付材料"];
+  return ["帮我提炼页面关键信息", "分析潜在风险和机会", "给出下一步行动建议", "把内容整理成方案实践"];
+}
+
 function contextItems(context?: Context) {
   if (!context) return [];
   return [
@@ -753,6 +781,7 @@ export function InsightAgentShell() {
               </div>
             )}
             <WorkPanel
+              pathname={pathname || "/"}
               session={session}
               messages={messages}
               input={input}
@@ -880,6 +909,7 @@ function SessionRail({
 }
 
 function WorkPanel({
+  pathname,
   session,
   messages,
   input,
@@ -895,6 +925,7 @@ function WorkPanel({
   error,
   setError,
 }: {
+  pathname: string;
   session: Session;
   messages: Message[];
   input: string;
@@ -958,12 +989,7 @@ function WorkPanel({
                 研究、分析、设计和实现，都可以从这里开始。
               </p>
               <div className="mx-auto mt-7 grid max-w-xl gap-2 text-left sm:grid-cols-2">
-                {[
-                  "调研一个新技术并给出结论",
-                  "分析一个方案的架构与限制",
-                  "把背景整理成方案实践",
-                  "规划 PoC 或开始 Coding",
-                ].map((item) => (
+                {freeChatPrompts(pathname || "/").map((item) => (
                   <button
                     key={item}
                     type="button"
@@ -1058,10 +1084,7 @@ function WorkPanel({
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {(
-                      nextActions[session.task_key || ""] || [
-                        "继续处理",
-                        "生成实施建议",
-                      ]
+                      recommendedActions(session.task_key || "", messages.length)
                     ).map((item) => (
                       <button
                         key={item}
