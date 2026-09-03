@@ -33,7 +33,7 @@ import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { agentWelcomeStorageKey, extractPageText } from "@/lib/agent-page-context";
 import { subscribeAgentRoute, type AgentRoute as RouteDetail } from "@/lib/agent-events";
-import { Tooltip, useToast } from "@/components/ui";
+import { AppDialog, ConfirmDialog, Tooltip, useToast } from "@/components/ui";
 
 type Mode = "floating" | "split" | "full";
 type Message = { role: "user" | "assistant"; content: string; artifacts?: Artifact[]; failed?: boolean };
@@ -460,16 +460,6 @@ export function InsightAgentShell() {
         setError(reason instanceof Error ? reason.message : "无法启动 AI 工作"),
       );
     }), [user, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || deleting) return;
-      if (showSessions) setShowSessions(false);
-      else if (showArtifacts) setShowArtifacts(false);
-      else if (pendingDelete) setPendingDelete(null);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [deleting, pendingDelete, showArtifacts, showSessions]);
   const routeFull = pathname === "/insight-agent" || pathname === "/workbench/ai";
   const requestedSession = searchParams.get("session");
   const activeOpen = open || routeFull;
@@ -600,73 +590,23 @@ export function InsightAgentShell() {
       className={panelClass}
       aria-label="AI 工作台"
     >
-      {pendingDelete && (
-        <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-session-title"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !deleting)
-              setPendingDelete(null);
-          }}
-        >
-          <div className="w-full max-w-sm rounded-2xl border border-grid bg-white p-5 shadow-[var(--shadow-elevated)]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning-soft text-warning">
-              <Trash2 className="h-5 w-5" />
-            </div>
-            <h2 id="delete-session-title" className="mt-4 text-base font-semibold text-ink">
-              删除这条对话？
-            </h2>
-            <p className="mt-2 truncate text-sm text-ink-secondary">
-              {pendingDelete.task_title || pendingDelete.title}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-ink-muted">
-              对话及全部消息将被永久删除，此操作无法撤销。
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={() => setPendingDelete(null)}
-                className="rounded-lg border border-grid px-4 py-2 text-sm font-medium text-ink-secondary hover:bg-surface-subtle disabled:opacity-50"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={() => void confirmDeleteSession().catch((reason) => setError(reason instanceof Error ? reason.message : "无法删除对话"))}
-                className="rounded-lg bg-warning px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {deleting ? "正在删除…" : "确认删除"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showArtifacts && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-label="工作文件" onMouseDown={(event) => event.target === event.currentTarget && setShowArtifacts(false)}>
-          <div className="flex max-h-[min(680px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]">
-            <div className="flex items-center justify-between border-b border-grid px-5 py-4"><div><p className="swiss-kicker text-primary">Agent outputs</p><h2 className="mt-1 text-base font-semibold text-ink">工作文件与成果</h2></div><button type="button" onClick={() => setShowArtifacts(false)} className="rounded p-2 text-ink-muted hover:bg-surface-subtle" aria-label="关闭"><X className="h-4 w-4" /></button></div>
-            <div className="grid min-h-0 flex-1 md:grid-cols-[220px_minmax(0,1fr)]">
+        <AppDialog open={showArtifacts} onClose={() => setShowArtifacts(false)} title="工作文件与成果" description="预览、下载或继续沉淀本次 AI 工作的产物。" className="max-w-3xl">
+            <div className="grid h-[min(560px,calc(100dvh-13rem))] min-h-0 md:grid-cols-[220px_minmax(0,1fr)]">
               <div className="min-h-0 overflow-y-auto border-r border-grid p-3">{artifacts.length ? artifacts.map((item) => <div key={item.id} className={`mb-1 flex items-center gap-1 rounded-lg ${artifactPreview?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openArtifact(item.id).catch((reason) => setError(reason instanceof Error ? reason.message : "无法读取文件"))} className="min-w-0 flex-1 px-3 py-2 text-left"><p className="truncate text-sm font-medium text-ink-secondary">{item.filename || item.title}</p><p className="text-[10px] text-ink-muted">{item.mime_type || item.type} · {formatBytes(item.size_bytes)} · {new Date(item.created_at).toLocaleDateString("zh-CN")}</p></button><button type="button" onClick={() => void downloadArtifact(item).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="rounded p-2 text-ink-muted hover:text-primary" aria-label={`下载 ${item.filename || item.title}`}><Download className="h-4 w-4" /></button></div>) : <p className="p-4 text-center text-sm text-ink-muted">还没有可下载文件。</p>}</div>
               <div className="min-h-0 overflow-y-auto p-5">{artifactPreview ? <><div className="mb-4 flex items-center justify-between gap-4"><div className="min-w-0"><h3 className="truncate font-semibold text-ink">{artifactPreview.filename || artifactPreview.title}</h3><p className="text-xs text-ink-muted">{artifactPreview.mime_type || artifactPreview.type} · {formatBytes(artifactPreview.size_bytes)}</p></div><button type="button" onClick={() => void downloadArtifact(artifactPreview).catch((reason) => setError(reason instanceof Error ? reason.message : "无法下载文件"))} className="ui-button-secondary shrink-0 text-xs"><Download className="h-3.5 w-3.5" />下载</button></div>{artifactPreview.mime_type === "text/markdown" || artifactPreview.filename?.endsWith(".md") ? <MarkdownMessage>{artifactPreview.content || ""}</MarkdownMessage> : <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-xl bg-surface-subtle p-4 text-xs leading-6 text-ink-secondary">{artifactPreview.content || ""}</pre>}</> : <div className="flex h-full items-center justify-center text-sm text-ink-muted">选择一个文件预览。</div>}</div>
             </div>
-          </div>
-        </div>
+        </AppDialog>
       )}
       {showSessions && !full && (
-        <div className="fixed inset-0 z-[75] bg-slate-950/20" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowSessions(false)}>
-          <div className="absolute bottom-6 right-6 top-6 flex w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]" role="dialog" aria-modal="true" aria-label="对话历史">
-            <div className="flex items-center justify-between border-b border-grid px-4 py-3"><div><p className="text-xs font-medium text-primary">AI 工作</p><h2 className="text-base font-semibold text-ink">对话历史</h2></div><button type="button" onClick={() => setShowSessions(false)} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle" aria-label="关闭对话历史"><X className="h-4 w-4" /></button></div>
-            <div className="p-3"><button type="button" onClick={() => void startFreeChat().then(() => setShowSessions(false)).catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话"))} className="flex w-full items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white"><MessageSquarePlus className="h-4 w-4" />新建自由对话</button></div>
-            <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="最近对话">
+        <AppDialog open={showSessions} onClose={() => setShowSessions(false)} title="对话历史" description="继续最近的工作，或创建一条新的自由讨论。" className="max-w-md">
+            <div className="mb-3"><button type="button" onClick={() => void startFreeChat().then(() => setShowSessions(false)).catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话"))} className="flex w-full items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white"><MessageSquarePlus className="h-4 w-4" />新建自由对话</button></div>
+            <nav className="max-h-[min(28rem,calc(100dvh-15rem))] overflow-y-auto px-2 pb-3" aria-label="最近对话">
               {sessions.length ? sessions.map((item) => <div key={item.id} className={`group mb-1 flex items-center rounded-xl ${session?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openSession(item.id).then(() => setShowSessions(false)).catch((reason) => setError(reason instanceof Error ? reason.message : "无法打开对话"))} className="min-w-0 flex-1 px-3 py-2.5 text-left"><span className="block truncate text-sm font-medium text-ink">{item.task_title || item.title}</span><span className="block truncate text-[11px] text-ink-muted">{item.context_title || "自由讨论"}</span></button><button type="button" onClick={() => void deleteSession(item.id)} className="mr-2 rounded-lg p-2 text-ink-muted opacity-0 hover:bg-warning-soft hover:text-warning group-hover:opacity-100 focus:opacity-100" aria-label={`删除 ${item.task_title || item.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div>) : <p className="px-3 py-8 text-center text-sm text-ink-muted">还没有对话，先新建一个。</p>}
             </nav>
-          </div>
-        </div>
+        </AppDialog>
       )}
+      <ConfirmDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }} title="删除这条对话？" description={pendingDelete ? `“${pendingDelete.task_title || pendingDelete.title}”及全部消息将被永久删除。` : undefined} confirmLabel="删除" danger onConfirm={() => void confirmDeleteSession()} />
       {split && (
         <button
           type="button"
