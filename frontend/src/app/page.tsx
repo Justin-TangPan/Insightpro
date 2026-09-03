@@ -24,11 +24,15 @@ interface InsightModule {
   icon: LucideIcon;
   href: string;
   items: { title: string; tag: string }[];
+  freshness?: string;
+  status?: "fresh" | "empty";
 }
 
 interface ApiModule {
   id: string;
   items?: { title: string; tag?: string }[];
+  as_of?: string;
+  status?: "fresh" | "empty";
 }
 
 const modules: InsightModule[] = [
@@ -53,8 +57,9 @@ export default function HomePage() {
         if (moduleResponse.ok) {
           const data = await moduleResponse.json() as ApiModule[];
           setDynamicModules(modules.map((module) => {
-            const items = data.find((item) => item.id === module.id)?.items || [];
-            return { ...module, items: items.map((item) => ({ title: item.title, tag: item.tag || "" })) };
+            const source = data.find((item) => item.id === module.id);
+            const items = source?.items || [];
+            return { ...module, items: items.map((item) => ({ title: item.title, tag: item.tag || "" })), freshness: source?.as_of, status: source?.status };
           }));
         }
         if (statsResponse.ok) setStats(await statsResponse.json());
@@ -80,17 +85,17 @@ export default function HomePage() {
               Technical Solution Intelligence
             </div>
             <h1 className="mt-6 max-w-2xl serif-display text-white">
-              技术方案，先看懂变化。
+              从技术信号，到可落地的方案实践。
             </h1>
             <p className="mt-5 max-w-xl text-[0.9375rem] leading-7 text-white/70">
-              持续跟踪技术项目、云厂商解决方案与产品动向，把分散更新整理成可比较、可落地的方案判断。
+              发现值得关注的技术变化，判断落地价值，再用 AI 协作沉淀为可验证、可交付的解决方案实践。
             </p>
           </div>
           <div className="grid gap-2 bg-white/5 p-3 md:p-4 lg:grid-rows-3">
             {[
-              ["发现", "捕捉技术与方案更新"],
-              ["理解", "提炼能力、场景与价值"],
-              ["应用", "对比路径并辅助选型"],
+              ["发现信号", "捕捉技术与方案变化"],
+              ["判断价值", "提炼场景、能力与风险"],
+              ["形成实践", "协作完成验证与交付"],
             ].map(([title, description], index) => (
               <div key={title} className="group flex min-h-28 items-center gap-5 rounded-xl bg-white/[0.08] px-6 py-5 transition-colors hover:bg-white/[0.13]">
                 <span className="font-mono text-3xl font-bold tracking-[-0.08em] text-white/25 transition-colors group-hover:text-white/45">0{index + 1}</span>
@@ -128,8 +133,8 @@ export default function HomePage() {
       <section className="space-y-5">
         <div className="flex items-end justify-between gap-4">
           <div>
-            <p className="swiss-kicker text-primary">Solution intelligence desk</p>
-            <h2 className="mt-1 type-h2 text-ink">技术解决方案洞察</h2>
+            <p className="swiss-kicker text-primary">Technology radar</p>
+            <h2 className="mt-1 type-h2 text-ink">今日技术信号</h2>
           </div>
           <span className="type-meta hidden sm:block">从变化到选型判断 →</span>
         </div>
@@ -145,7 +150,8 @@ export default function HomePage() {
                 <ChevronRight className="h-4 w-4 text-primary transition-transform group-hover:translate-x-1" />
               </div>
               <div className="space-y-2">
-                {module.items.length === 0 && <p className="type-meta">数据更新中</p>}
+                <p className="text-[11px] text-ink-muted">{module.status === "fresh" ? `数据状态 · ${module.freshness || "已更新"}` : "数据状态 · 暂无可用数据"}</p>
+                {module.items.length === 0 && <p className="type-meta">暂无可用数据，请稍后重试</p>}
                 {module.items.map((item) => (
                   <div key={`${module.id}-${item.title}`} className="rounded-lg bg-surface-subtle px-3.5 py-3">
                     <p className="line-clamp-2 text-[0.8125rem] leading-5 text-ink-secondary">{item.title}</p>
@@ -160,7 +166,7 @@ export default function HomePage() {
 
       <section className="rounded-2xl bg-surface-subtle p-4 sm:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Workbench</p><h2 className="mt-1 type-h2 text-ink">从洞察推进到方案实践</h2></div>
+          <div><p className="swiss-kicker text-primary">Solution practice</p><h2 className="mt-1 type-h2 text-ink">把有价值的信号变成方案实践</h2></div>
           <div className="flex gap-2"><Link href="/workbench/ai" className="ui-button-secondary">AI 工作</Link><Link href="/workbench/solutions/new" className="ui-button-primary">收纳方案实践</Link></div>
         </div>
         <div className="mt-5 grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">

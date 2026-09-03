@@ -33,4 +33,5 @@ async def homepage_stats():
 @router.get("/homepage/modules")
 async def homepage_modules():
     from crawlers import get_homepage_modules
-    return get_homepage_modules()
+    from datetime import datetime
+    return [{**module, "as_of": datetime.now().isoformat(timespec="minutes"), "status": "fresh" if module.get("items") else "empty"} for module in get_homepage_modules()]

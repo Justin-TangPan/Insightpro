@@ -28,10 +28,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/", icon: BarChart3, label: "首页洞察", description: "技术方案简报" },
+  { href: "/", icon: BarChart3, label: "技术雷达", description: "今日技术信号" },
   { href: "/insights/hotspots", icon: Radio, label: "技术热点", description: "GitHub 项目" },
-  { href: "/insights/solutions", icon: Layers3, label: "解决方案洞察", description: "方案目录与变化" },
-  { href: "/workbench", icon: Bot, label: "AI 工作台", description: "方案实践与 AI 工作" },
+  { href: "/insights/solutions", icon: Layers3, label: "云厂商方案", description: "方案目录与变化" },
+  { href: "/workbench/solutions", icon: Bot, label: "方案实践", description: "可验证、可交付" },
+  { href: "/workbench/ai", icon: Bot, label: "AI 工作区", description: "分析与产出" },
 ];
 
 export function Sidebar() {
@@ -88,7 +89,7 @@ export function Sidebar() {
             const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
             return (
               <div key={item.href}>
-                {item.href === "/workbench" && !collapsed && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">{english ? "AI Workbench" : "AI 工作台"}</p>}
+                {item.href === "/workbench/solutions" && !collapsed && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">{english ? "Solution Practice" : "方案实践"}</p>}
                 <Link
                   href={item.href}
                   title={collapsed ? item.label : undefined}
