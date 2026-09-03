@@ -25,6 +25,7 @@ def test_solution_practice_action_uses_the_enabled_sac_workflow():
     assert task["title"] == "做成解决方案实践"
     assert "sac-project" in task["prompt"]
     assert "Architecture Contract" in task["prompt"]
+    assert "背景信息" in task["prompt"]
 
 
 def test_model_selection_is_limited_to_configured_models(monkeypatch):

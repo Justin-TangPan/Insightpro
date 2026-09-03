@@ -127,6 +127,7 @@ def messages_for(session: dict, message: str) -> list[dict]:
     prompt = (session.get("default_prompt") or "").strip()
     preset = f"预置任务：{task}\n预置任务说明：{prompt}" if prompt and message.strip() == prompt else ""
     stage = STAGES.get(session.get("task_key"), "Understand")
+    background_rule = "" if session.get("context_type") != "solution" else "当前业务对象是方案实践。其已保存的背景信息和关联背景材料是本次工作的基线：先引用并校验，明确事实、假设、缺口与待确认项；不要擅自刷新、重写或覆盖背景信息。"
     system = f"""你是 Insight-Agent，InsightPro 的 Solution Engineering Agent。
 
 # 公共长期知识（按以下顺序加载）
@@ -139,6 +140,7 @@ def messages_for(session: dict, message: str) -> list[dict]:
 当前用户角色：Solution Architect
 当前工作阶段：{stage}
 {preset}
+{background_rule}
 当前业务对象 Context（仅使用其中可验证的信息，不要编造）：
 {_context(session)}
 

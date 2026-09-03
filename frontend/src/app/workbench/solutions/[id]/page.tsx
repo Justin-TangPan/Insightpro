@@ -53,7 +53,7 @@ export default function SolutionDetailPage() {
   if (!item) return <div className="page-stack">{error ? <ErrorBox message={error} /> : <div className="h-96 animate-shimmer rounded-xl bg-white" />}</div>;
   return (
     <div className="page-stack">
-      <SectionHeader badge="Insight → 方案实践 → AI 工作" title={item.name} subtitle={`${item.category} · ${solutionStatusLabels[item.status]} · ${item.version}`} action={<div className="flex gap-2"><AgentAction contextType="solution" contextId={item.id} actionKey="architecture" className="ui-button-primary"><Bot className="h-4 w-4" />进入 AI 分析</AgentAction><Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>} />
+      <SectionHeader badge="Insight → 方案实践 → AI 工作" title={item.name} subtitle={`${item.category} · ${solutionStatusLabels[item.status]} · ${item.version}`} action={<div className="flex gap-2"><AgentAction contextType="solution" contextId={item.id} actionKey="architecture" className="ui-button-primary"><Bot className="h-4 w-4" />基于背景开展实践</AgentAction><Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>} />
       {error && <ErrorBox message={error} />}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <form onSubmit={save} className="ui-card space-y-5">

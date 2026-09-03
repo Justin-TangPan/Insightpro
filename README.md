@@ -1,8 +1,8 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.10`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.11`
 
-[![Version](https://img.shields.io/badge/version-0.8.10-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-0.8.11-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
@@ -20,7 +20,7 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队：
 Insight → Requirement → Solution
 ```
 
-`v0.8.10` 修复方案实践中误触 AI 背景校对，并新增管理员 AI 运行配置与用量统计；InsightPro 仍是唯一账号、业务系统和写入边界。
+`v0.8.11` 让方案实践的预置任务以已保存背景为工作基线；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 

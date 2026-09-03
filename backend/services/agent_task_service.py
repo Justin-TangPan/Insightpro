@@ -68,7 +68,10 @@ def resolve(context_type: str, action_key: str) -> tuple[str, dict]:
     task_key = ACTIONS.get(context_type, {}).get(action_key)
     if not task_key:
         raise HTTPException(status_code=422, detail="当前业务对象不支持该 AI Action")
-    return task_key, TASKS[task_key]
+    task = TASKS[task_key]
+    if context_type == "solution":
+        task = {**task, "prompt": "以当前方案实践中已保存的背景信息、关联背景材料和来源链接为唯一工作基线。先区分事实、假设、缺口和待确认项；不要重新生成或覆盖背景信息，除非用户明确要求。\n\n" + task["prompt"]}
+    return task_key, task
 
 
 def task(task_key: str) -> dict:
