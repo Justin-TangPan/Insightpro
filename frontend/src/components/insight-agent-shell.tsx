@@ -15,7 +15,6 @@ import {
   GripHorizontal,
   History,
   Maximize2,
-  MoreHorizontal,
   MessageSquarePlus,
   Minimize2,
   Paperclip,
@@ -686,6 +685,14 @@ export function InsightAgentShell() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {!!models.length && (
+              <label className="mr-1 hidden items-center gap-1.5 rounded-lg border border-grid bg-surface-subtle px-2 sm:flex">
+                <span className="sr-only">当前模型</span>
+                <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="h-8 max-w-[9rem] cursor-pointer bg-transparent text-[11px] font-medium text-ink-secondary outline-none" aria-label="切换模型">
+                  {models.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+            )}
             {!full && <Tooltip label="打开对话历史"><button type="button" onClick={() => setShowSessions(true)} className="ui-icon-button" aria-label="打开对话历史"><History className="h-4 w-4" /></button></Tooltip>}
             {!full && (
               <button
@@ -698,12 +705,6 @@ export function InsightAgentShell() {
               </button>
             )}
             <Tooltip label="文件与成果"><button type="button" onClick={showWorkspaceFiles} className="ui-icon-button" aria-label="打开文件与成果"><FolderOpen className="h-4 w-4" /></button></Tooltip>
-            <details className="relative">
-              <summary className="ui-icon-button cursor-pointer list-none" aria-label="更多选项"><MoreHorizontal className="h-4 w-4" /></summary>
-              <div className="absolute right-0 top-10 z-20 w-56 rounded-xl border border-grid bg-white p-2 shadow-[var(--shadow-card)]">
-                {!!models.length && <label className="mt-1 block border-t border-grid px-3 pt-2 text-[11px] text-ink-muted">模型<select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="mt-1 w-full rounded-lg border border-grid bg-white px-2 py-1.5 text-xs text-ink-secondary" aria-label="切换模型">{models.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
-              </div>
-            </details>
             <Tooltip label={full ? "还原右下角浮窗" : "进入完整 AI 工作台"}><button
               type="button"
               onClick={() => (full ? leaveFull() : setMode("full"))}
@@ -977,7 +978,6 @@ function WorkPanel({
   const [suggestedPrompts, setSuggestedPrompts] = useState(() => freeChatPrompts(pathname, contextualTitle));
   useEffect(() => {
     if (session.context_type !== "chat" || messages.length) return;
-    setSuggestedPrompts(freeChatPrompts(pathname, contextualTitle));
     let active = true;
     void authenticatedFetch("/api/agent/suggestions", {
       method: "POST",
