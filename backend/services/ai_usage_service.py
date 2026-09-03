@@ -1,13 +1,48 @@
+from __future__ import annotations
+
 from datetime import datetime, timezone
 
 from db import get_db
 
 
-def record(user_id: str, model: str, feature: str, usage: dict | None = None) -> None:
+def _token_counts(usage: dict | None) -> tuple[int, int]:
     usage = usage or {}
+    return (
+        int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0),
+        int(usage.get("completion_tokens") or usage.get("output_tokens") or 0),
+    )
+
+
+def record(user_id: str, model: str, feature: str, usage: dict | None = None) -> None:
+    input_tokens, output_tokens = _token_counts(usage)
     try:
         with get_db() as conn:
-            conn.cursor().execute("INSERT INTO ai_usage_records (user_id, model, feature, input_tokens, output_tokens, created_at) VALUES (%s,%s,%s,%s,%s,%s)", (user_id, model[:100], feature[:80], int(usage.get("prompt_tokens") or 0), int(usage.get("completion_tokens") or 0), datetime.now(timezone.utc)))
+            conn.cursor().execute("INSERT INTO ai_usage_records (user_id, model, feature, input_tokens, output_tokens, created_at) VALUES (%s,%s,%s,%s,%s,%s)", (user_id, model[:100], feature[:80], input_tokens, output_tokens, datetime.now(timezone.utc)))
+    except Exception:
+        pass
+
+
+def start(user_id: str, model: str, feature: str) -> int | None:
+    """Create the request row before streaming so cancelled calls are counted."""
+    if not user_id:
+        return None
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO ai_usage_records (user_id, model, feature, created_at) VALUES (%s,%s,%s,%s) RETURNING id", (user_id, model[:100], feature[:80], datetime.now(timezone.utc)))
+            row = cursor.fetchone()
+            return int(row["id"] if isinstance(row, dict) else row[0])
+    except Exception:
+        return None
+
+
+def finish(record_id: int | None, usage: dict | None = None) -> None:
+    if not record_id:
+        return
+    input_tokens, output_tokens = _token_counts(usage)
+    try:
+        with get_db() as conn:
+            conn.cursor().execute("UPDATE ai_usage_records SET input_tokens=%s, output_tokens=%s WHERE id=%s", (input_tokens, output_tokens, record_id))
     except Exception:
         pass
 

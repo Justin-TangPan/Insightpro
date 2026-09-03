@@ -204,27 +204,30 @@ async def stream_reply(session: dict, message: str, model: str | None = None) ->
         raise RuntimeError("AI 模型未配置")
     selected = resolve_model(model)
     usage: dict[str, Any] | None = None
-    async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
-        async with client.stream(
-            "POST",
-            settings.CHAT_API_URL,
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
-            json={"model": selected, "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True},
-        ) as response:
-            response.raise_for_status()
-            async for line in response.aiter_lines():
-                if not line.startswith("data: "):
-                    continue
-                payload = line[6:].strip()
-                if payload == "[DONE]":
-                    break
-                try:
-                    event = json.loads(payload)
-                    content = event.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                    usage = event.get("usage") or usage
-                except (json.JSONDecodeError, IndexError, TypeError):
-                    continue
-                if content:
-                    yield content
     from services import ai_usage_service
-    ai_usage_service.record(str(session.get("user_id", "")), selected, "chat", usage)
+    record_id = ai_usage_service.start(str(session.get("user_id", "")), selected, "chat")
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
+            async with client.stream(
+                "POST",
+                settings.CHAT_API_URL,
+                headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
+                json={"model": selected, "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True, "stream_options": {"include_usage": True}},
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    payload = line[6:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        event = json.loads(payload)
+                        content = event.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        usage = event.get("usage") or usage
+                    except (json.JSONDecodeError, IndexError, TypeError):
+                        continue
+                    if content:
+                        yield content
+    finally:
+        ai_usage_service.finish(record_id, usage)

@@ -10,6 +10,7 @@ from repositories import context_repository
 from services import agent_task_service
 from services import agent_service
 from services import insight_agent_runtime
+from services import ai_usage_service
 
 
 def test_business_action_resolves_to_a_server_owned_task():
@@ -35,6 +36,11 @@ def test_model_selection_is_limited_to_configured_models(monkeypatch):
     assert insight_agent_runtime.resolve_model("careful") == "careful"
     with pytest.raises(ValueError):
         insight_agent_runtime.resolve_model("unknown")
+
+
+def test_usage_accepts_openai_and_provider_token_names():
+    assert ai_usage_service._token_counts({"prompt_tokens": 12, "completion_tokens": 8}) == (12, 8)
+    assert ai_usage_service._token_counts({"input_tokens": 5, "output_tokens": 3}) == (5, 3)
 
 
 def test_unsupported_action_is_rejected_before_context_is_read():
