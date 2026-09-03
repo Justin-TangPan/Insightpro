@@ -5,11 +5,12 @@
 /* Do not inline theme values: Tailwind utilities must keep runtime CSS
    references so the user's selected theme can change every surface. */
 @theme {
-  --color-paper: #f3f6fb;
+  /* Quiet Intelligence: neutral canvas, ink structure, restrained blue action. */
+  --color-paper: #f5f7fa;
   --color-ink: #172033;
   --color-ink-secondary: #3d4c63;
   --color-ink-muted: #68768a;
-  --color-grid: #d6deeb;
+  --color-grid: #e4e7ec;
   --color-primary: #2563eb;
   --color-primary-light: #3b82f6;
   --color-primary-dark: #1d4ed8;
@@ -23,7 +24,7 @@
   --color-secondary: #68768a;
   --color-accent: #c96a16;
   --color-surface: #f3f6fb;
-  --color-surface-subtle: #e9eef7;
+  --color-surface-subtle: #eef1f5;
   --color-surface-elevated: #ffffff;
   --color-surface-glass: rgba(255, 255, 255, 0.88);
   --color-border: #d6deeb;
@@ -38,15 +39,15 @@
   --radius-xl: 0.875rem;
   --radius-2xl: 1rem;
   --radius-3xl: 1.25rem;
-  --shadow-card: 0 1px 2px rgba(21, 34, 26, 0.04), 0 8px 24px rgba(21, 34, 26, 0.035);
-  --shadow-card-hover: 0 2px 4px rgba(21, 34, 26, 0.05), 0 14px 30px rgba(21, 34, 26, 0.07);
-  --shadow-elevated: 0 16px 48px rgba(21, 34, 26, 0.12);
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.03);
+  --shadow-card-hover: 0 8px 24px rgba(16, 24, 40, 0.08);
+  --shadow-elevated: 0 18px 48px rgba(16, 24, 40, 0.14);
 }
 
 :root {
   --page-gutter: 1.25rem;
-  --section-gap: 2rem;
-  --card-padding: 1.5rem;
+  --section-gap: 2.25rem;
+  --card-padding: 1.375rem;
   --color-code: #172033;
   --color-code-ink: #eaf0fa;
   --color-chart-secondary: #6090f3;
@@ -81,8 +82,8 @@ body {
   color: var(--color-ink);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   font-size: 0.9375rem;
-  line-height: 1.65;
-  letter-spacing: -0.008em;
+  line-height: 1.6;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -103,7 +104,7 @@ button, [role="button"], input, textarea, select {
   width: 100%;
   max-width: 90rem;
   margin-inline: auto;
-  padding: 2rem var(--page-gutter) 4rem;
+  padding: 1.75rem var(--page-gutter) 4rem;
 }
 
 .page-stack {
@@ -163,9 +164,10 @@ button, [role="button"], input, textarea, select {
 
 .ui-card {
   background: var(--color-surface-elevated);
+  border: 1px solid color-mix(in srgb, var(--color-grid) 82%, transparent);
   border-radius: 0.875rem;
   padding: var(--card-padding);
-  box-shadow: var(--shadow-card);
+  box-shadow: none;
 }
 
 .ui-card-interactive {
@@ -176,6 +178,16 @@ button, [role="button"], input, textarea, select {
   background: color-mix(in srgb, var(--color-surface-elevated) 92%, var(--color-primary-soft));
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
+}
+
+/* A single responsive layout contract shared by every route. */
+@media (min-width: 1024px) {
+  #app-main { padding-left: 250px; transition: padding-left 200ms ease; }
+  :root[data-sidebar-collapsed="true"] #app-main { padding-left: 78px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
 .ui-card-header {

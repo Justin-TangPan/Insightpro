@@ -67,7 +67,7 @@ export function Sidebar() {
   return (
     <aside
       id="sidebar"
-      className={`fixed left-0 top-0 z-40 flex h-full ${collapsed ? "w-[78px]" : "w-[250px]"} -translate-x-full flex-col border-r border-grid/70 bg-surface-subtle transition-[width,transform] duration-200 lg:translate-x-0`}
+      className={`fixed left-0 top-0 z-40 flex h-full ${collapsed ? "w-[78px]" : "w-[250px]"} -translate-x-full flex-col border-r border-grid/80 bg-[#eef1f5] transition-[width,transform] duration-200 lg:translate-x-0`}
     >
       <div className={`flex h-16 items-center ${collapsed ? "justify-center px-2" : "px-5"}`}>
         <Link href="/" onClick={closeMobile} className="flex items-center gap-2.5 group">
@@ -94,7 +94,7 @@ export function Sidebar() {
                   title={collapsed ? item.label : undefined}
                   className={`flex items-center ${collapsed ? "justify-center px-2" : "gap-3 px-3"} rounded-xl py-3 transition-all ${
                     active
-                      ? "bg-white text-primary shadow-[var(--shadow-card)]"
+                      ? "bg-white text-primary ring-1 ring-primary/10"
                       : "text-ink-muted hover:bg-white/70 hover:text-ink"
                   }`}
                 >
@@ -116,7 +116,7 @@ export function Sidebar() {
             {!collapsed && <p className="swiss-kicker px-3 pb-2 pt-5 text-primary">{english ? "System" : "系统管理"}</p>}
             {managementItems.map((item, index) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={`mb-1.5 flex items-center ${collapsed ? "justify-center px-2" : "gap-3 px-3"} rounded-xl py-3 transition-all ${active ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}>
+              return <Link key={item.href} href={item.href} title={collapsed ? item.label : undefined} className={`mb-1.5 flex items-center ${collapsed ? "justify-center px-2" : "gap-3 px-3"} rounded-xl py-3 transition-all ${active ? "bg-white text-primary ring-1 ring-primary/10" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}>
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${active ? "bg-primary-soft text-primary" : "bg-white/60"}`}><item.icon className="h-4 w-4" strokeWidth={1.5} /></div>
                 <div className={`${collapsed ? "hidden" : "min-w-0"}`}><div className="flex items-center gap-2"><span className="font-mono text-[10px] font-semibold text-ink-muted">{String(index + 5).padStart(2, "0")}</span><span className="text-sm font-semibold">{english ? ({ "系统设置": "Settings", "平台管理": "Administration" }[item.label] || item.label) : item.label}</span></div><p className="mt-0.5 truncate text-xs text-ink-muted">{item.description}</p></div>
               </Link>;

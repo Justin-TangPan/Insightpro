@@ -38,17 +38,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div id="sidebar-overlay" className="hidden fixed inset-0 bg-black/40 z-30 lg:hidden" />
 
           {/* Main */}
-          <main id="app-main" className="min-w-0 flex-1 lg:pl-[250px]">
-            <header className="sticky top-0 z-10 border-b border-grid/70 bg-paper/90 backdrop-blur-xl">
-              <div className="flex h-16 items-center justify-between px-[var(--page-gutter)]">
+          <main id="app-main" className="min-w-0 flex-1">
+            <header className="sticky top-0 z-10 border-b border-grid/80 bg-paper/95 backdrop-blur-xl">
+              <div className="mx-auto flex h-16 max-w-[90rem] items-center justify-between px-[var(--page-gutter)]">
                 <div className="flex items-center gap-3">
                   <MobileNavTrigger />
                   <SearchBar />
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="text-right hidden sm:block">
-                    <p className="swiss-kicker text-ink-muted mb-0.5">Today</p>
-                    <p className="text-sm font-semibold text-ink tracking-tight leading-tight">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                  <div className="hidden text-right sm:block">
+                    <p className="swiss-kicker mb-0.5 text-ink-muted">TODAY</p>
+                    <p className="text-sm font-semibold leading-tight tracking-tight text-ink">{new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                   </div>
                   <div className="hidden h-6 w-px bg-grid sm:block" />
                   <button aria-label="查看通知" className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-white text-ink-secondary shadow-[var(--shadow-card)] transition-colors hover:bg-primary-soft hover:text-primary">
