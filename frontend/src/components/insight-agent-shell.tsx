@@ -11,6 +11,7 @@ import {
   Download,
   FolderOpen,
   FileText,
+  LoaderCircle,
   GripHorizontal,
   History,
   Maximize2,
@@ -1035,7 +1036,10 @@ function WorkPanel({
                         message.content
                       )
                     ) : (
-                      <span className="animate-pulse text-ink-muted">{workingStatus}</span>
+                      <span role="status" aria-live="polite" className="inline-flex items-center gap-2 text-ink-muted">
+                        <LoaderCircle className="ui-spinner h-4 w-4 text-primary" aria-hidden="true" />
+                        <span>{workingStatus}</span>
+                      </span>
                     )}
                   </div>
                 </article>
@@ -1088,6 +1092,8 @@ function WorkPanel({
           event.preventDefault();
           send(input);
         }}
+        aria-busy={sending}
+        aria-label="发送消息"
         className="border-t border-grid bg-white px-4 py-4"
       >
         <div className="mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-grid bg-white p-2 shadow-[var(--shadow-input)] focus-within:border-primary">

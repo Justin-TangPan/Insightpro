@@ -74,6 +74,7 @@
 }
 
 * { box-sizing: border-box; }
+html { scroll-padding-top: 4.5rem; }
 
 body {
   background: var(--color-paper);
