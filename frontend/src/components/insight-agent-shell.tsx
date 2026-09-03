@@ -98,10 +98,10 @@ function contextItems(context?: Context) {
 }
 
 const taskStages: Record<string, string> = {
-  technology_research: "Discover / Understand", technology_value: "Understand",
-  solution_analysis: "Understand", solution_architecture: "Design", solution_design: "Design",
-  requirement_analysis: "Understand", requirement_refine: "Design", poc_plan: "PoC",
-  validation: "Validate", implementation: "Build", materials: "Deliver",
+  technology_research: "理解", technology_value: "理解",
+  solution_analysis: "理解", solution_architecture: "设计", solution_design: "设计",
+  requirement_analysis: "理解", requirement_refine: "设计", poc_plan: "验证",
+  validation: "验证", implementation: "实现", materials: "交付",
 };
 
 function MarkdownMessage({ children }: { children: string }) {
@@ -273,6 +273,13 @@ export function InsightAgentShell() {
     const response = await authenticatedFetch("/api/agent/artifacts");
     if (!response.ok) return;
     setArtifacts(((await response.json()) as { items: Artifact[] }).items);
+  };
+  const showWorkspaceFiles = () => {
+    setShowArtifacts(true);
+    if (!artifactPreview && artifacts[0])
+      void openArtifact(artifacts[0].id).catch((reason) =>
+        setError(reason instanceof Error ? reason.message : "无法读取文件"),
+      );
   };
   const openArtifact = async (id: string) => {
     const response = await authenticatedFetch(`/api/agent/artifacts/${id}`);
@@ -585,7 +592,7 @@ export function InsightAgentShell() {
     ? "agent-full fixed bottom-0 right-0 top-16 z-20 flex overflow-hidden bg-paper"
     : split
       ? "fixed bottom-0 right-0 top-0 z-50 flex min-w-[420px] border-l border-grid bg-paper shadow-[var(--shadow-drawer)]"
-      : "fixed bottom-6 right-6 z-50 flex h-[min(720px,calc(100vh-3rem))] w-[min(480px,calc(100vw-2rem))] min-w-[360px] resize overflow-hidden rounded-2xl border border-grid bg-paper shadow-[var(--shadow-elevated)]";
+      : "fixed bottom-6 right-6 z-50 flex h-[min(720px,calc(100vh-3rem))] w-[min(480px,calc(100vw-2rem))] resize overflow-hidden rounded-2xl border border-grid bg-paper shadow-[var(--shadow-elevated)]";
   return (
     <section
       ref={panelRef}
@@ -678,6 +685,7 @@ export function InsightAgentShell() {
           startFreeChat={startFreeChat}
           deleteSession={deleteSession}
           artifacts={artifacts}
+          showWorkspaceFiles={showWorkspaceFiles}
           setError={setError}
         />
       )}
@@ -707,28 +715,28 @@ export function InsightAgentShell() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {!full && <Tooltip label="打开对话历史"><button type="button" onClick={() => setShowSessions(true)} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="打开对话历史"><History className="h-4 w-4" /></button></Tooltip>}
+            {!full && <Tooltip label="打开对话历史"><button type="button" onClick={() => setShowSessions(true)} className="ui-icon-button" aria-label="打开对话历史"><History className="h-4 w-4" /></button></Tooltip>}
             {!full && (
               <button
                 type="button"
                 onClick={() => setMode(split ? "floating" : "split")}
-                className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
+                className="ui-icon-button hidden sm:inline-flex"
                 aria-label={split ? "还原浮窗" : "在右侧展开"}
               >
                 <PanelRightOpen className="h-4 w-4" />
               </button>
             )}
+            <Tooltip label="文件与成果"><button type="button" onClick={showWorkspaceFiles} className="ui-icon-button" aria-label="打开文件与成果"><FolderOpen className="h-4 w-4" /></button></Tooltip>
             <details className="relative">
-              <summary className="flex cursor-pointer list-none rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="更多选项"><MoreHorizontal className="h-4 w-4" /></summary>
+              <summary className="ui-icon-button cursor-pointer list-none" aria-label="更多选项"><MoreHorizontal className="h-4 w-4" /></summary>
               <div className="absolute right-0 top-10 z-20 w-56 rounded-xl border border-grid bg-white p-2 shadow-[var(--shadow-card)]">
-                <button type="button" onClick={() => { setShowArtifacts(true); if (!artifactPreview && artifacts[0]) void openArtifact(artifacts[0].id).catch(() => undefined); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-surface-subtle"><FileText className="h-4 w-4" />工作文件 <span className="ml-auto text-xs text-ink-muted">{artifacts.length}</span></button>
                 {!!models.length && <label className="mt-1 block border-t border-grid px-3 pt-2 text-[11px] text-ink-muted">模型<select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="mt-1 w-full rounded-lg border border-grid bg-white px-2 py-1.5 text-xs text-ink-secondary" aria-label="切换模型">{models.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
               </div>
             </details>
             <Tooltip label={full ? "还原右下角浮窗" : "进入完整 AI 工作台"}><button
               type="button"
               onClick={() => (full ? leaveFull() : setMode("full"))}
-              className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
+              className="ui-icon-button"
               aria-label={full ? "还原右下角浮窗" : "进入完整 AI 工作台"}
             >
               {full ? (
@@ -741,7 +749,7 @@ export function InsightAgentShell() {
               <Tooltip label="最小化"><button
                 type="button"
                 onClick={() => setMinimized(true)}
-                className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
+                className="ui-icon-button"
                 aria-label="最小化"
               >
                 <Minimize2 className="h-4 w-4" />
@@ -750,7 +758,7 @@ export function InsightAgentShell() {
             <Tooltip label="关闭 AI 工作台"><button
               type="button"
               onClick={closeAgent}
-              className="rounded p-2 text-ink-muted hover:bg-warning-soft hover:text-warning"
+              className="ui-icon-button ui-icon-button-danger"
               aria-label="关闭"
             >
               <X className="h-4 w-4" />
@@ -764,10 +772,17 @@ export function InsightAgentShell() {
                 <button
                   type="button"
                   onClick={() => setContextOpen((value) => !value)}
-                  className="flex w-full items-center justify-between text-left"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-1 py-1 text-left hover:bg-white/60"
+                  aria-expanded={contextOpen}
                 >
-                  <span className="text-xs font-semibold text-ink">
-                    当前上下文 · {context?.title || session.context_title}
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-2 text-xs font-semibold text-ink">
+                      <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                      已绑定工作上下文
+                    </span>
+                    <span className="mt-0.5 block truncate text-[11px] text-ink-muted">
+                      {context?.title || session.context_title}
+                    </span>
                   </span>
                   {contextOpen ? (
                     <ChevronUp className="h-4 w-4" />
@@ -775,9 +790,8 @@ export function InsightAgentShell() {
                     <ChevronDown className="h-4 w-4" />
                   )}
                 </button>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary">Solution Architect</span>
-                  <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-ink-secondary">{taskStages[session.task_key || ""] || "Understand"}</span>
+                <div className="mt-2 flex flex-wrap gap-1.5 px-1">
+                  <span className="rounded-full bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary">{taskStages[session.task_key || ""] || "分析"}</span>
                   {contextItems(context).map((item) => (
                     <span
                       key={item}
@@ -837,6 +851,7 @@ function SessionRail({
   startFreeChat,
   deleteSession,
   artifacts,
+  showWorkspaceFiles,
   setError,
 }: {
   sessions: Session[];
@@ -845,6 +860,7 @@ function SessionRail({
   startFreeChat(): Promise<Session>;
   deleteSession(id: string): Promise<void>;
   artifacts: Artifact[];
+  showWorkspaceFiles(): void;
   setError(value: string): void;
 }) {
   return (
@@ -910,13 +926,13 @@ function SessionRail({
         ))}
       </nav>
       <div className="border-t border-grid p-3 text-xs text-ink-muted">
-        <div className="flex items-center justify-between rounded-lg px-2 py-2">
+        <button type="button" onClick={showWorkspaceFiles} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-white hover:text-primary">
           <span className="flex items-center gap-2">
             <FolderOpen className="h-4 w-4" />
-            工作成果
+            文件与成果
           </span>
           <span>{artifacts.length}</span>
-        </div>
+        </button>
       </div>
     </aside>
   );
@@ -1021,9 +1037,10 @@ function WorkPanel({
           ) : (
             <>
               {session.context_type !== "chat" && (
-                <div className="mb-8 border-l-2 border-primary pl-4">
-                  <p className="text-xs font-medium text-primary">预置任务 · {session.task_title}</p>
-                  <p className="mt-1 text-sm leading-6 text-ink-secondary">
+                <div className="mb-8 rounded-xl border border-grid bg-surface-subtle p-4">
+                  <p className="text-[11px] font-semibold text-primary">推荐工作配方</p>
+                  <h2 className="mt-1 text-sm font-semibold text-ink">{session.task_title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-ink-secondary">
                     {session.default_prompt ||
                       "围绕当前上下文完成清晰、可执行的技术分析。"}
                   </p>
@@ -1033,9 +1050,9 @@ function WorkPanel({
                       onClick={() =>
                         send(session.default_prompt || "请开始当前任务。")
                       }
-                      className="mt-3 text-sm font-medium text-primary hover:underline"
+                      className="ui-button-primary mt-4"
                     >
-                      执行预置任务
+                      使用此配方开始
                     </button>
                   )}
                 </div>
@@ -1340,7 +1357,7 @@ function ContextEditor({
         rows={2}
       />
       <div className="mt-2 flex flex-wrap gap-2">
-        {["summary", "content", "metadata", "related_entities"].map((key) => (
+        {[["summary", "摘要"], ["content", "正文"], ["metadata", "结构化信息"], ["related_entities", "关联材料"]].map(([key, label]) => (
           <label key={key} className="flex items-center gap-1">
             <input
               type="checkbox"
@@ -1353,7 +1370,7 @@ function ContextEditor({
                 )
               }
             />
-            不注入 {key}
+            不注入{label}
           </label>
         ))}
       </div>

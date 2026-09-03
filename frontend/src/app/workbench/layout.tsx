@@ -4,9 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const sections = [
-  ["/workbench", "概览"],
+  ["/workbench", "我的工作"],
   ["/workbench/solutions", "方案实践"],
-  ["/workbench/ai", "AI 工作 · 文件 · 成果"],
+  ["/workbench/ai", "AI 工作室"],
 ] as const;
 
 export default function WorkbenchLayout({ children }: { children: React.ReactNode }) {

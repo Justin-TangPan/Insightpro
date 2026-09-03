@@ -211,6 +211,19 @@ button, [role="button"], input, textarea, select {
 .ui-action-button:active:not(:disabled) { transform: translateY(1px) scale(0.985); }
 .ui-action-button[aria-busy="true"] { cursor: wait; }
 
+/* Compact toolbars keep a comfortable target while their icons stay small. */
+.ui-icon-button {
+  display: inline-flex;
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  color: var(--color-ink-muted);
+}
+.ui-icon-button:hover { background: var(--color-primary-soft); color: var(--color-primary); }
+.ui-icon-button-danger:hover { background: var(--color-warning-soft); color: var(--color-warning); }
+
 .ui-dialog { opacity: 0; transform: translateY(8px) scale(0.985); transition: opacity 140ms ease, transform 140ms ease, display 140ms allow-discrete, overlay 140ms allow-discrete; }
 .ui-dialog[open] { opacity: 1; transform: none; }
 .ui-dialog::backdrop { opacity: 0; transition: opacity 140ms ease, display 140ms allow-discrete, overlay 140ms allow-discrete; }
