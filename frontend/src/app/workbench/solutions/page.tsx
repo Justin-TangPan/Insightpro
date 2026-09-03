@@ -6,12 +6,14 @@ import { ArrowRight, Blocks, ClipboardList, Plus, Trash2 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { useAuth } from "@/components/auth-provider";
 import { formatWorkbenchDate, Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
+import { ConfirmDialog } from "@/components/ui";
 
 export default function SolutionsPage() {
   const { user, loading: authLoading } = useAuth();
   const [items, setItems] = useState<Solution[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Solution | null>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -27,13 +29,14 @@ export default function SolutionsPage() {
 
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
-  const remove = async (item: Solution) => {
-    if (!window.confirm(`删除方案实践“${item.name}”？`)) return;
+  const remove = async () => {
+    if (!pendingDelete) return;
     try {
-      await workbenchFetch(`/solutions/${item.id}`, { method: "DELETE" });
+      await workbenchFetch(`/solutions/${pendingDelete.id}`, { method: "DELETE" });
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "删除失败");
+      throw reason;
     }
   };
 
@@ -63,7 +66,7 @@ export default function SolutionsPage() {
             <article key={item.id} className="ui-card ui-card-interactive group flex min-h-52 flex-col">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex flex-wrap gap-2"><span className="ui-tag">{item.category}</span><span className="ui-tag">{solutionStatusLabels[item.status]}</span><span className="ui-tag">{item.version}</span></div>
-                <button onClick={() => void remove(item)} aria-label={`删除 ${item.name}`} className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-warning-soft hover:text-warning"><Trash2 className="h-4 w-4" /></button>
+                <button onClick={() => setPendingDelete(item)} aria-label={`删除 ${item.name}`} className="rounded-lg p-2 text-ink-muted transition-colors hover:bg-warning-soft hover:text-warning"><Trash2 className="h-4 w-4" /></button>
               </div>
               <h2 className="mt-5 type-h3 text-ink">{item.name}</h2>
               <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted">{item.description || "尚未补充背景信息"}</p>
@@ -77,6 +80,7 @@ export default function SolutionsPage() {
       ) : (
         <div className="ui-card flex min-h-72 flex-col items-center justify-center text-center"><Blocks className="h-8 w-8 text-primary" /><h2 className="mt-4 type-h3 text-ink">还没有方案实践</h2><p className="mt-2 text-sm text-ink-muted">先收纳方案背景，再进入 AI 工作区分析。</p><Link href="/workbench/solutions/new" className="ui-button-primary mt-5">创建方案实践</Link></div>
       )}
+      <ConfirmDialog open={!!pendingDelete} onOpenChange={(open) => { if (!open) setPendingDelete(null); }} title="删除方案实践？" description={pendingDelete ? `“${pendingDelete.name}”及其工作关联将被永久删除。` : undefined} confirmLabel="删除" danger onConfirm={remove} />
     </div>
   );
 }

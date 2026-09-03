@@ -4,6 +4,7 @@ import { SectionHeader } from "@/components/section-header";
 import { useCallback, useState, useEffect } from "react";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { AppDialog } from "@/components/ui";
 import {
   FileText, Trash2, Plus, Loader2, AlertCircle,
   CheckCircle2, Clock, Search, RefreshCw
@@ -262,9 +263,8 @@ export default function ReportsPage() {
       )}
 
       {/* New analysis form */}
-      {showNew && (
-        <div className="ui-card space-y-4">
-          <h3 className="type-h3 text-ink">新建 AI 分析任务</h3>
+      <AppDialog open={showNew} onClose={() => !submitting && setShowNew(false)} title="新建 AI 分析任务" description="输入目标与背景后开始生成结构化分析。" busy={submitting} footer={<><button type="button" onClick={() => setShowNew(false)} disabled={submitting} className="ui-button-secondary">取消</button><button type="button" onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="ui-button-primary">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}开始分析</button></>}>
+        <div className="space-y-4">
           <div>
             <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">分析标题</label>
             <input
@@ -285,15 +285,8 @@ export default function ReportsPage() {
               className="ui-input w-full resize-none px-3.5 py-2 text-sm"
             />
           </div>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setShowNew(false)} className="ui-button-secondary">取消</button>
-            <button onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="ui-button-primary">
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              开始分析
-            </button>
-          </div>
         </div>
-      )}
+      </AppDialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Report List */}

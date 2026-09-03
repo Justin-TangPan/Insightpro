@@ -9,6 +9,7 @@ import { PageTracker } from "@/components/page-tracker";
 import { AuthProvider } from "@/components/auth-provider";
 import { InsightAgentShell } from "@/components/insight-agent-shell";
 import { Suspense } from "react";
+import { ToastProvider } from "@/components/ui";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head><script dangerouslySetInnerHTML={{ __html: `try{const p=JSON.parse(localStorage.getItem('insight_preferences')||'{}'),r=document.documentElement;r.dataset.theme=p.theme||'blue';r.dataset.density=p.density||'comfortable';r.dataset.motion=String(p.motion!==false);r.lang=p.language==='en'?'en':'zh-CN'}catch{}` }} /></head>
       <body className="bg-paper text-ink antialiased">
         <AuthProvider>
+          <ToastProvider>
           <PageTracker />
           <div className="flex min-h-screen">
           <Sidebar />
@@ -61,6 +63,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
           </div>
           <Suspense fallback={null}><InsightAgentShell /></Suspense>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>

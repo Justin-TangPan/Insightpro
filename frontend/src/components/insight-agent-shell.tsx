@@ -6,18 +6,23 @@ import {
   Bot,
   ChevronDown,
   ChevronUp,
+  Copy,
   Code2,
   Download,
   FolderOpen,
   FileText,
   GripHorizontal,
+  History,
   Maximize2,
+  MoreHorizontal,
   MessageSquarePlus,
   Minimize2,
   Paperclip,
   PanelRightOpen,
   Send,
   Sparkles,
+  Square,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
@@ -27,9 +32,11 @@ import remarkGfm from "remark-gfm";
 import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { agentWelcomeStorageKey, extractPageText } from "@/lib/agent-page-context";
+import { subscribeAgentRoute, type AgentRoute as RouteDetail } from "@/lib/agent-events";
+import { Tooltip, useToast } from "@/components/ui";
 
 type Mode = "floating" | "split" | "full";
-type Message = { role: "user" | "assistant"; content: string; artifacts?: Artifact[] };
+type Message = { role: "user" | "assistant"; content: string; artifacts?: Artifact[]; failed?: boolean };
 type Context = {
   title: string;
   summary?: string;
@@ -52,11 +59,6 @@ type Session = {
   task_status?: string;
   default_prompt?: string;
   conversation?: Message[];
-};
-type RouteDetail = {
-  contextType: "github_project" | "cloud_solution" | "requirement" | "solution";
-  contextId: string;
-  actionKey: string;
 };
 type Artifact = {
   id: string;
@@ -124,6 +126,7 @@ export function InsightAgentShell() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading } = useAuth();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [mode, setMode] = useState<Mode>("floating");
@@ -140,6 +143,7 @@ export function InsightAgentShell() {
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const [artifactPreview, setArtifactPreview] = useState<Artifact | null>(null);
   const [showWelcomeTip, setShowWelcomeTip] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -148,6 +152,7 @@ export function InsightAgentShell() {
   const sessionRef = useRef<Session | null>(null);
   const messagesRef = useRef<Message[]>([]);
   const sendingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
   useEffect(() => {
     sessionRef.current = session;
     messagesRef.current = messages;
@@ -171,6 +176,7 @@ export function InsightAgentShell() {
     setSelectedModel((current) => current || data.default);
   };
   const openSession = async (id: string, nextMode?: Mode) => {
+    if (sendingRef.current) throw new Error("请先停止当前生成，再切换对话");
     if (session && session.id !== id) await discardEmptySession(session);
     const response = await authenticatedFetch(`/api/agent/sessions/${id}`);
     if (!response.ok) throw new Error("无法读取当前工作");
@@ -183,6 +189,7 @@ export function InsightAgentShell() {
     if (nextMode) setMode(nextMode);
   };
   const route = async (detail: RouteDetail) => {
+    if (sendingRef.current) throw new Error("请先停止当前生成，再执行其他任务");
     if (!user)
       return router.push(
         `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
@@ -210,6 +217,7 @@ export function InsightAgentShell() {
     await refreshSessions().catch(() => []);
   };
   const startFreeChat = async (forCurrentPage = false): Promise<Session> => {
+    if (sendingRef.current) throw new Error("请先停止当前生成，再新建对话");
     await discardEmptySession();
     const response = await authenticatedFetch("/api/agent/chat/sessions", {
       method: "POST",
@@ -311,7 +319,7 @@ export function InsightAgentShell() {
     if (!response.ok) throw new Error("无法保存 Context 设置");
     setSession((await response.json()) as Session);
   };
-  const saveArtifact = async () => {
+  const saveArtifact = async (content = "") => {
     if (!session) return;
     const response = await authenticatedFetch(
       `/api/agent/sessions/${session.id}/artifacts`,
@@ -321,6 +329,7 @@ export function InsightAgentShell() {
         body: JSON.stringify({
           title: session.task_title || session.title,
           type: "Markdown",
+          content,
         }),
       },
     );
@@ -329,6 +338,7 @@ export function InsightAgentShell() {
         (await response.json().catch(() => ({}))).detail || "无法保存成果",
       );
     await refreshArtifacts();
+    toast("已保存为工作文件", "success");
   };
   const send = async (
     text: string,
@@ -342,14 +352,18 @@ export function InsightAgentShell() {
       { role: "assistant", content: "" },
     ]);
     setInput("");
+    sendingRef.current = true;
     setSending(true);
     setWorkingStatus("正在生成回答…");
     setError("");
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const response = await authenticatedFetch("/api/agent/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message, session_id: targetSession.id, model: selectedModel || undefined }),
+        signal: controller.signal,
       });
       if (!response.ok || !response.body)
         throw new Error(
@@ -401,12 +415,21 @@ export function InsightAgentShell() {
         current ? { ...current, task_status: "working" } : current,
       );
     } catch (reason) {
-      setMessages((current) => current.slice(0, -1));
-      setError(reason instanceof Error ? reason.message : "Agent 暂时无法回答");
+      const stopped = reason instanceof DOMException && reason.name === "AbortError";
+      setMessages((current) => current.map((item, index) => index === current.length - 1
+        ? { ...item, content: item.content || (stopped ? "已停止生成。" : "生成失败，可重试。"), failed: !stopped }
+        : item));
+      if (!stopped) setError(reason instanceof Error ? reason.message : "Agent 暂时无法回答");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
+      sendingRef.current = false;
       setSending(false);
       void refreshSessions().catch(() => undefined);
     }
+  };
+  const retryMessage = (text: string, assistantIndex: number) => {
+    setMessages((current) => current.slice(0, Math.max(0, assistantIndex - 1)));
+    void send(text);
   };
   useEffect(() => {
     if (user)
@@ -425,15 +448,21 @@ export function InsightAgentShell() {
     }, 2000);
     return () => { window.clearTimeout(show); window.clearTimeout(timer); };
   }, [user]);
-  useEffect(() => {
-    const handler = (event: Event) => {
-      void route((event as CustomEvent<RouteDetail>).detail).catch((reason) =>
+  useEffect(() => subscribeAgentRoute((detail) => {
+      void route(detail).catch((reason) =>
         setError(reason instanceof Error ? reason.message : "无法启动 AI 工作"),
       );
+    }), [user, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || deleting) return;
+      if (showSessions) setShowSessions(false);
+      else if (showArtifacts) setShowArtifacts(false);
+      else if (pendingDelete) setPendingDelete(null);
     };
-    window.addEventListener("insight-agent:route", handler);
-    return () => window.removeEventListener("insight-agent:route", handler);
-  }, [user, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [deleting, pendingDelete, showArtifacts, showSessions]);
   const routeFull = pathname === "/insight-agent" || pathname === "/workbench/ai";
   const requestedSession = searchParams.get("session");
   const activeOpen = open || routeFull;
@@ -504,6 +533,7 @@ export function InsightAgentShell() {
     window.addEventListener("pointerup", stop);
   };
   const closeAgent = () => {
+    abortRef.current?.abort();
     void discardEmptySession().catch(() => undefined);
     setOpen(false);
     setMinimized(false);
@@ -511,6 +541,7 @@ export function InsightAgentShell() {
     if (routeFull) router.push("/workbench");
   };
   const leaveFull = () => {
+    abortRef.current?.abort();
     void discardEmptySession().catch(() => undefined);
     setMode("floating");
     if (routeFull) router.back();
@@ -618,6 +649,17 @@ export function InsightAgentShell() {
           </div>
         </div>
       )}
+      {showSessions && !full && (
+        <div className="fixed inset-0 z-[75] bg-slate-950/20" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && setShowSessions(false)}>
+          <div className="absolute bottom-6 right-6 top-6 flex w-[min(360px,calc(100vw-2rem))] flex-col overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]" role="dialog" aria-modal="true" aria-label="对话历史">
+            <div className="flex items-center justify-between border-b border-grid px-4 py-3"><div><p className="text-xs font-medium text-primary">AI 工作</p><h2 className="text-base font-semibold text-ink">对话历史</h2></div><button type="button" onClick={() => setShowSessions(false)} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle" aria-label="关闭对话历史"><X className="h-4 w-4" /></button></div>
+            <div className="p-3"><button type="button" onClick={() => void startFreeChat().then(() => setShowSessions(false)).catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话"))} className="flex w-full items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-medium text-white"><MessageSquarePlus className="h-4 w-4" />新建自由对话</button></div>
+            <nav className="min-h-0 flex-1 overflow-y-auto px-2 pb-3" aria-label="最近对话">
+              {sessions.length ? sessions.map((item) => <div key={item.id} className={`group mb-1 flex items-center rounded-xl ${session?.id === item.id ? "bg-primary-soft" : "hover:bg-surface-subtle"}`}><button type="button" onClick={() => void openSession(item.id).then(() => setShowSessions(false)).catch((reason) => setError(reason instanceof Error ? reason.message : "无法打开对话"))} className="min-w-0 flex-1 px-3 py-2.5 text-left"><span className="block truncate text-sm font-medium text-ink">{item.task_title || item.title}</span><span className="block truncate text-[11px] text-ink-muted">{item.context_title || "自由讨论"}</span></button><button type="button" onClick={() => void deleteSession(item.id)} className="mr-2 rounded-lg p-2 text-ink-muted opacity-0 hover:bg-warning-soft hover:text-warning group-hover:opacity-100 focus:opacity-100" aria-label={`删除 ${item.task_title || item.title}`}><Trash2 className="h-3.5 w-3.5" /></button></div>) : <p className="px-3 py-8 text-center text-sm text-ink-muted">还没有对话，先新建一个。</p>}
+            </nav>
+          </div>
+        </div>
+      )}
       {split && (
         <button
           type="button"
@@ -665,19 +707,7 @@ export function InsightAgentShell() {
             </div>
           </div>
           <div className="flex items-center gap-1">
-            {!!models.length && <select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="max-w-32 rounded border border-grid bg-white px-1 py-1 text-xs text-ink-secondary" aria-label="切换模型">
-              {models.map((item) => <option key={item} value={item}>{item}</option>)}
-            </select>}
-            <button type="button" onClick={() => { setShowArtifacts(true); if (!artifactPreview && artifacts[0]) void openArtifact(artifacts[0].id).catch(() => undefined); }} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="查看工作文件"><FileText className="h-4 w-4" /></button>
-            {!full && (
-              <>
-                <select value={session?.id || ""} onChange={(event) => event.target.value && void openSession(event.target.value).catch((reason) => setError(reason instanceof Error ? reason.message : "无法打开对话"))} className="max-w-28 rounded border border-grid bg-white px-1 py-1 text-xs text-ink-secondary" aria-label="切换对话">
-                  <option value="">对话</option>
-                  {sessions.map((item) => <option key={item.id} value={item.id}>{item.task_title || item.title}</option>)}
-                </select>
-                <button type="button" onClick={() => void startFreeChat().catch((reason) => setError(reason instanceof Error ? reason.message : "无法创建对话"))} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="新对话"><MessageSquarePlus className="h-4 w-4" /></button>
-              </>
-            )}
+            {!full && <Tooltip label="打开对话历史"><button type="button" onClick={() => setShowSessions(true)} className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="打开对话历史"><History className="h-4 w-4" /></button></Tooltip>}
             {!full && (
               <button
                 type="button"
@@ -688,7 +718,14 @@ export function InsightAgentShell() {
                 <PanelRightOpen className="h-4 w-4" />
               </button>
             )}
-            <button
+            <details className="relative">
+              <summary className="flex cursor-pointer list-none rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label="更多选项"><MoreHorizontal className="h-4 w-4" /></summary>
+              <div className="absolute right-0 top-10 z-20 w-56 rounded-xl border border-grid bg-white p-2 shadow-[var(--shadow-card)]">
+                <button type="button" onClick={() => { setShowArtifacts(true); if (!artifactPreview && artifacts[0]) void openArtifact(artifacts[0].id).catch(() => undefined); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink-secondary hover:bg-surface-subtle"><FileText className="h-4 w-4" />工作文件 <span className="ml-auto text-xs text-ink-muted">{artifacts.length}</span></button>
+                {!!models.length && <label className="mt-1 block border-t border-grid px-3 pt-2 text-[11px] text-ink-muted">模型<select value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} className="mt-1 w-full rounded-lg border border-grid bg-white px-2 py-1.5 text-xs text-ink-secondary" aria-label="切换模型">{models.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>}
+              </div>
+            </details>
+            <Tooltip label={full ? "还原右下角浮窗" : "进入完整 AI 工作台"}><button
               type="button"
               onClick={() => (full ? leaveFull() : setMode("full"))}
               className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
@@ -699,25 +736,25 @@ export function InsightAgentShell() {
               ) : (
                 <Maximize2 className="h-4 w-4" />
               )}
-            </button>
+            </button></Tooltip>
             {!full && (
-              <button
+              <Tooltip label="最小化"><button
                 type="button"
                 onClick={() => setMinimized(true)}
                 className="rounded p-2 text-ink-muted hover:bg-primary-soft hover:text-primary"
                 aria-label="最小化"
               >
                 <Minimize2 className="h-4 w-4" />
-              </button>
+              </button></Tooltip>
             )}
-            <button
+            <Tooltip label="关闭 AI 工作台"><button
               type="button"
               onClick={closeAgent}
               className="rounded p-2 text-ink-muted hover:bg-warning-soft hover:text-warning"
               aria-label="关闭"
             >
               <X className="h-4 w-4" />
-            </button>
+            </button></Tooltip>
           </div>
         </header>
         {session ? (
@@ -771,6 +808,8 @@ export function InsightAgentShell() {
               saveArtifact={saveArtifact}
               openArtifact={openArtifact}
               downloadArtifact={downloadArtifact}
+              stop={() => abortRef.current?.abort()}
+              retryMessage={retryMessage}
               error={error}
               setError={setError}
             />
@@ -894,6 +933,8 @@ function WorkPanel({
   saveArtifact,
   openArtifact,
   downloadArtifact,
+  stop,
+  retryMessage,
   error,
   setError,
 }: {
@@ -904,12 +945,30 @@ function WorkPanel({
   sending: boolean;
   workingStatus: string;
   send(text: string): void;
-  saveArtifact(): Promise<void>;
+  saveArtifact(content?: string): Promise<void>;
   openArtifact(id: string): Promise<void>;
   downloadArtifact(artifact: Artifact): Promise<void>;
+  stop(): void;
+  retryMessage(text: string, assistantIndex: number): void;
   error: string;
   setError(value: string): void;
 }) {
+  const { toast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const followOutput = useRef(true);
+  useEffect(() => {
+    if (!followOutput.current || !scrollRef.current) return;
+    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: sending ? "auto" : "smooth" });
+  }, [messages, sending]);
+  const copyMessage = async (content: string) => {
+    if (!navigator.clipboard) return setError("当前浏览器不支持复制，请手动选择文本");
+    try {
+      await navigator.clipboard.writeText(content);
+      toast("回答已复制", "success");
+    } catch {
+      setError("无法复制回答，请手动选择文本");
+    }
+  };
   const attach = async (files: FileList | null) => {
     if (!files?.length) return;
     const file = files[0];
@@ -926,7 +985,7 @@ function WorkPanel({
   const emptyChat = session.context_type === "chat" && !messages.length;
   return (
     <>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
+      <div ref={scrollRef} onScroll={(event) => { const node = event.currentTarget; followOutput.current = node.scrollHeight - node.scrollTop - node.clientHeight < 96; }} className="min-h-0 flex-1 overflow-y-auto px-4 py-8">
         <div
           className={`mx-auto max-w-3xl ${emptyChat ? "flex min-h-full items-center justify-center" : ""}`}
         >
@@ -963,7 +1022,7 @@ function WorkPanel({
             <>
               {session.context_type !== "chat" && (
                 <div className="mb-8 border-l-2 border-primary pl-4">
-                  <p className="text-xs font-medium text-primary">当前任务</p>
+                  <p className="text-xs font-medium text-primary">预置任务 · {session.task_title}</p>
                   <p className="mt-1 text-sm leading-6 text-ink-secondary">
                     {session.default_prompt ||
                       "围绕当前上下文完成清晰、可执行的技术分析。"}
@@ -976,7 +1035,7 @@ function WorkPanel({
                       }
                       className="mt-3 text-sm font-medium text-primary hover:underline"
                     >
-                      开始任务
+                      执行预置任务
                     </button>
                   )}
                 </div>
@@ -984,7 +1043,7 @@ function WorkPanel({
               {messages.map((message, index) => (
                 <article
                   key={`${message.role}-${index}`}
-                  className={`mb-6 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`group mb-6 flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
                     className={`max-w-[88%] text-sm leading-7 ${message.role === "user" ? "whitespace-pre-wrap rounded-2xl bg-primary-soft px-4 py-2.5 text-ink" : "min-w-0 text-ink"}`}
@@ -1004,6 +1063,14 @@ function WorkPanel({
                                   <button type="button" onClick={() => void downloadArtifact(artifact).catch(() => setError("无法下载文件"))} className="rounded-lg p-2 text-ink-muted hover:bg-primary-soft hover:text-primary" aria-label={`下载 ${artifact.filename || artifact.title}`}><Download className="h-4 w-4" /></button>
                                 </div>
                               ))}
+                            </div>
+                          )}
+                          {!!message.content && (
+                            <div className="mt-2 flex items-center gap-1 text-ink-muted opacity-70 transition group-hover:opacity-100">
+                              <button type="button" onClick={() => void copyMessage(message.content)} className="rounded-lg p-1.5 hover:bg-surface-subtle hover:text-primary" aria-label="复制回答"><Copy className="h-3.5 w-3.5" /></button>
+                              <button type="button" disabled={sending || !messages[index - 1]?.content} onClick={() => retryMessage(messages[index - 1].content, index)} className="rounded-lg p-1.5 hover:bg-surface-subtle hover:text-primary disabled:opacity-30" aria-label="重新生成"><RotateCcw className="h-3.5 w-3.5" /></button>
+                              <button type="button" onClick={() => void saveArtifact(message.content).catch((reason) => setError(reason instanceof Error ? reason.message : "无法保存成果"))} className="rounded-lg p-1.5 hover:bg-surface-subtle hover:text-primary" aria-label="保存为成果"><FolderOpen className="h-3.5 w-3.5" /></button>
+                              {message.failed && <span className="ml-1 text-[11px] text-warning">生成中断，可重试</span>}
                             </div>
                           )}
                         </>
@@ -1092,17 +1159,10 @@ function WorkPanel({
                 send(input);
               }
             }}
-            placeholder="在 AI 工作台中继续"
+            placeholder={session.context_type === "chat" ? "自由提问" : "自由提问，或补充预置任务要求"}
             className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm outline-none"
           />
-          <button
-            type="submit"
-            disabled={!input.trim() || sending}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white disabled:opacity-30"
-            aria-label="发送"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+          {sending ? <button type="button" onClick={stop} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-ink text-white" aria-label="停止生成"><Square className="h-3.5 w-3.5 fill-current" /></button> : <button type="submit" disabled={!input.trim()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white disabled:opacity-30" aria-label="发送"><Send className="h-4 w-4" /></button>}
         </div>
         <p className="mt-2 text-center text-[10px] text-ink-muted">
           AI 生成内容可能有误，请核对关键结论。

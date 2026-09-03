@@ -6,8 +6,9 @@ import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { useAuth } from "@/components/auth-provider";
 import { usePreferences, type Preferences } from "@/lib/preferences";
-import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, X, Clock3, Palette, Languages, Users, SlidersHorizontal, Bot, FileText } from "lucide-react";
+import { Save, RefreshCw, Bell, Database, Shield, User, Mail, Send, Plus, Trash2, CheckCircle2, Eye, Clock3, Palette, Languages, Users, SlidersHorizontal, Bot, FileText } from "lucide-react";
 import Link from "next/link";
+import { AppDialog, ConfirmDialog } from "@/components/ui";
 
 interface Subscriber {
   id: number;
@@ -86,6 +87,7 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   const [databaseConnected, setDatabaseConnected] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  const [pendingKnowledgeDelete, setPendingKnowledgeDelete] = useState("");
 
   const handleSave = async () => {
     if (user && profileName !== (user.user_metadata?.name || "")) await updateProfile(profileName);
@@ -189,9 +191,10 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
   };
 
   const deleteKnowledge = async (path: string) => {
-    if (!window.confirm(`删除公共知识文件「${path}」？`)) return;
     const response = await authenticatedFetch(`${API}/api/auth/public-knowledge?path=${encodeURIComponent(path)}`, { method: "DELETE" });
-    setMemberStatus(response.ok ? "公共知识已删除" : "该文件受保护或删除失败"); if (response.ok) void fetchKnowledge();
+    setMemberStatus(response.ok ? "公共知识已删除" : "该文件受保护或删除失败");
+    if (!response.ok) throw new Error("该文件受保护或删除失败");
+    void fetchKnowledge();
   };
 
   const usageDays = Array.from({ length: 7 }, (_, index) => {
@@ -633,28 +636,17 @@ export default function SettingsPage({ adminOnly = false }: { adminOnly?: boolea
           <p className="mb-1 text-xs text-ink-muted">近 7 天请求：{dailyUsage.map(item => `${item.date.slice(5)} ${item.requests}`).join(" · ")}</p><p className="mb-3 text-xs text-ink-muted">Token 仅在模型 Provider 返回 usage 时记录；未返回时只统计真实请求。用户排行：{usageRanking.map(item => `${agentSpaces.find(space => space.id === item.user_id)?.email || item.user_id.slice(0, 8)} ${(item.days[agentSummary.today.date]?.requests || 0)} 次`).join(" · ") || "暂无使用数据"}</p>
           <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">成员</th><th className="px-3 py-2">Runtime</th><th className="px-3 py-2">Workspace</th><th className="px-3 py-2">最近使用</th><th className="px-3 py-2">占用</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{agentSpaces.map(space => <tr key={space.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{space.name || space.email.split("@")[0]}</p><p className="text-ink-muted">{space.status === "disabled" ? "Agent 已禁用" : space.email}</p></td><td className="px-3 py-3"><span className={`ui-tag ${space.runtime_status === "running" ? "" : "ui-tag-warning"}`}>{space.runtime_status === "running" ? "运行中" : "已停止"}</span></td><td className="px-3 py-3 text-ink-secondary">{space.workspace_status === "ready" ? "已创建" : "未创建"}</td><td className="px-3 py-3 text-ink-secondary">{space.last_used_at ? new Date(space.last_used_at).toLocaleString("zh-CN") : "—"}</td><td className="px-3 py-3 text-ink-secondary">{space.disk_bytes ? `${(space.disk_bytes / 1024 / 1024).toFixed(1)} MB` : "—"}</td><td className="px-3 py-3"><div className="flex gap-2"><Link href={`/insight-agent?target=${space.id}`} className="ui-link">进入</Link><button type="button" disabled={space.status === "disabled" || space.runtime_status === "running"} onClick={() => void controlRuntime(space, "start")} className="ui-link">启动</button><button type="button" disabled={space.runtime_status !== "running"} onClick={() => void controlRuntime(space, "stop")} className="ui-link">停止</button><button type="button" disabled={space.id === user?.id} onClick={() => void updateMember(space, { disabled: space.status !== "disabled" })} className="ui-link">{space.status === "disabled" ? "恢复 Agent" : "禁止 Agent"}</button></div></td></tr>)}</tbody></table>{!agentSpaces.length && <p className="py-6 text-center text-sm text-ink-muted">暂无 AI Space，成员首次进入后会自动创建。</p>}</div>
         </div>
-        <div className="ui-card lg:col-span-2"><div className="ui-card-header"><div className="flex items-center gap-2.5"><FileText className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">公共知识库</h3></div><span className="ui-tag">团队只读 · Admin 管理</span></div><div className="mb-4 flex flex-wrap gap-2"><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="搜索文件" /><button type="button" onClick={() => void fetchKnowledge()} className="ui-button-secondary">搜索</button><input value={knowledgeCategory} onChange={event => setKnowledgeCategory(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="目录（可选）" /><label className="ui-button-primary cursor-pointer">上传文件<input type="file" className="hidden" onChange={event => void uploadKnowledge(event.target.files?.[0])} /></label></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">文件</th><th className="px-3 py-2">更新时间</th><th className="px-3 py-2">大小</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{knowledgeFiles.map(file => <tr key={file.path} className="border-t border-grid/60"><td className="px-3 py-3 text-ink">{file.path}{file.managed && <span className="ml-2 ui-tag">系统同步</span>}</td><td className="px-3 py-3 text-ink-secondary">{new Date(file.updated_at).toLocaleString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{(file.size / 1024).toFixed(1)} KB</td><td className="px-3 py-3">{file.managed ? <span className="text-ink-muted">受保护</span> : <button type="button" onClick={() => void deleteKnowledge(file.path)} className="ui-link">删除</button>}</td></tr>)}</tbody></table></div></div>
+        <div className="ui-card lg:col-span-2"><div className="ui-card-header"><div className="flex items-center gap-2.5"><FileText className="h-4 w-4 text-ink-muted" /><h3 className="type-h3 text-ink">公共知识库</h3></div><span className="ui-tag">团队只读 · Admin 管理</span></div><div className="mb-4 flex flex-wrap gap-2"><input value={knowledgeQuery} onChange={event => setKnowledgeQuery(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="搜索文件" /><button type="button" onClick={() => void fetchKnowledge()} className="ui-button-secondary">搜索</button><input value={knowledgeCategory} onChange={event => setKnowledgeCategory(event.target.value)} className="ui-input px-3 py-2 text-sm" placeholder="目录（可选）" /><label className="ui-button-primary cursor-pointer">上传文件<input type="file" className="hidden" onChange={event => void uploadKnowledge(event.target.files?.[0])} /></label></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-ink-muted"><tr><th className="px-3 py-2">文件</th><th className="px-3 py-2">更新时间</th><th className="px-3 py-2">大小</th><th className="px-3 py-2">操作</th></tr></thead><tbody>{knowledgeFiles.map(file => <tr key={file.path} className="border-t border-grid/60"><td className="px-3 py-3 text-ink">{file.path}{file.managed && <span className="ml-2 ui-tag">系统同步</span>}</td><td className="px-3 py-3 text-ink-secondary">{new Date(file.updated_at).toLocaleString("zh-CN")}</td><td className="px-3 py-3 text-ink-secondary">{(file.size / 1024).toFixed(1)} KB</td><td className="px-3 py-3">{file.managed ? <span className="text-ink-muted">受保护</span> : <button type="button" onClick={() => setPendingKnowledgeDelete(file.path)} className="ui-link">删除</button>}</td></tr>)}</tbody></table></div></div>
         <div className="ui-card lg:col-span-2"><div className="ui-card-header"><h3 className="type-h3 text-ink">Artifact 知识审核</h3><span className="ui-tag">{artifactRequests.length} 待审核</span></div><div className="space-y-2">{artifactRequests.map(item => <div key={item.id} className="flex items-center justify-between rounded-lg bg-surface-subtle p-3 text-sm"><div><p className="font-semibold text-ink">{item.title}</p><p className="text-xs text-ink-muted">{item.type} · {new Date(item.created_at).toLocaleString("zh-CN")}</p></div><button type="button" onClick={() => void publishArtifact(item.id)} className="ui-button-primary px-3 py-1.5 text-xs">确认发布</button></div>)}{!artifactRequests.length && <p className="text-sm text-ink-muted">暂无待审核成果。</p>}</div></div>
         </>}
       </div>
       }
 
-      {previewHtml && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/60 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="邮件预览">
-          <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-grid px-5 py-3">
-              <div>
-                <h2 className="text-sm font-semibold text-ink">每日洞察邮件预览</h2>
-                <p className="text-xs text-ink-muted">以下内容与正式发送版本一致</p>
-              </div>
-              <button onClick={() => setPreviewHtml("")} className="rounded-lg p-2 text-ink-muted hover:bg-surface-subtle hover:text-ink" aria-label="关闭邮件预览">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <iframe title="每日洞察邮件" srcDoc={previewHtml} sandbox="" className="min-h-0 flex-1 bg-surface-subtle" />
-          </div>
-        </div>
-      )}
+      <ConfirmDialog open={!!pendingKnowledgeDelete} onOpenChange={(open) => { if (!open) setPendingKnowledgeDelete(""); }} title="删除公共知识文件？" description={pendingKnowledgeDelete ? `「${pendingKnowledgeDelete}」将被永久删除。` : undefined} confirmLabel="删除" danger onConfirm={() => deleteKnowledge(pendingKnowledgeDelete)} />
+
+      <AppDialog open={!!previewHtml} onClose={() => setPreviewHtml("")} title="每日洞察邮件预览" description="以下内容与正式发送版本一致" className="h-[92dvh] w-[min(80rem,calc(100vw-2rem))] max-w-none overflow-hidden">
+        <iframe title="每日洞察邮件" srcDoc={previewHtml} sandbox="" className="h-[calc(92dvh-8rem)] w-full bg-surface-subtle" />
+      </AppDialog>
 
       {/* Save Button */}
       {!adminOnly && <div className="flex justify-end">

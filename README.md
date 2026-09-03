@@ -1,8 +1,8 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.6`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.7`
 
-[![Version](https://img.shields.io/badge/version-0.8.6-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-0.8.7-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
@@ -20,7 +20,7 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队：
 Insight → Requirement → Solution
 ```
 
-`v0.8.6` 修复方案实践 AI 填充泄露模型工具调用协议的问题，并安全读取 GitHub README 作为背景事实；InsightPro 仍是唯一账号、业务系统和写入边界。
+`v0.8.7` 统一了关键点击、确认、通知与 AI 工作流交互，并将 AI 填充改为可取消、可校对的草稿；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 
