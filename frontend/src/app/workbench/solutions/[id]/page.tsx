@@ -7,12 +7,13 @@ import { ArrowLeft, ArrowUpRight, Bot, ClipboardList, Save, Trash2 } from "lucid
 import { SectionHeader } from "@/components/section-header";
 import { AgentAction } from "@/components/agent-action";
 import { BackgroundFillDialog } from "@/components/background-fill-dialog";
-import { ConfirmDialog } from "@/components/ui";
+import { ConfirmDialog, useToast } from "@/components/ui";
 import { priorityLabels, Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
 
 export default function SolutionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const { toast } = useToast();
   const [item, setItem] = useState<Solution | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -28,11 +29,13 @@ export default function SolutionDetailPage() {
     event.preventDefault();
     if (!item) return;
     setSaving(true);
+    setError("");
     try {
       setItem(await workbenchFetch<Solution>(`/solutions/${id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: item.name, description: item.description, category: item.category, status: item.status, version: item.version, reference_url: item.reference_url || null }),
       }));
+      toast("方案实践已保存。", "success");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "保存失败"); }
     finally { setSaving(false); }
   };

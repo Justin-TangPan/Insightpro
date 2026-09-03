@@ -89,7 +89,7 @@ export function BackgroundFillDialog({ name, description, referenceUrl, onApply 
         <button type="button" disabled={busy || !draft || Boolean(error)} onClick={apply} className="ui-button-primary"><Check className="h-4 w-4" />采用草稿</button>
       </>}>
         <div>
-          {busy && <div className="flex min-h-64 flex-col items-center justify-center rounded-xl bg-surface-subtle text-center" aria-live="polite"><LoaderCircle className="h-6 w-6 animate-spin text-primary" /><p className="mt-3 text-sm font-semibold">{progress}</p><p className="mt-1 text-xs text-ink-muted">可随时取消，本次内容不会被修改。</p></div>}
+          {busy && <div className="flex min-h-64 flex-col items-center justify-center rounded-xl bg-surface-subtle text-center" aria-live="polite"><LoaderCircle className="ui-spinner h-6 w-6 text-primary" /><p className="mt-3 text-sm font-semibold">{progress}</p><p className="mt-1 text-xs text-ink-muted">可随时取消，本次内容不会被修改。</p></div>}
           {!busy && error && <div role="alert" className="rounded-xl bg-warning-soft p-5"><p className="font-semibold text-warning">背景信息生成失败</p><p className="mt-1 text-sm text-warning">{error}</p><button type="button" onClick={() => void generate()} className="ui-button-secondary mt-4"><RefreshCw className="h-4 w-4" />重试</button></div>}
           {!busy && !error && draft && <div className="grid gap-4">
             <Preview label="当前内容 · 保留" content={original} empty="当前没有背景信息" />

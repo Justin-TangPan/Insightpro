@@ -324,3 +324,6 @@ button:disabled, [aria-disabled="true"] { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* Loading is state feedback, not decorative motion. */
+:root .ui-spinner { animation: spin .8s linear infinite !important; }

@@ -6,10 +6,12 @@ import { FormEvent, Suspense, useState } from "react";
 import { ArrowLeft, ArrowRight, Blocks } from "lucide-react";
 import { BackgroundFillDialog } from "@/components/background-fill-dialog";
 import { SectionHeader } from "@/components/section-header";
+import { useToast } from "@/components/ui";
 import { Solution, workbenchFetch } from "@/lib/workbench";
 
 function SolutionCreateForm() {
   const router = useRouter();
+  const { toast } = useToast();
   const params = useSearchParams();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -24,7 +26,8 @@ function SolutionCreateForm() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, reference_url: form.reference_url || null }),
       });
-      router.push(`/workbench/solutions/${item.id}`);
+      toast("方案实践已创建，正在打开详情。", "success");
+      router.replace(`/workbench/solutions/${item.id}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "创建失败");
     } finally {
