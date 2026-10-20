@@ -31,6 +31,7 @@ command -v docker-compose >/dev/null || {
 }
 docker info >/dev/null
 compose config >/dev/null
+python3 "$PROJECT_ROOT/scripts/check-version.py"
 
 (
   cd "$PROJECT_ROOT/backend"
