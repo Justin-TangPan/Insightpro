@@ -8,37 +8,55 @@
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](compose.yaml)
 
-InsightPro 面向解决方案架构师、技术负责人和技术决策团队：持续发现值得关注的技术项目与官方解决方案，将洞察沉淀为可跟踪、可复用的方案实践，并在统一账号体系下提供隔离的团队 AI Space。
+InsightPro 面向解决方案架构师、技术负责人和技术决策团队：在首页汇总 AI 情报，跟踪 GitHub 项目、厂商 AI 应用与官方解决方案，将洞察沉淀为可复用的方案实践，并在统一账号体系下提供隔离的团队 AI Space。
 
 ## 核心价值
 
-- **持续洞察**：每日跟踪 GitHub 热门项目和官方技术解决方案目录变化，降低人工检索成本。
+- **持续洞察**：从首页雷达查看近期信号，跟踪 GitHub 热门项目、厂商 AI 应用和官方解决方案目录变化。
 - **辅助判断**：通过 AI 生成项目速读、技术价值评估和分析报告，帮助团队快速识别值得投入的方向。
 - **推动落地**：将洞察保存为方案实践，并在 AI 工作区中基于背景材料开展分析和交付。
 
 ```text
-技术雷达 → 方案实践 → AI 工作区
+首页情报雷达 → GitHub / AI 应用 / 解决方案 → 方案实践 → AI 工作区
 ```
 
 当前候选版本为 `v1.0.0-rc.16`；完成国内舆情数据接入验收后再标记正式 `v1.0.0`。详情见[版本记录](log/versions.md)；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 
-### 项目洞察
+以下截图来自 `v1.0.0-rc.16` 的实际运行页面；情报数量和内容会随采集更新。
 
-![InsightPro 项目洞察](doc/assets/readme/hotspots.png)
+### 首页 · AI 情报雷达
 
-### 解决方案洞察
+![InsightPro 首页 AI 情报雷达](doc/assets/readme/home.png)
 
-![InsightPro 解决方案洞察](doc/assets/readme/solutions.png)
+### AI 应用
+
+![InsightPro AI 应用发布与分析](doc/assets/readme/ai-apps.png)
+
+### GitHub 项目趋势
+
+![InsightPro GitHub 项目趋势](doc/assets/readme/hotspots.png)
+
+### 解决方案
+
+![InsightPro 官方解决方案目录与变化](doc/assets/readme/solutions.png)
 
 ## 核心能力
 
-### 项目洞察
+### 首页 · AI 情报雷达
+
+按 AI 应用、Agent、模型与技术、AI Infra、商业化五个方向呈现近 7 天情报，点击雷达编号可查看对应信号。
+
+### GitHub
 
 跟踪 GitHub Trending 日榜、周榜和月榜，提供历史变化、项目用途速读和技术价值评估。热点项目可以一键保存为方案实践。
 
-### 云厂商解决方案洞察
+### AI 应用
+
+汇集各大厂商官方 AI 应用发布信息，保留官方原文链接，并展示应用能力、生态机会和待验证点。
+
+### 解决方案
 
 同步阿里云、华为云官方技术解决方案目录，每日识别新增、更新和下线变化，并保留原始来源。
 
