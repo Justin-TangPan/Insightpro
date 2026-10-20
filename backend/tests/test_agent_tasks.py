@@ -16,26 +16,52 @@ from services import ai_usage_service
 def test_business_action_resolves_to_a_server_owned_task():
     key, task = agent_task_service.resolve("cloud_solution", "analyze")
     assert key == "solution_analysis"
-    assert task["title"] == "分析解决方案"
-    assert "技术架构" in task["prompt"]
+    assert task["title"] == "Analyze Solution"
+    assert "open-source projects" in task["prompt"]
+    assert "cloud service resource" in task["prompt"]
+    assert "not confirmed" in task["prompt"]
+
+
+def test_fake_stream_chunker_is_removed():
+    assert not hasattr(agent, "_text_chunks")
+
+
+def test_native_stream_forwards_chunks_through_heartbeat_wrapper():
+    async def source():
+        yield "a"
+        yield "b"
+
+    async def collect():
+        return [item async for item in agent._heartbeat_chunks(source())]
+
+    assert asyncio.run(collect()) == ["a", "b"]
 
 
 def test_solution_practice_action_uses_the_enabled_sac_workflow():
     key, task = agent_task_service.resolve("solution", "architecture")
     assert key == "solution_practice"
-    assert task["title"] == "做成解决方案实践"
+    assert task["title"] == "Create Solution Practice"
     assert "sac-project" in task["prompt"]
     assert "Architecture Contract" in task["prompt"]
-    assert "背景信息" in task["prompt"]
+    assert "background information" in task["prompt"]
+
+
+def test_solution_home_requires_value_story_and_two_rfs_deliverables():
+    messages = insight_agent_runtime.messages_for({
+        "context_type": "chat",
+        "context_snapshot": {"page_path": "/workbench/ai"},
+        "conversation": [],
+    }, "建设企业知识库")
+    system = messages[0]["content"]
+    assert all(item in system for item in ("application scenarios", "solution advantages", "applicable customers", "cloud-stack.tf", "deploy-guide.md", "do not invoke deployments"))
 
 
 def test_model_selection_is_limited_to_configured_models(monkeypatch):
     monkeypatch.setattr(insight_agent_runtime.settings, "CHAT_MODEL", "fast")
-    monkeypatch.setattr(insight_agent_runtime.settings, "CHAT_MODELS", ("fast", "careful"))
     assert insight_agent_runtime.resolve_model(None) == "fast"
-    assert insight_agent_runtime.resolve_model("careful") == "careful"
+    assert insight_agent_runtime.available_models() == ("fast",)
     with pytest.raises(ValueError):
-        insight_agent_runtime.resolve_model("unknown")
+        insight_agent_runtime.resolve_model("careful")
 
 
 def test_usage_accepts_openai_and_provider_token_names():
@@ -51,16 +77,16 @@ def test_unsupported_action_is_rejected_before_context_is_read():
 
 def test_artifact_uses_only_the_callers_session_output(monkeypatch):
     monkeypatch.setattr(agent_service, "get_session", lambda *_: {
-        "id": "session-1", "task_key": "solution_analysis", "task_title": "分析解决方案",
+        "id": "session-1", "task_key": "solution_analysis", "task_title": "Analyze Solution",
         "context_snapshot": {"context_type": "solution", "context_id": "7"},
-        "conversation": [{"role": "assistant", "content": "第一版"}, {"role": "assistant", "content": "最终结论"}],
+        "conversation": [{"role": "assistant", "content": "First version"}, {"role": "assistant", "content": "Final conclusion"}],
     })
     stored = []
     monkeypatch.setattr(agent_service.artifact_repository, "create", lambda *args: stored.append(args) or {"id": "artifact-1"})
     assert agent_service.create_artifact("user-1", "session-1", "", "Markdown") == {"id": "artifact-1"}
     assert stored[0][0] == "user-1"
-    assert stored[0][5] == "最终结论"
-    assert stored[0][6] == "分析解决方案.md"
+    assert stored[0][5] == "Final conclusion"
+    assert stored[0][6] == "Analyze Solution.md"
     assert stored[0][7] == "text/markdown"
 
 
@@ -82,12 +108,16 @@ def test_page_chat_never_fetches_external_or_unowned_context(monkeypatch):
 
 def test_empty_session_delete_is_user_scoped(monkeypatch):
     deleted = []
+    cleaned = []
+    monkeypatch.setattr(agent_service.artifact_repository, "delete_knowledge_for_session", lambda user_id, session_id: cleaned.append((user_id, session_id)))
     monkeypatch.setattr(agent_service.repository, "delete_agent_session", lambda user_id, session_id: deleted.append((user_id, session_id)) or True)
     agent_service.delete_session("user-1", "empty-session")
     assert deleted == [("user-1", "empty-session")]
+    assert cleaned == [("user-1", "empty-session")]
 
 
 def test_missing_or_unowned_session_cannot_be_deleted(monkeypatch):
+    monkeypatch.setattr(agent_service.artifact_repository, "delete_knowledge_for_session", lambda *_: None)
     monkeypatch.setattr(agent_service.repository, "delete_agent_session", lambda *_: False)
     with pytest.raises(HTTPException) as error:
         agent_service.delete_session("user-2", "empty-session")
@@ -142,7 +172,7 @@ def test_generated_text_files_are_parsed_and_validated(monkeypatch):
 
 
 def test_file_only_reply_keeps_a_short_history_message():
-    assert insight_agent_runtime.reply_without_files("```file:data.csv\na,b\n1,2\n```", {"data.csv"}) == "已生成文件。"
+    assert insight_agent_runtime.reply_without_files("```file:data.csv\na,b\n1,2\n```", {"data.csv"}) == "Files generated."
 
 
 def test_generated_file_rejects_more_than_100kb(monkeypatch):
@@ -173,13 +203,16 @@ def test_download_uses_owned_artifacts_real_metadata(monkeypatch):
 
 
 def test_stream_returns_file_metadata_and_history_reference(monkeypatch):
-    monkeypatch.setattr(agent.agent_service, "get_session", lambda *_: {"id": "session-1", "conversation": []})
+    monkeypatch.setattr(agent.agent_service, "get_session", lambda *_: {"id": "session-1", "context_type": "chat", "conversation": []})
 
     async def model_stream(*_):
-        yield "已完成。\n```file:result.csv\na,b\n1,2\n```"
+        yield {"type": "text.delta", "delta": "已完成。"}
+        yield {"type": "message.end", "text": "已完成。\n```file:result.csv\na,b\n1,2\n```"}
 
     artifact = {"id": "artifact-1", "session_id": "session-1", "title": "result.csv", "filename": "result.csv", "mime_type": "text/csv", "size_bytes": 8, "type": "CSV", "knowledge_status": "private", "created_at": "2026-09-02T00:00:00Z"}
-    monkeypatch.setattr(agent.insight_agent_runtime, "stream_reply", model_stream)
+    monkeypatch.setattr(agent.embedded_agent_service, "stream", model_stream)
+    monkeypatch.setattr(agent.context_repository, "save_runtime_history", lambda *_: None)
+    monkeypatch.setattr(agent.ai_usage_service, "record", lambda *_: None)
     monkeypatch.setattr(agent.agent_service, "create_generated_artifacts", lambda *_: [artifact])
     recorded = []
     monkeypatch.setattr(agent.agent_service, "record_turn", lambda *args: recorded.append(args))

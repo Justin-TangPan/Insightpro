@@ -9,7 +9,6 @@ import asyncio
 import logging
 import threading
 from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone as tz
 
 from settings import settings
@@ -18,47 +17,24 @@ from crawlers import init_crawler_tables
 
 from routers import (
     auth, hotspots, solutions, competitors, reports, chat, crawling,
-    analytics, search, dashboard, email, workbench, agent,
+    analytics, search, dashboard, email, workbench, agent, community, tasks,
 )
 
 
 def schedule_jobs(scheduler: BackgroundScheduler):
     """注册所有定时任务"""
-    from crawlers import run_daily_crawl
-    from services.email_service import send_scheduled_digests
-    from services.aliyun_solution_service import refresh_solution_catalogs
-    from main_legacy import (
-        refresh_and_store, refresh_competitor_news,
-        evaluate_trending_business, generate_project_summaries, cleanup_old_data,
-    )
-    jobs = [
-        (refresh_and_store, 9, 0, "github_daily"),
-        (refresh_solution_catalogs, 9, 0, "solution_catalogs_daily"),
-        (run_daily_crawl, 9, 0, "daily_crawl"),
-        (refresh_competitor_news, 9, 2, "competitor_daily"),
-        (evaluate_trending_business, 9, 3, "trending_business_eval_daily"),
-        (generate_project_summaries, 9, 4, "project_summaries_daily"),
-        (cleanup_old_data, 3, 0, "cleanup"),
-    ]
-    for fn, h, m, jid in jobs:
+    from services.task_service import TASKS, run_task, task_trigger
+    for task in TASKS:
         scheduler.add_job(
-            fn,
-            CronTrigger(hour=h, minute=m, timezone=tz("Asia/Shanghai")),
-            id=jid,
+            run_task,
+            task_trigger(task),
+            args=[task.key],
+            id=task.key,
             coalesce=True,
             max_instances=1,
             misfire_grace_time=6 * 60 * 60,
             replace_existing=True,
         )
-    # ponytail: one scheduler matches the current single-API deployment; add a DB lease before running replicas.
-    scheduler.add_job(
-        send_scheduled_digests,
-        CronTrigger(minute="*", second=0, timezone=tz("Asia/Shanghai")),
-        id="scheduled_email",
-        coalesce=True,
-        max_instances=1,
-        replace_existing=True,
-    )
 
 
 @asynccontextmanager
@@ -71,12 +47,13 @@ async def lifespan(app: FastAPI):
     scheduler = BackgroundScheduler(timezone=tz("Asia/Shanghai"))
     schedule_jobs(scheduler)
     scheduler.start()
-    print("[OK] 定时任务调度器已启动")
+    logger = logging.getLogger(__name__)
+    logger.info("定时任务调度器已启动")
     try:
         init_deep_searcher()
-        print("[OK] Context search initialized")
+        logger.info("Context search initialized")
     except Exception as e:
-        print(f"[WARN] Context search init failed: {e}")
+        logger.warning("Context search init failed: %s", e)
     init_crawler_tables()
     if settings.STARTUP_CATCHUP_ENABLED:
         from services.startup_service import run_startup_catchup
@@ -98,10 +75,14 @@ app.add_middleware(
     allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
 )
 
+from middleware.error_handler import SanitizingErrorHandler
+app.add_middleware(SanitizingErrorHandler)
+
 app.include_router(auth.router, prefix="/api", tags=["Auth"])
 app.include_router(hotspots.router, prefix="/api", tags=["Hotspots"])
 app.include_router(solutions.router, prefix="/api", tags=["Solutions"])
 app.include_router(competitors.router, prefix="/api", tags=["Competitors"])
+app.include_router(community.router, prefix="/api", tags=["Community"])
 app.include_router(reports.router, prefix="/api", tags=["Reports"])
 app.include_router(chat.router, prefix="/api", tags=["Chat"])
 app.include_router(crawling.router, prefix="/api", tags=["Crawling"])
@@ -111,6 +92,7 @@ app.include_router(dashboard.router, prefix="/api", tags=["Dashboard"])
 app.include_router(email.router, prefix="/api", tags=["Email"])
 app.include_router(workbench.router, prefix="/api", tags=["Workbench"])
 app.include_router(agent.router, prefix="/api", tags=["Insight-Agent"])
+app.include_router(tasks.router, prefix="/api", tags=["Tasks"])
 
 
 @app.get("/")

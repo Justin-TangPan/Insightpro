@@ -13,12 +13,14 @@ def test_subscriber_schedule_and_sent_html(monkeypatch):
         "last_sent_at": monday - timedelta(days=1),
     }
     assert email_service.subscriber_is_due(subscriber, monday)
-    assert not email_service.subscriber_is_due(subscriber, monday.replace(hour=9, minute=6))
+    assert email_service.subscriber_is_due(subscriber, monday.replace(hour=9, minute=6))
+    assert not email_service.subscriber_is_due(subscriber, monday.replace(hour=9, minute=4))
     assert not email_service.subscriber_is_due({**subscriber, "last_sent_at": monday}, monday)
 
     sent = []
     monkeypatch.setattr(email_service, "get_subscribers", lambda: [subscriber])
-    monkeypatch.setattr(email_service, "build_daily_digest_html", lambda: "<html>exact-preview-html</html>")
+    monkeypatch.setattr(email_service, "daily_digest_ready", lambda _: True)
+    monkeypatch.setattr(email_service, "build_daily_digest_html", lambda language: f"<html>{language}</html>")
     monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: sent.append((email, html)) or True)
 
     class Cursor:
@@ -38,4 +40,8 @@ def test_subscriber_schedule_and_sent_html(monkeypatch):
 
     monkeypatch.setattr(email_service, "get_db", Context)
     assert email_service.send_scheduled_digests(monday) == {"sent": 1, "total": 1}
-    assert sent == [("reader@example.com", "<html>exact-preview-html</html>")]
+    assert sent == [("reader@example.com", "<html>zh</html>")]
+
+    monkeypatch.setattr(email_service, "daily_digest_ready", lambda _: False)
+    assert email_service.send_scheduled_digests(monday.replace(hour=9, minute=6)) == {"sent": 0, "total": 0}
+    assert len(sent) == 1

@@ -10,6 +10,10 @@ InsightPro 是技术解决方案洞察平台，维护的业务主线是 **Insigh
 
 如果工作区存在 `.insight/INSIGHT_CONTEXT.md`，在回答用户前先阅读它。它由 InsightPro Backend 按当前用户权限生成，包含当前业务对象的结构化快照；不得把它替换为自行猜测的数据。用户从“Agent 分析”进入时，当前对象就是该文件中的方案：直接围绕它开始分析，不要先搜索工作区、不要询问“这个方案”指什么。
 
+如果存在 `.insight/INSIGHT_RUNTIME.md` 和 `.insight/WORKFLOW_STATE.json`，先读取其中已绑定的 Skill、Workflow 和当前 phase。只更新 `phase_outputs`（以当前 phase 声明的 output 名称为键，值为 Workspace 内实际生成文件的相对路径）和 `gate_requested`；不得自行修改 `phase`、`gate_passed`、`next_phase` 或 `status`。Runtime Manager 会校验输出文件、运行安全白名单内的质量命令并决定 gate，下一次执行时才进入获准的阶段。
+
+用户要求 Terraform、Shell、配置或其他可交付脚本时，必须在当前 Workspace 中创建真实文件（例如 `main.tf`、`deploy.sh`），不要只把代码放在回答的 Markdown 代码块里。完成后将文件相对路径写入当前 phase 的 `phase_outputs`，回答中说明文件名；Runtime Manager 会自动把本轮新增或修改的安全文本文件回传到 InsightPro，供用户预览和下载。
+
 用户要求形成 Requirement 或 Solution 时，可以在 `.insight/INSIGHT_ACTION.json` 写入一个提案，且只能使用：
 
 - `create_requirement_draft`：`payload` 包含 `title`、`description`、可选 `priority`。
@@ -36,6 +40,6 @@ InsightPro 是技术解决方案洞察平台，维护的业务主线是 **Insigh
 - `aliyun_solutions` 是外部云厂商解决方案洞察数据；`solutions` 是用户管理的工作台数据。不得混淆。
 - 不得重新引入行业洞察、政策雷达或招标信息。
 - 可在当前用户隔离的 Git Workspace 内阅读、创建、修改和删除文件；不要修改 InsightPro 业务数据、生产目录或生产配置。
-- 不运行 Shell，不调用有副作用的 API，不部署，不执行 git push 或 merge。
+- 不直接运行 Shell；`terraform validate`、`bash -n` 和 SAC 测试由 Runtime Manager 按当前 gate 的固定白名单执行。不得调用有副作用的 API，不部署，不执行 git push 或 merge。
 - 绝不读取或暴露 `.env`、凭据、令牌、生产密钥、数据库密码或其他 Secret。
 - 交互式 AI 由 Insight-Agent 承担；技术摘要、价值评估、研报、采集与调度等后台 AI Pipeline 仍是 InsightPro 的业务能力。

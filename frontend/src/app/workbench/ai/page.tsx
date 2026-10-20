@@ -1,5 +1,8 @@
 "use client";
 
+import { usePreferences } from "@/lib/preferences";
+
 export default function AIWorkPage() {
-  return <div className="page-stack"><div className="ui-card py-20 text-center text-sm text-ink-muted">AI 工作已在当前工作台中打开。</div></div>;
+  const { preferences } = usePreferences();
+  return <div className="page-stack"><div className="ui-card py-20 text-center text-sm text-ink-muted">{preferences.language === "en" ? "Insight Agent is open on this page." : "Insight Agent 已在当前页面中打开。"}</div></div>;
 }

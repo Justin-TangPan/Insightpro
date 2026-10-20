@@ -1,20 +1,23 @@
-"""爬虫控制路由"""
+"""Crawler control routes"""
 import asyncio
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from db import get_db
 from routers.auth import require_auth
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
 @router.post("/crawl/trigger")
 async def trigger_crawl(_=Depends(require_auth)):
     try:
-        from crawlers import run_daily_crawl
-        stats = await asyncio.to_thread(run_daily_crawl)
-        return {"status": "success", "message": "爬取完成", "stats": stats}
+        from services.task_service import run_task
+        stats = await asyncio.to_thread(run_task, "daily_crawl", "manual")
+        return {"status": "success", "message": "Crawl completed", "stats": stats}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"爬取失败: {str(e)}")
+        logger.exception("Crawl failed")
+        raise HTTPException(status_code=500, detail="Crawl failed, please try again later")
 
 
 @router.get("/crawl/status")

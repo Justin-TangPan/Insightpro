@@ -5,6 +5,7 @@ import { useCallback, useState, useEffect } from "react";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { AppDialog } from "@/components/ui";
+import { usePreferences } from "@/lib/preferences";
 import {
   FileText, Trash2, Plus, Loader2, AlertCircle,
   CheckCircle2, Clock, Search, RefreshCw
@@ -33,6 +34,8 @@ interface ReportDetail extends Report {
 }
 
 export default function ReportsPage() {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -153,17 +156,17 @@ export default function ReportsPage() {
   };
 
   const statusLabel: Record<string, string> = {
-    pending: "等待中", processing: "分析中", completed: "已完成", failed: "失败"
+    pending: en ? "Pending" : "等待中", processing: en ? "Processing" : "分析中", completed: en ? "Completed" : "已完成", failed: en ? "Failed" : "失败"
   };
 
   const formatDate = (d: string) => {
-    try { return new Date(d).toLocaleString("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+    try { return new Date(d).toLocaleString(en ? "en-US" : "zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
     catch { return d; }
   };
 
   // Render AI report content
   const renderReportContent = (result: ReportResult | undefined) => {
-    if (!result) return <p className="text-ink-muted">无报告内容</p>;
+    if (!result) return <p className="text-ink-muted"> {en ? "No report content" : "无报告内容"}</p>;
     const summaryMetrics = result.summary_metrics;
     // If result has structured fields
     if (result.summary_metrics || result.takeaways || result.detailed_report || result.strategies) {
@@ -171,7 +174,7 @@ export default function ReportsPage() {
         <div className="space-y-6">
           {summaryMetrics && (
             <div>
-              <h4 className="text-sm font-semibold text-ink mb-3">市场指标</h4>
+              <h4 className="text-sm font-semibold text-ink mb-3"> {en ? "Market metrics" : "市场指标"}</h4>
               <div className="grid grid-cols-3 gap-3">
                 {Object.entries(summaryMetrics).map(([k, v]) => (
                   <div key={k} className="rounded-lg bg-surface-subtle p-3 text-center">
@@ -184,7 +187,7 @@ export default function ReportsPage() {
           )}
           {Array.isArray(result.takeaways) && (
             <div>
-              <h4 className="text-sm font-semibold text-ink mb-3">核心结论</h4>
+              <h4 className="text-sm font-semibold text-ink mb-3"> {en ? "Key takeaways" : "核心结论"}</h4>
               <div className="space-y-2">
                 {result.takeaways.map((t, i) => (
                   <div key={i} className="rounded-lg bg-surface-subtle p-4">
@@ -196,7 +199,7 @@ export default function ReportsPage() {
           )}
           {typeof result.detailed_report === "string" && result.detailed_report && (
             <div>
-              <h4 className="text-sm font-semibold text-ink mb-3">详细报告</h4>
+              <h4 className="text-sm font-semibold text-ink mb-3"> {en ? "Detailed report" : "详细报告"}</h4>
               <div className="prose max-w-none rounded-xl bg-surface-subtle p-5">
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">{result.detailed_report}</p>
               </div>
@@ -204,7 +207,7 @@ export default function ReportsPage() {
           )}
           {Boolean(result.strategies) && (
             <div>
-              <h4 className="text-sm font-semibold text-ink mb-3">战略建议</h4>
+              <h4 className="text-sm font-semibold text-ink mb-3"> {en ? "Strategic recommendations" : "战略建议"}</h4>
               <div className="rounded-lg bg-surface-subtle p-4">
                 <p className="text-sm text-ink-secondary leading-relaxed whitespace-pre-wrap">
                   {typeof result.strategies === "string" ? result.strategies : JSON.stringify(result.strategies, null, 2)}
@@ -231,15 +234,15 @@ export default function ReportsPage() {
     <div className="page-stack">
       <SectionHeader
         badge="Reports"
-        title="深度研报"
-        subtitle="AI 生成的结构化商业分析报告"
+        title={en ? "Research Reports" : "深度研报"}
+        subtitle={en ? "Structured AI business analysis reports" : "AI 生成的结构化商业分析报告"}
         action={
           <button
             onClick={() => setShowNew(true)}
             className="ui-button-primary"
           >
             <Plus className="h-4 w-4" />
-            新建分析
+            {en ? "New analysis" : "新建分析"}
           </button>
         }
       />
@@ -253,34 +256,34 @@ export default function ReportsPage() {
         }`}>
           {statusIcon(taskStatus)}
           <span className="text-sm font-medium text-ink">
-            {taskStatus === "processing" && "AI 正在分析中，请稍候..."}
-            {taskStatus === "completed" && "分析完成！"}
-            {taskStatus === "failed" && "分析失败，请重试"}
-            {taskStatus === "pending" && "任务排队中..."}
+            {taskStatus === "processing" && (en ? "AI is analyzing; please wait..." : "AI 正在分析中，请稍候...")}
+            {taskStatus === "completed" && (en ? "Analysis complete" : "分析完成！")}
+            {taskStatus === "failed" && (en ? "Analysis failed; please retry" : "分析失败，请重试")}
+            {taskStatus === "pending" && (en ? "Task queued..." : "任务排队中...")}
           </span>
           {taskStatus === "processing" && <Loader2 className="h-4 w-4 text-primary animate-spin ml-auto" />}
         </div>
       )}
 
       {/* New analysis form */}
-      <AppDialog open={showNew} onClose={() => !submitting && setShowNew(false)} title="新建 AI 分析任务" description="输入目标与背景后开始生成结构化分析。" busy={submitting} footer={<><button type="button" onClick={() => setShowNew(false)} disabled={submitting} className="ui-button-secondary">取消</button><button type="button" onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="ui-button-primary">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}开始分析</button></>}>
+      <AppDialog open={showNew} onClose={() => !submitting && setShowNew(false)} title={en ? "New AI analysis" : "新建 AI 分析任务"} description={en ? "Enter a goal and context to generate structured analysis." : "输入目标与背景后开始生成结构化分析。"} busy={submitting} footer={<><button type="button" onClick={() => setShowNew(false)} disabled={submitting} className="ui-button-secondary"> {en ? "Cancel" : "取消"}</button><button type="button" onClick={handleSubmit} disabled={submitting || !newTitle || !newKeyword} className="ui-button-primary">{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" /> }{en ? "Start analysis" : "开始分析"}</button></>}>
         <div className="space-y-4">
           <div>
-            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">分析标题</label>
+            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5"> {en ? "Analysis title" : "分析标题"}</label>
             <input
               type="text"
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
-              placeholder="例：2026年新能源汽车市场深度洞察"
+              placeholder={en ? "e.g. 2026 electric vehicle market analysis" : "例：2026年新能源汽车市场深度洞察"}
               className="ui-input w-full px-3.5 py-2 text-sm"
             />
           </div>
           <div>
-            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">分析关键词 / 背景数据</label>
+            <label className="text-xs font-semibold text-ink-muted uppercase tracking-wider block mb-1.5"> {en ? "Keywords / background" : "分析关键词 / 背景数据"}</label>
             <textarea
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
-              placeholder="输入技术、解决方案或友商名称，AI 将基于平台数据生成深度分析报告"
+              placeholder={en ? "Enter a technology, solution or competitor for an AI report" : "输入技术、解决方案或友商名称，AI 将基于平台数据生成深度分析报告"}
               rows={4}
               className="ui-input w-full resize-none px-3.5 py-2 text-sm"
             />
@@ -293,19 +296,19 @@ export default function ReportsPage() {
         <div className="lg:col-span-1">
           <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
             <div className="flex items-center justify-between px-4 py-3 border-b border-grid/60">
-              <h3 className="type-h3 text-ink">报告列表</h3>
+              <h3 className="type-h3 text-ink"> {en ? "Report list" : "报告列表"}</h3>
               <button onClick={fetchReports} className="text-ink-muted hover:text-ink transition-colors">
                 <RefreshCw className="h-3.5 w-3.5" />
               </button>
             </div>
             <div className="divide-y divide-grid/60 max-h-[600px] overflow-y-auto">
               {loading ? (
-                <div className="p-6 text-center text-ink-muted text-sm">加载中...</div>
+                <div className="p-6 text-center text-ink-muted text-sm"> {en ? "Loading..." : "加载中..."}</div>
               ) : reports.length === 0 ? (
                 <div className="p-6 text-center">
                   <FileText className="h-8 w-8 text-ink-muted mx-auto mb-2" />
-                  <p className="text-sm text-ink-muted">暂无报告</p>
-                  <p className="text-xs text-ink-muted mt-1">点击&quot;新建分析&quot;生成第一份 AI 研报</p>
+                  <p className="text-sm text-ink-muted"> {en ? "No reports yet" : "暂无报告"}</p>
+                  <p className="text-xs text-ink-muted mt-1"> {en ? "Use New analysis to create your first AI report" : "点击新建分析生成第一份 AI 研报"}</p>
                 </div>
               ) : (
                 reports.map((r) => (
@@ -328,9 +331,9 @@ export default function ReportsPage() {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-4 py-2 border-t border-grid/60 text-xs text-ink-muted">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="hover:text-ink disabled:opacity-30">上一页</button>
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="hover:text-ink disabled:opacity-30"> {en ? "Previous" : "上一页"}</button>
                 <span>{page} / {totalPages}</span>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="hover:text-ink disabled:opacity-30">下一页</button>
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="hover:text-ink disabled:opacity-30"> {en ? "Next" : "下一页"}</button>
               </div>
             )}
           </div>
@@ -341,7 +344,7 @@ export default function ReportsPage() {
           {!selectedId ? (
             <div className="ui-card !p-12 text-center">
               <FileText className="h-12 w-12 text-ink-muted mx-auto mb-3" />
-              <p className="text-ink-secondary">选择左侧报告查看详情</p>
+              <p className="text-ink-secondary"> {en ? "Select a report to view details" : "选择左侧报告查看详情"}</p>
             </div>
           ) : detailLoading ? (
             <div className="ui-card !p-12 text-center">
@@ -364,7 +367,7 @@ export default function ReportsPage() {
                   <button
                     onClick={() => handleDelete(detail.id)}
                     className="p-2 rounded-lg hover:bg-warning-soft text-ink-muted hover:text-warning transition-colors"
-                    title="删除报告"
+                    title={en ? "Delete report" : "删除报告"}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -376,20 +379,20 @@ export default function ReportsPage() {
                   <div className="bg-warning-soft border border-warning/20 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <AlertCircle className="h-4 w-4 text-warning" />
-                      <span className="text-sm font-semibold text-warning">分析失败</span>
+                      <span className="text-sm font-semibold text-warning"> {en ? "Analysis failed" : "分析失败"}</span>
                     </div>
-                    <p className="text-sm text-warning">{detail.error || "未知错误"}</p>
+                    <p className="text-sm text-warning">{detail.error || (en ? "Unknown error" : "未知错误")}</p>
                   </div>
                 ) : detail.status === "processing" ? (
                   <div className="text-center py-12">
                     <Loader2 className="h-8 w-8 text-primary mx-auto animate-spin mb-3" />
-                    <p className="text-sm text-ink-secondary">AI 正在生成分析报告...</p>
-                    <p className="text-xs text-ink-muted mt-1">通常需要 30-60 秒</p>
+                    <p className="text-sm text-ink-secondary"> {en ? "AI is generating the report..." : "AI 正在生成分析报告..."}</p>
+                    <p className="text-xs text-ink-muted mt-1"> {en ? "Usually takes 30–60 seconds" : "通常需要 30-60 秒"}</p>
                   </div>
                 ) : detail.result ? (
                   renderReportContent(detail.result)
                 ) : (
-                  <p className="text-ink-muted">无报告内容</p>
+                  <p className="text-ink-muted"> {en ? "No report content" : "无报告内容"}</p>
                 )}
               </div>
             </div>

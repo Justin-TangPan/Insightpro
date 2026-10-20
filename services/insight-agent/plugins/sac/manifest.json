@@ -11,7 +11,7 @@
     "revision": "cd765e5713771d2258f7e5186d59b1345eeefbac"
   },
   "task_skills": {
-    "solution_analysis": ["sac-project", "sac-architecture"],
+    "solution_analysis": ["sac-project", "sac-architecture", "open-source-solution-evaluator"],
     "solution_architecture": ["sac-project", "sac-architecture"],
     "solution_practice": ["sac-project", "sac-architecture", "sac-implementation", "sac-quality", "sac-documentation"],
     "poc_plan": ["sac-project", "sac-architecture", "sac-quality"],

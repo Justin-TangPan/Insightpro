@@ -39,7 +39,7 @@ class RequirementUpdate(BaseModel):
 class SolutionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=5000)
-    category: str = Field(default="未分类", max_length=100)
+    category: str = Field(default="Uncategorized", max_length=100)
     status: SolutionStatus = "draft"
     version: str = Field(default="v0.1.0", max_length=50)
     reference_url: Optional[HttpUrl] = None

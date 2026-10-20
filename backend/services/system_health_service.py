@@ -22,9 +22,9 @@ def _technical_snapshot() -> dict:
               (SELECT COUNT(*) FROM trending_business_eval
                WHERE scrape_date = %s) AS evaluation_count,
               (SELECT COUNT(*) FROM aliyun_solutions
-               WHERE last_seen_date = %s AND is_active=TRUE AND vendor='阿里云') AS aliyun_solution_count,
+               WHERE last_seen_date = %s AND is_active=TRUE AND vendor='Alibaba Cloud') AS aliyun_solution_count,
               (SELECT COUNT(*) FROM aliyun_solutions
-               WHERE last_seen_date = %s AND is_active=TRUE AND vendor='华为云') AS huawei_solution_count
+               WHERE last_seen_date = %s AND is_active=TRUE AND vendor='Huawei Cloud') AS huawei_solution_count
             """,
             (today, today, today, today),
         )

@@ -24,22 +24,23 @@ def _required_env(name: str) -> str:
     return value
 
 
-def _chat_models() -> tuple[str, ...]:
-    default = os.getenv("CHAT_MODEL", "glm-5.2").strip()
-    configured = os.getenv("CHAT_MODELS", "")
-    return tuple(dict.fromkeys(item for item in [default, *(value.strip() for value in configured.split(","))] if item))
-
-
 class Settings:
-    APP_VERSION: str = os.getenv("APP_VERSION", "0.8.24")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0-rc.11")
     # ── AI ──
-    CHAT_API_URL: str = os.getenv(
-        "CHAT_API_URL",
-        "https://api.modelarts-maas.com/v2/chat/completions",
-    )
+    CHAT_API_URL: str = os.getenv("CHAT_API_URL", "")
     CHAT_API_KEY: str = os.getenv("CHAT_API_KEY", "")
-    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "glm-5.2")
-    CHAT_MODELS: tuple[str, ...] = _chat_models()
+    CHAT_MODEL: str = os.getenv("CHAT_MODEL", "")
+    EMBEDDING_API_URL: str = os.getenv("EMBEDDING_API_URL", "")
+    EMBEDDING_API_KEY: str = os.getenv("EMBEDDING_API_KEY", "")
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "bge-m3")
+    EMBEDDING_DIMENSIONS: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1024"))
+    RERANKER_API_URL: str = os.getenv("RERANKER_API_URL", "")
+    RERANKER_API_KEY: str = os.getenv("RERANKER_API_KEY", "")
+    RERANKER_MODEL: str = os.getenv("RERANKER_MODEL", "bge-reranker-v2-m3")
+    AGENT_RUNTIME_CONTROL_URL: str = os.getenv("AGENT_RUNTIME_CONTROL_URL", "").rstrip("/")
+    HERMES_PUBLIC_URL: str = os.getenv("HERMES_PUBLIC_URL", "").rstrip("/")
+    HERMES_SSO_SECRET: str = os.getenv("HERMES_SSO_SECRET", "") or _secret_file("/run/secrets/insight-hermes-gateway")
+    HERMES_COOKIE_SECURE: bool = os.getenv("HERMES_COOKIE_SECURE", "true").lower() in {"1", "true", "yes", "on"}
 
     # ── Database ──
     SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")

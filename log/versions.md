@@ -1,5 +1,299 @@
 # 版本日志
 
+最新已标记发布版本：`1.0.0-rc.9`。未发布条目不代表已经构建或部署。
+
+历史编号说明：早期 `0.0.x` 是内部整改编号，与 `0.2.0`、`0.3.0`、`0.4.0` 产品发布编号曾并行使用，以下保留原始日期与内容，不应把它们解读为产品版本回退。后续发布使用单一递增版本号；每个发布版本仅保留一个正式条目，补充记录与历史误标单独注明，不重写已有 Git tag。
+
+## [1.0.0-rc.16] - 2026-10-20（未发布）
+
+### 主导航名称调整
+
+- 主导航「项目洞察」改为「GitHub」、「云厂商方案」改为「解决方案」（`frontend/src/components/sidebar.tsx`），英文标签同步为 `GitHub` / `Solutions`。
+- 同步更新助手知识库模块名（`backend/routers/chat.py`）、项目洞察页标题与徽标（`frontend/src/app/insights/hotspots/page.tsx`）、解决方案页标题（`frontend/src/app/insights/solutions/page.tsx`）以及后台页面路由映射（`frontend/src/app/admin/dashboard/page.tsx`），保持模块名称一致。
+- 验证：后端 `pytest -q` 136 passed；前端 `eslint` 0 error（保留 10 项既有 warning）、`next build` 成功（TypeScript 0 error）；Docker 双容器重建并 `health-check.sh full` 通过（InsightPro end-to-end data path is healthy）。
+
+## [1.0.0-rc.15] - 2026-10-20（未发布）
+
+### AI 应用分析回填修复 + 管理员进度可视化 + 雷达纳入 AI 应用
+
+- 修复「AI 应用内大量分析生成中」：AI 分析超时由 45s 提至 120s、并发降为 2；分析失败也落库为降级文案（`failed` 状态）而非丢数据；`/api/agent-launches` 在表为空时回退到现场分析结果或带降级文案的种子，不再陷入无限「生成中」。
+- 回填改为分批增量：发现阶段一次性入库并标记 `pending`，AI 分析按每批 6 条小批推进并即时落库，前端逐批可见，避免一次性全量请求；分析串行并每条间隔 3 秒，单条重试改为 3 次 + 递增退避（2s/5s/10s），失败记录自动重置重试。
+- 修复 AI 分析失败根因：管理员运行时模型配置（`runtime_settings` 表，唯一 AI 出口）为 `glm-5.3-flash`，该模型默认开启思考模式、输出在 `reasoning_content` 而 `content` 为空，导致读取 `content` 的分析全部落空。统一为所有 AI 调用加 `enable_thinking=False`，并将模型切换到 `deepseek-v4-flash-0731`（`content` 稳定返回），回填改为多轮 reset+enrich 使偶发空返回自动重试收敛。
+- 管理员后台新增「AI 应用分析进度」面板：`/api/agent-launches/progress` 返回总数/已分析/失败/待处理及按厂商进度，admin 总览以进度条 + 厂商卡可视化。
+- 技术雷达信号统计纳入官方 AI 应用：apps 计入「AI 应用」类别，使 AI 应用在雷达图中体现。
+- 验证：后端相关测试通过、部署脚本内全量 `pytest -q` 133 passed；前端 `tsc --noEmit` 0 error、ESLint 0 error；Docker 双容器重建并 `health-check.sh full` 通过（end-to-end data path healthy）。
+
+## [1.0.0-rc.14] - 2026-10-20（未发布）
+
+### AI 应用结构化建模与增量分析（第三点落地）
+
+- 新增 `vendor_ai_applications` 表：身份（vendor/name/url/kind/published_at）+ 来源快照（source_text）+ 结构化分析（summary/capability/opportunity/limitation）+ analysis_status，唯一键 `(vendor, url)`。
+- AI 应用分析改为输出 JSON（四字段），解析后分列写入表，并回写 `intelligence_analysis` 保持一致；`/api/agent-launches` 读取改为直读表，首次空表时回退种子并后台回填。
+- 增量：分析结果落库后，发现阶段命中 `intelligence_analysis` 缓存即不重复调用 AI，仅对新增/变化条目生成分析。
+- 前端「AI 应用」卡片改为按「能做什么 / 生态机会 / 待验证」三个维度展示结构化分析；结构化字段随 API 下发。
+- 验证：后端 `test_agent_launch_service` + `test_radar_snapshot` 6 passed、部署脚本内全量 `pytest -q` 133 passed；前端 `tsc --noEmit` 0 error、ESLint 0 error（保留 10 项既有 warning）；Docker 双容器重建并 `health-check.sh full` 通过。
+
+## [1.0.0-rc.13] - 2026-10-20（未发布）
+
+### AI 应用数据源扩充 + 首页对齐 + 数据建模规划
+
+- 扩充官方 AI 应用数据源：每厂商候选上限由 2 提升到 6、总量上限由 18 提升到 48、分析上限由 16 提升到 48；新增 MiniMax 厂商（海螺），并补齐阿里云通义/百炼、火山豆包/扣子、AWS Bedrock、微软 Copilot、Anthropic Claude Code、OpenAI ChatGPT 等产品种子。
+- 首页「新 AI 应用发现」由 Product Hunt 外部 feed 切换为官方 AI 应用数据源，与「AI 应用」栏目同源；卡片与文案同步调整，并新增「查看全部」入口指向 `/insights/app-launches`。
+- 数据建模与格式化方案已规划（本次仅规划，未实现）：按栏目建立结构化 schema，采集结果与 AI 分析一次性结构化入库并绑定，读取走数据库、仅对新增/变更对象做增量分析，避免每日重复 AI 分析。
+- 验证：后端 `py_compile` 通过、`test_agent_launch_service` + `test_radar_snapshot` 6 passed、部署脚本内全量 `pytest -q` 133 passed；前端 `tsc --noEmit` 0 error、ESLint 0 error（保留 10 项既有 warning）；Docker 双容器重建并 `health-check.sh full` 通过（end-to-end data path healthy）。
+
+## [1.0.0-rc.12] - 2026-10-20（未发布）
+
+### AI 应用栏目独立 + 腾讯云 WorkBuddy 采集 + 发布分析重试降级
+
+- 将「各大厂商 AI 应用发布与分析」从项目洞察拆分为独立「AI 应用」栏目：新增路由 `/insights/app-launches`，组件上移至 `components/agent-launches.tsx`，侧边栏新增入口，项目洞察副标题收敛为 GitHub 项目。
+- 腾讯云 WorkBuddy（含 WorkBuddy Enterprise、CodeBuddy）加入官方 AI 应用采集种子，补齐 `cloud.tencent.com` 产品目录入口，解决腾讯云 WorkBuddy 动向缺失。
+- 厂商应用 AI 分析失败时自动重试一次，仍失败则返回确定性降级提示，避免「分析待生成」长期空窗；前端区分「分析生成中 / 分析待生成」状态。
+- 同步更新助手知识库（`backend/routers/chat.py`）、快捷问题（`frontend/public/chat.js`）与后台页面路由映射（`admin/dashboard/page.tsx`）。
+- 验证：后端 `py_compile` 通过、`test_agent_launch_service.py` 3 passed、部署脚本内全量 `pytest -q` 133 passed；前端 `tsc --noEmit` 0 error、ESLint 0 error（保留 10 项既有 warning）；Docker 双容器重建并 `health-check.sh full` 通过（end-to-end data path healthy）。
+
+## [1.0.0-rc.11] - 2026-09-15（未发布）
+
+### 项目洞察语言与 AI 评估修复
+
+- 日报语言从浏览器本地状态改为订阅者服务端字段：切换界面语言会同步当前登录邮箱的订阅偏好，管理员也可为每个收件人单独设置中文或英文。定时任务、立即发送和预览均按收件人语言渲染；存量订阅自动默认中文。
+- 首页、侧边栏、项目洞察、历史存档、方案洞察、友商洞察、知识库、搜索、研报、Workbench、账号设置及管理员配置的界面文案按语言偏好切换；项目评估按语言重新加载，英文 AI 分析切回中文时按需翻译，规则估算显示本地化说明与来源标记。
+- 修复今天 25 项评估请求读取超时：改为有限并发的单项目 AI 调用，逐项写回并保留未完成项目的估算；手动刷新每次推进下一组 5 项。AI 服务限流或故障时向页面返回明确状态。
+- 验证：前端全量 ESLint、TypeScript、4 项测试及生产构建通过；后端全量 103 项测试通过；浏览器验证项目洞察英文/中文切换及管理员页面英文文案；真实 AI 单项及 5 项调用验证，其中 5 项有 4 项成功，1 项遇到服务商 429 限流。已知风险：少数次要页面和用户输入的中文内容仍可能显示中文；中文详细译文受 AI 服务可用性及限流影响，失败时提供中文状态和四维评分，英文原文可通过切换语言查看。
+
+## [1.0.0-rc.10] - 2026-09-11
+
+### 后端全量英文化
+
+- 将后端所有 Python 源码中的中文字符串替换为英文：routers/（14 文件）、services/（20 文件）、repositories/、middleware/，覆盖 docstring、注释、日志消息、HTTP 错误详情、AI 提示词、邮件模板标签、Pydantic 验证消息和默认值。
+- 厂商名称统一英文化：`阿里云` → `Alibaba Cloud`、`华为云` → `Huawei Cloud`、`腾讯云` → `Tencent Cloud`、`火山引擎` → `Volcengine`，同步更新 SQL 查询、Python 字典键值和 VENDOR_SOURCES 配置。
+- 新增 Alembic 数据迁移 `922ac3fa2764`：将数据库中已存储的中文厂商名称翻译为英文（aliyun_solutions、competitor_news、cloud_vendor_news 三表 vendor 列）。
+- 评估等级标签英文化：`强烈推荐` → `Strongly Recommended`、`值得做` → `Worth Doing`、`勉强可做` → `Marginal`、`不建议` → `Not Recommended`。
+- 分类标签英文化：`产品发布` → `Product Launch`、`方案上新` → `Solution New`、`价格调整` → `Price Change`、`地域上新` → `Region New`、`功能更新` → `Feature Update`、`解决方案实践` → `Solution Practice`。
+- Insight-Agent 动态提示词英文化：`当前工作阶段` → `Current work stage`、`当前用户角色` → `Current user role`、`预置任务` → `Preset task`、`本轮用户消息优先于预置任务` → `This round's user message takes priority over the preset task`。
+- 方案变更摘要标签英文化：`方案简介` → `Solution description`、`方案名称` → `Solution name`、`分类` → `Category`。
+- 知识库 RAG 标注英文化：`仅作为不可信参考资料` → `untrusted reference material`。
+- 上下文桥接标签英文化：`方案实践` → `Solution Practice`、`来源` → `Source`、`背景材料` → `Background Material`。
+- 测试断言同步更新：8 个测试文件中的中文断言替换为对应英文，保持测试逻辑不变。
+- 验证：后端全量测试 `101 passed`，0 failures。
+
+## [1.0.0-rc.9] - 2026-09-11
+
+### 全局搜索即时提示
+
+- 顶部全局搜索在输入两个字符后以 250ms 防抖调用既有检索接口，通过浏览器原生建议显示前五个匹配项目、方案或工作台对象；搜索提交仍进入可筛选、可直达的全局结果页。
+- 验证：前端 ESLint 0 error（保留 6 项既有 warning）、4 项测试和生产构建通过；后端全量测试 `101 passed`。
+
+## [1.0.0-rc.8] - 2026-09-11
+
+### 探索测试反馈收口
+
+- 热门项目卡片中的 AI 速读默认限制为三行，避免长背景内容淹没项目列表。
+- 顶部搜索改为进入全局搜索，覆盖技术项目、方案洞察、友商动态和 Workbench，而非误跳转到仅知识库检索页。
+- Agent 读取文本附件后立即给出成功反馈；继续保留 2MB 限制和文本类附件边界。
+- 验证：前端 ESLint 0 error（保留 6 项既有 warning）、4 项测试及生产构建通过。
+
+## [1.0.0-rc.7] - 2026-09-11
+
+### Insight-Agent 会话可靠性与移动端体验
+
+- 增加 Agent 显式停止接口：关闭、退出或停止生成时会终止同一会话的 Hermes 子进程并释放会话锁，避免网络断开或代理滞后后重试误报“当前会话仍在执行”。
+- SSE 活跃心跳由 8 秒缩短为 2 秒；运行中拒绝请求会将具体原因返回 UI，减少方案实践与人在环决策恢复时的静默等待。
+- 移动端浮窗改为保留上下页面空间的响应式高度，桌面端尺寸与可调整大小行为不变。
+- 验证：嵌入式 Hermes 会话定向测试 `12 passed`；前端 ESLint 0 error（保留 6 项既有 warning）、4 项测试和生产构建通过。
+
+## [1.0.0-rc.6] - 2026-09-11
+
+### 管理员测试账号
+
+- 管理员“用户系统”新增测试账号创建入口：仅需用户名、初始密码和可选显示名，不发送邮件或要求可接收的真实邮箱。
+- 服务端使用保留的 `@test.insightpro.invalid` 内部地址创建并直接确认测试账号；仅管理员可调用，密码不记录于日志或审计事件。
+- 登录页支持以测试用户名登录；正式成员仍沿用邮件邀请流程。
+- 验证：认证路由定向测试 `37 passed`；前端 ESLint 0 error（6 项既有 warning）、4 项测试及生产构建通过。
+
+## [1.0.0-rc.5] - 2026-09-11
+
+### Insight-Agent 交互与主题修复
+
+- 真实流式事件改由 Hermes `stream_delta_callback` 直出，覆盖工具循环后的每轮 Provider delta；人在环决策恢复后立即显示“正在流式生成回答”，等待期间每 8 秒显示活跃状态。
+- 对话列表可在生成期间切换查看其他会话；后台回答继续执行，delta、结束状态、决策卡和失败状态只更新所属会话，不污染当前查看的会话。
+- Agent 输入框、首页输入框、提示卡和选择控件使用语义主题变量；移除浅色主题中的深色专用黑阴影和固定深色 select，保留可访问的主题色焦点环。
+- 验证：后端 `99 passed`；真实 Hermes 人在环恢复后 delta 集成检查通过；前端 ESLint 0 error（6 项既有 warning）、4 项测试和生产构建通过。
+
+## [1.0.0-rc.4] - 2026-09-11
+
+### Insight-Agent 直接复用 Hermes 源码核心
+
+- 站内 `/api/agent/chat/stream` 统一改为每轮启动本地 Hermes `AIAgent` 源码进程，直接复用上游的 Provider 流式、工具循环、工具参数累积与 `clarify` 人在环逻辑；不再把站内对话路由到 Native 或独立 Hermes Runtime。
+- 固定 Hermes `v2026.8.19` / `fcbd1076a93841fa88855acce810e342a5b78101`（MIT）；本地副本放在 Git 忽略的 `vendor/hermes-agent/`，镜像构建复制至 `/opt/hermes`。README 与技术架构文档已说明复用方式、许可证与隔离边界。
+- 交互前端消费真实 `text.delta`、工具状态与 `interaction.request`；`clarify` 暂停核心进程，用户选择或自由输入后恢复同一轮。交付件只通过受控 `deliver_file` 产生文本，不部署。
+- `agent_sessions.runtime_history` 持久化 Hermes 工具历史；子进程只有临时 `HERMES_HOME` 和 `clarify` / `deliver_file` 白名单，单 API worker 最多 6 个并发轮次，重启无法恢复等待中的决策。
+- 修复阿里云方案批量摘要对 `ai_service` 的测试替换失效问题，恢复离线全量测试可重复性。
+- 验证：后端 `99 passed`；前端 ESLint（0 error，保留 6 项既有 warning）、`npm test`（4 passed）与 Next.js 生产构建通过；真实 Hermes 源码集成检查覆盖碎片化工具参数、人在环暂停/恢复、交付件、流式完成和 token usage。
+
+### 已知遗留
+
+- 全量 readiness 仍会因 `cloud_vendor_news` 最近数据停留在 2026-09-08 而失败；这属于外部数据新鲜度，不影响本次 Agent 运行链路。
+
+## [1.0.0-rc.3] - 未发布
+
+### 数据库迁移框架：Alembic + SQLAlchemy
+
+- 添加 `alembic==1.16.2` 和 `sqlalchemy==2.0.41` 依赖
+- 初始化 Alembic 迁移目录 `backend/migrations/`，配置 `env.py` 使用 `db._dsn()` 动态解析数据库连接
+- 创建 SQLAlchemy ORM 模型目录 `backend/models/`，覆盖全部 17 张业务表：
+  - `models/base.py` — DeclarativeBase
+  - `models/trending.py` — GithubTrending, BaiduHotsearch, TrendingBusinessEval
+  - `models/competitors.py` — CompetitorNews, CloudVendorNews
+  - `models/solutions.py` — AliyunSolution
+  - `models/workbench.py` — Requirement, Solution, RequirementSolution
+  - `models/agent.py` — AgentSession, AgentAction, AgentArtifact, AgentSsoTicket, AgentSsoSession, AgentAuditEvent
+  - `models/email.py` — EmailSubscriber
+  - `models/tasks.py` — InsightTask
+  - `models/config.py` — RuntimeSetting, AiUsageRecord
+  - `models/knowledge.py` — KnowledgeChunk（embedding 列通过自定义迁移管理）
+- 生成初始 stamp 迁移 `beb54db85b7f`，标记现有数据库状态
+- `startup_service.ensure_runtime_schema()` 重构为两步：
+  1. 调用 `alembic upgrade head` 管理表结构变更
+  2. 保留幂等 DDL：pgvector 扩展、RLS 策略、GIN trigram 搜索索引
+- `reconcile_schema.py` 标记为 deprecated，指向 Alembic
+- 验证：98 测试通过，Alembic stamp 成功，Docker 容器健康
+
+### 前端组件分解：settings/page.tsx 拆分为 12 个模块
+
+- 将 694 行的 `settings/page.tsx` 巨型组件拆分为 `_components/` 目录下 12 个独立模块
+  - `types.ts` (39 行) — 共享类型定义（Subscriber, AccountUser, AgentSpace, AgentUsage, ArtifactRequest）
+  - `profile-card.tsx` (42 行) — 用户信息卡片
+  - `notification-settings-card.tsx` (57 行) — 通知开关卡片（自含 localStorage 状态）
+  - `appearance-preferences-card.tsx` (36 行) — 外观与偏好卡片
+  - `email-subscription-manager.tsx` (311 行) — 邮件订阅管理（含 DeliveryTimePicker、预览对话框）
+  - `ai-runtime-config-card.tsx` (48 行) — AI 运行配置卡片
+  - `data-sources-card.tsx` (46 行) — 数据源连接状态卡片
+  - `security-settings-card.tsx` (24 行) — 安全设置卡片
+  - `user-management-card.tsx` (76 行) — 用户系统管理卡片
+  - `ai-space-manager-card.tsx` (68 行) — AI Space 管理卡片
+  - `public-knowledge-card.tsx` (69 行) — 公共知识库管理卡片（含删除确认对话框）
+  - `artifact-review-card.tsx` (37 行) — Artifact 知识审核卡片
+- 主 `page.tsx` 从 694 行精简至 81 行，仅保留共享状态与组合逻辑
+- 跨组件刷新通过 `refreshVersion` 计数器 + `onMemberUpdated` / `onArtifactPublished` 回调实现
+- 纯重构，无行为变更；TypeScript 编译与 Next.js 构建均通过
+
+### 前端组件分解：insight-agent-shell.tsx 拆分为 7 个模块
+
+- 将 1,346 行的 `insight-agent-shell.tsx` 巨型组件拆分为 `agent-shell/` 目录下 7 个独立模块
+  - `types.ts` (142 行) — 类型定义与常量表（Mode, Message, Context, Session, Artifact, ActionProposal, Interaction, nextActions, nextActionVariants, taskStages）
+  - `helpers.ts` (73 行) — 纯辅助函数（recommendedActions, freeChatPrompts, contextItems, formatBytes, modelLabel）
+  - `markdown-message.tsx` (17 行) — MarkdownMessage 组件
+  - `agent-session-rail.tsx` (85 行) — SessionRail 侧边栏组件
+  - `agent-work-panel.tsx` (480 行) — WorkPanel 聊天面板组件
+  - `agent-home.tsx` (125 行) — AgentHome 首页组件
+  - `agent-context-editor.tsx` (96 行) — ContextEditor 上下文编辑组件
+  - `index.tsx` (957 行) — 主 InsightAgentShell 组件（状态管理与组合）
+- 原文件 `insight-agent-shell.tsx` 改为薄重导出：`export { InsightAgentShell } from './agent-shell'`
+- 保持所有功能不变，TypeScript 编译与 Next.js 构建均通过
+- 已知遗留：index.tsx 仍 957 行（状态 + send 流式逻辑 + 15 个异步操作函数），可进一步提取自定义 hook 缩减
+
+### 前端 hotspots 页面组件分解
+
+- 将 `insights/hotspots/page.tsx`（540 行）分解为 8 个模块，主页面缩减至 84 行
+- 新增 `_components/` 目录：`hotspot-types.ts`（接口与常量）、`use-hotspot-data.ts`（数据获取 hook）、`hotspot-trending-card.tsx`、`hotspot-trending-grid.tsx`、`hotspot-evaluation-card.tsx`、`hotspot-evaluation-panel.tsx`、`hotspot-history-panel.tsx`、`hotspot-filters.tsx`
+- 纯重构，无行为变更；TypeScript 编译零错误，error.tsx 边界未受影响
+- 验证：`npx tsc --noEmit` 通过，Docker 容器运行正常
+
+### 代码质量重大清理（Phase 1–2）
+
+**异常处理治理：**
+- 新增 `middleware/error_handler.py` 统一错误中间件，未捕获异常返回通用中文消息，不再泄露内部堆栈
+- 消灭 12 处 `except Exception: pass`，改为具体异常 + `logger.warning/debug`
+- 修复 `auth.py` 18 处异常信息泄露（`f"登录失败: {str(e)}"` → 通用消息 + `logger.exception`）
+- 全后端 `print()` 替换为 `logging`（main_legacy, hotspots, aliyun_solution_service, email_service）
+- 前端新增 4 个路由级 Error Boundary（settings, hotspots, workbench, competitors）
+- 新增 `useSafeFetch` hook 替代静默 `.catch(() => undefined)` 模式
+
+**架构分层修复：**
+- 修复最严重分层违规：`startup_service → routers.hotspots` 改为 `startup_service → services.hotspot_service`
+- 新建 `services/hotspot_service.py`，将 `_heuristic_score_project`、`_store_live_evaluations`、`_evaluate_live_items` 从路由层下沉到服务层
+- 拆分 `main_legacy.py`（376行上帝模块）为 6 个独立模块：`crawlers/github_crawler.py`、`crawlers/baidu_crawler.py`、`services/evaluation_service.py`、`services/competitor_news_service.py`、`services/maintenance_service.py`、`services/research_service.py`
+- `main_legacy.py` 保留为重导出兼容层，所有旧 import 仍可用
+- `crawlers.py` 转为包目录 `crawlers/__init__.py`
+
+**代码异味清除：**
+- 消灭 6 处 `__import__()` 黑魔法，改为正常顶层 import
+- 消灭 2 处 generator-throw hack，改为普通 `if not result: raise`
+- 消灭 4 处分号 one-liner，拆为多行
+- 5 处 inline import 提升为模块级 import
+
+- 验证：后端测试 94 passed（1 项 AI API 401 环境问题跳过），前端 ESLint 与构建待验证。
+
+### Insight Agent 方案首页
+- AI 工作区空闲态改为业务目标驱动的方案入口，提供大输入框、背景材料上传、示例目标和明确的“生成方案”操作。
+- 移除随机数据推荐卡，复用现有会话、附件和流式生成链路，不增加第二套 Agent 界面。
+- 方案输出合同固定为价值叙述（应用场景、方案优势、适用客户）以及 `云资源栈.tf`、`部署指南.md` 两个交付件；只生成文件，不执行部署。
+- Native 流式生成在等待模型首 token 及后续 token 时发送 SSE 心跳，避免长方案被代理判定为空闲连接而中断。
+- Hermes 任务会话改为消费 Gateway 的真实 `message.delta`、工具与生命周期事件，不再等待完整结果后切字符串；Nginx 流式通道关闭响应缓冲。
+- 增加 Human-in-the-Loop 决策卡：Hermes `clarify.request` 暂停 Agent，用户选择受限选项后通过 `clarify.respond` 恢复同一轮执行。
+- 验证：后端完整测试 95 项、前端 ESLint、4 项单元测试与 Next.js 生产构建通过；线上实测首个 Hermes `text.delta` 于 14.65 秒到达、`message.end` 于 14.77 秒到达，确认不是完成后切片。Docker 新镜像已上线且相关容器健康。完整数据就绪检查受 `cloud_vendor_news` 停留在 2026-09-08 阻塞，不影响本次功能。
+
+## [1.0.0-rc.2] - 2026-09-09
+
+### 项目洞察大屏
+- “技术热点”统一更名为“项目洞察”，同步首页、导航、历史、研报、日报和 Insight Agent 上下文。
+- 平台数据看板新增项目热点机会图，以今日 Star 增量、AI 业务价值和累计关注度呈现项目优先级，并提供文本摘要作为无障碍替代。
+- 当前图表严格使用已有项目数据，明确标记国内舆情尚未接入，不把厂商营销量伪装成自然热度。
+- 验证：后端完整测试 `93 passed`，前端 ESLint 与 Next.js 生产构建通过；Docker 全链路健康检查、版本、首页改名和鉴权重定向冒烟通过。
+
+### 已知遗留
+- 国内搜索、媒体、内容平台和厂商营销信号仍需接入，完成后才能升级为完整的国内热点判断象限。
+
+## [1.0.0-rc.1] - 2026-09-09
+
+### 发布候选
+- 汇总 0.8.24 之后的平台 RAG、Insight Agent、知识库、管理后台、视觉系统和友商洞察改进，进入 1.0 发布验收。
+- 友商洞察按官方发布日期读取最近批次，阿里云、腾讯云聚焦国内产品与方案动态，AWS、Azure 使用官方 RSS，并展示用途分析。
+- Insight Agent 修复历史 Markdown 深色文字和嵌套黑框，自由对话使用模型原生流式通道，任务型会话保留 Hermes 工作流。
+- 发布前本地设计参考、Agent 技能副本和一次性导出脚本已排除，不删除原文件。
+- Next.js 升级至 `16.3.4`，修复生产依赖安全公告；`npm audit --omit=dev` 为 0 漏洞。
+- 验证：后端完整测试 `93 passed`；前端测试 `4 passed`、ESLint `0 errors / 0 warnings`、Next.js 生产构建通过；Runtime Manager Node 语法检查通过；Docker 全链路健康检查、公开页面、登录重定向、API 和权限冒烟通过；友商数据四厂商 31 条摘要完整。
+
+### 已知遗留
+- Hermes 任务型会话受 CLI 程序化输出限制，执行阶段显示状态心跳，最终回答在任务结束后增量呈现；不影响自由对话原生流式输出。
+
+## [0.8.25] - 未发布（已并入 1.0.0-rc.1）
+
+### 平台 RAG 知识库（2026-09-08）
+- 接入 BGE-M3 向量化与 BGE-Reranker-V2-M3 重排，使用 Supabase PostgreSQL/pgvector 存储和检索知识片段。
+- 自动汇聚 GitHub 项目及评估、云方案、已审核 Agent 成果和当前用户回答；团队知识与用户私有知识在 SQL 层隔离。
+- Hermes 与 Native 回退回答均自动召回知识并携带来源，新增管理员全量重建和用户检索接口、每日同步任务。
+- 已完成首次建库，共写入 1108 个公共知识片段；重复同步写入 0 条，增量去重生效。
+- 验证：华为 MaaS Embedding 返回 1024 维，Reranker 排序正确；后端测试 `88 passed`，diff 空白检查通过。
+- 新增知识地图页面：展示来源占比、团队/个人权限、模型状态、最近更新，并可直接进行向量召回与重排检索。
+- 验证：知识库接口返回 1108 个对象及来源分布；相关后端测试 `7 passed`，前端定向 ESLint 与生产构建通过。
+- 修复通用输入框聚焦时全局 outline 与组件 focus ring 叠加产生黑框的问题，保留品牌色键盘焦点反馈。
+- 技术热点卡片将“收纳方案实践”和“深入研究”合并为不可拆分的操作组，避免单个按钮错行。
+- 左侧导航新增友商洞察并移除数字编号，品牌区下移；友商页改为真实数据驱动的厂商视角、优势短板对照、分类检索和动态流。
+- 顶部搜索改接知识库向量召回与重排，移除无数据来源的通知铃铛；修复搜索焦点双层黑框并关闭拼写波浪线。
+- 管理员上传 UTF-8 知识文件后立即建立向量索引，删除时同步清理索引；增加索引统计和手动增量同步。
+- 邮件排期使用原生时间选择器，并提供 09:00、12:00、18:00 快捷时间。
+- 侧栏取消“方案实践/系统管理”分组标题；系统设置收进底部齿轮浮窗，平台管理改为仅管理员可见的独立后台入口。
+- 用户侧 AI 能力统一更名为 Insight Agent；右下角启动浮窗取消文字，仅保留带可访问标签的图标按钮。
+- 验证：后端测试 `88 passed`，前端生产构建与端到端健康检查通过；友商页、知识搜索页可访问，通知铃铛已从产物移除，容器均为 healthy。
+
+### 项目业务价值准入规则（2026-09-08）
+- 项目评估改为服务端、自建需求、场景价值、部署复制四维，覆盖“服务端、需部署、有场景、有价值、可部署、可复制”六项准入判断。
+- 对纯桌面、浏览器插件、单机脚本、算法库及缺少自建理由或明确场景的项目增加限级规则；GitHub 热度和 AI 标签不再直接代表业务价值。
+- 同步实时降级评分、热点页和日报维度名称。
+- 验证：`pytest -q backend/tests/test_business_evaluation.py` 通过（1 passed）；diff 空白检查通过。
+
+### 文档与版本元数据整改（2026-09-07）
+- 根 README 同步已发布版本 `0.8.24`，产品主线更新为“技术雷达 → 方案实践 → AI 工作区”。
+- 修正前端 lockfile 根包版本，将 Agent 主入口更新为 `/workbench/ai`，标注旧入口重定向。
+- 区分历史内部整改号、产品发布号、补充记录及误标 tag，保留历史事实。
+- 验证：版本元数据一致性、正式版本标题唯一性、README 本地链接及本次 diff 空白检查通过。
+
+### 现有工作区变更（待验证）
+- Hermes 默认执行与 Native 回退、Context Bridge / Workflow gate 及界面调整已存在于未提交工作区，尚未形成新的已标记发布版本。
+- 已知遗留：这些代码变更未在本次文档整改中执行完整回归或发布验收；运行镜像标签 `0.8.24` 不能证明其内容与同名 Git tag 完全一致。发布前需完成验证并同步包、后端、镜像和 README 版本。
+
 ## [0.8.24] - 2026-09-03
 
 - 云方案 AI 摘要改为每 20 条分批处理，批量导入不再因总数超过 20 条整体退化为截断摘要。
@@ -347,7 +641,7 @@
 - 主系统和 Insight-Agent 保持独立部署与健康边界；Insight-Agent 故障不会影响 InsightPro 主系统可用性。
 - 刷新项目 README、AI Space 运维/安全文档与数据库契约，明确产品边界和历史 `opencode_*` 兼容技术债。
 
-## [0.4.0] - 2026-08-28
+## 补充记录：0.4.0 团队 AI Space 收尾 - 2026-08-28
 
 ### 团队 AI Space 收尾
 - InsightPro 保持唯一账号来源：普通用户与 Admin 的角色、禁用状态、SSO 和独立 AI 身份均按稳定 `user_id` 处理。
@@ -1087,8 +1381,28 @@ systemd (PID 1)
 - **后端引擎优化**：
     - 新增 `/api/daily-insight` 接口，支持多维度数据的聚合。
     - 优化了 AI 提示词工程，以生成更具深度和实战建议的商业研报。
-# v0.6.3 — 2026-09-02
+## 历史误标 tag：v0.6.3 - 2026-09-02
+
+> Git tag `v0.6.3` 实际指向提交 `d769e18`（Agent 浮窗会话改进），并非上文 2026-08-31 的内部 `0.6.3` 条目。此处保留误标事实与原始内容，不作为第二次正式 `0.6.3` 发布，也不改写 tag。
 
 - Agent 小窗支持切换历史会话、新建会话、当前页面上下文和首次分析提示。
 - 空白小窗 / AI 工作区会话在关闭或离开时自动删除。
 - 验证：`pytest -q backend/tests/test_agent_tasks.py backend/tests/test_solution_engineering_context.py`、`npm run lint`。
+- 侧边栏品牌区移除字母 Logo，InsightPro 下方副标题改为“技术解决方案洞察平台”。
+- 首页技术雷达重构为主视觉与三栏实时情报，移除流程步骤、统计卡、方案实践和重复快捷入口；平台数据看板迁入管理员后台。
+- 根目录新增的 InsightPro Logo 已归档到前端公共品牌资源目录 `public/brand/insightpro-logo.png`。
+- InsightPro 新 Logo 已应用于侧边栏品牌区、登录/注册/找回密码页面及浏览器图标。
+- 参考 `insight-pro-design.zip` 将全站默认视觉重构为“星海洞察”：深空背景、紫靛渐变、玻璃面板、悬浮紧凑侧栏与统一暗色交互；保留现有业务数据和功能。
+- 取消顶部工具区的整条黑色背景与分隔线，保留知识库搜索、日期和 GitHub 操作本身。
+- Insight Agent 前端按新版星海设计重构：玻璃浮窗、在线状态、星轨欢迎态、对话气泡、提示卡、输入区、会话与成果面板统一为暗色紫靛视觉。
+- 修复工作台 Insight Agent 绕开页面容器的问题：完整模式保留工作台导航、页面留白和圆角卡片边界，并提高消息区与输入区对比度。
+- 修复星海主题在旧主题偏好下出现深底深字的问题：所有主题统一采用高对比度浅色文字与深色表面，主题仅改变强调色。
+- 主题收敛为深色与浅色两种，深色为默认且卡片统一为浅黑色；旧主题偏好自动迁移为深色主题。
+- 友商洞察页 Banner 改用技术热点同款 `SectionHeader`，统一背景、圆角、边框、文字层级与操作按钮。
+- 全局高饱和紫蓝强调色替换为低饱和雾蓝灰，统一应用于按钮、选中态、邮件订阅星期、Agent 与背景光效。
+- 移除 Insight Agent 独立“文件与成果”功能；生成文件仅随 AI 回复直接下载，删除对话时同步清理派生知识索引并级联删除文件资源。
+- Insight Agent 新增 `deepseek-v4-flash`，模型切换改为无原生黑框的圆角菜单，并将模型字段映射为 OpenPangu 2.0 Flash、DeepSeek V4 Flash 等正式展示名。
+- 知识库从左侧一级导航移除，统一作为顶部搜索的检索引擎；顶部搜索提交后进入语义检索结果页。
+- 友商动态数据源重整为阿里云、腾讯云、火山引擎、AWS、Microsoft Azure 官方发布入口；统一厂商命名、跨入口去重和相对链接解析，并将档案计数、动态列表与首页摘要收敛到 `competitor_news` 单一数据链。
+- 阿里云方案洞察保留官方详情正文供 AI 分析，简介统一聚焦方案价值、关联开源项目及证据、阿里云云服务资源；AI 分析入口同步采用相同事实约束，无法确认的信息明确标注。
+- Insight Agent 对外状态不再暴露 Hermes 内部名称；长任务持续发送 SSE 状态心跳，最终回答按增量块流式呈现，避免等待期间界面假死或被误认为停止返回。

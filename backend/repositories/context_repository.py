@@ -1,6 +1,8 @@
 """Read-only data access for normalized InsightPro business context."""
 from __future__ import annotations
 
+import json
+
 from db import get_db
 
 
@@ -57,7 +59,7 @@ def create_agent_session(session_id: str, user_id: str, context: dict, task_key:
         cursor.execute(
             """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot, title, task_key, task_title, task_status, default_prompt)
                VALUES (%s,%s,%s,%s,%s,%s::jsonb,%s,%s,%s,%s,%s) RETURNING *""",
-            (session_id, user_id, context["context_type"], context["context_id"], context["title"], __import__("json").dumps(context), task_title or context["title"], task_key, task_title, task_status, default_prompt),
+            (session_id, user_id, context["context_type"], context["context_id"], context["title"], json.dumps(context), task_title or context["title"], task_key, task_title, task_status, default_prompt),
         )
         return dict(cursor.fetchone())
 
@@ -79,7 +81,7 @@ def create_chat_session(session_id: str, user_id: str, page_title: str = "", pag
         cursor.execute(
             """INSERT INTO agent_sessions (id, user_id, context_type, context_id, context_title, context_snapshot, task_key, task_title, task_status)
                VALUES (%s,%s,'chat',%s,%s,%s::jsonb,%s,%s,'ready') RETURNING *""",
-            (session_id, user_id, session_id, page_title, __import__("json").dumps(context), "page_analysis" if page_title else "free_chat", "分析当前页面" if page_title else "自由讨论"),
+            (session_id, user_id, session_id, page_title, json.dumps(context), "page_analysis" if page_title else "free_chat", "Analyze current page" if page_title else "Free chat"),
         )
         return dict(cursor.fetchone())
 
@@ -104,24 +106,30 @@ def set_hermes_session(user_id: str, session_id: str, hermes_session_id: str) ->
         cursor.execute("UPDATE agent_sessions SET hermes_session_id=%s WHERE id=%s AND user_id=%s", (hermes_session_id, session_id, user_id))
 
 
+def save_runtime_history(user_id: str, session_id: str, history: list) -> None:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE agent_sessions SET runtime_history=%s::jsonb WHERE id=%s AND user_id=%s", (json.dumps(history, ensure_ascii=False), session_id, user_id))
+
+
 def append_conversation(user_id: str, session_id: str, user_message: str, assistant_message: str, artifacts: list[dict] | None = None) -> None:
     with get_db() as conn:
         cursor = conn.cursor()
-        title = user_message.strip().replace("\n", " ")[:40] or "新对话"
+        title = user_message.strip().replace("\n", " ")[:40] or "New Chat"
         cursor.execute(
             """UPDATE agent_sessions
                SET conversation=conversation || %s::jsonb,
-                   title=CASE WHEN title='新对话' THEN %s ELSE title END,
+                   title=CASE WHEN title='New Chat' THEN %s ELSE title END,
                    task_status=CASE WHEN task_status='ready' THEN 'working' ELSE task_status END, updated_at=NOW()
                WHERE id=%s AND user_id=%s""",
-            (__import__("json").dumps([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_message, "artifacts": artifacts or []}], default=str), title, session_id, user_id),
+            (json.dumps([{"role": "user", "content": user_message}, {"role": "assistant", "content": assistant_message, "artifacts": artifacts or []}], default=str), title, session_id, user_id),
         )
 
 
 def update_context_snapshot(user_id: str, session_id: str, snapshot: dict) -> dict | None:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE agent_sessions SET context_snapshot=%s::jsonb, updated_at=NOW() WHERE id=%s AND user_id=%s RETURNING *", (__import__("json").dumps(snapshot), session_id, user_id))
+        cursor.execute("UPDATE agent_sessions SET context_snapshot=%s::jsonb, updated_at=NOW() WHERE id=%s AND user_id=%s RETURNING *", (json.dumps(snapshot), session_id, user_id))
         row = cursor.fetchone()
         return dict(row) if row else None
 
@@ -132,7 +140,7 @@ def create_agent_action(action_id: str, session_id: str, user_id: str, action: s
         cursor.execute(
             """INSERT INTO agent_actions (id, session_id, user_id, action, payload)
                VALUES (%s,%s,%s,%s,%s::jsonb) RETURNING *""",
-            (action_id, session_id, user_id, action, __import__("json").dumps(payload)),
+            (action_id, session_id, user_id, action, json.dumps(payload)),
         )
         return dict(cursor.fetchone())
 
@@ -145,10 +153,18 @@ def get_agent_action(user_id: str, action_id: str) -> dict | None:
         return dict(row) if row else None
 
 
+def get_pending_agent_action(user_id: str, session_id: str) -> dict | None:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM agent_actions WHERE user_id=%s AND session_id=%s AND status='proposed' ORDER BY created_at DESC LIMIT 1", (user_id, session_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
 def confirm_agent_action(action_id: str, result: dict) -> None:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
             "UPDATE agent_actions SET status='confirmed', result=%s::jsonb, confirmed_at=NOW() WHERE id=%s AND status='proposed'",
-            (__import__("json").dumps(result), action_id),
+            (json.dumps(result), action_id),
         )

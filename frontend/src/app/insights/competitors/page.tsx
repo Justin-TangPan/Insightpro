@@ -1,471 +1,92 @@
 "use client";
 
-import { SectionHeader } from "@/components/section-header";
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowUpRight, Binoculars, CheckCircle2, RefreshCw, Search, ShieldAlert } from "lucide-react";
 import { API } from "@/lib/api";
-import {
-  Cloud, ExternalLink, ChevronRight, ArrowUpRight,
-  Server, ShieldCheck,
-  Package, FileText, Newspaper, Activity
-} from "lucide-react";
+import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { SectionHeader } from "@/components/section-header";
+import { usePreferences } from "@/lib/preferences";
+import { useAuth } from "@/components/auth-provider";
+import type { Intelligence } from "@/lib/intelligence";
 
-interface VendorNews {
-  category: "产品发布" | "案例发布" | "解决方案" | "最新动态";
-  title: string;
-  summary: string;
-  url: string;
-  date?: string;
-}
+type News = { id: number; title: string; summary: string; link: string; category: string; date: string; intelligence?: Intelligence };
+type Vendor = { name: string; region: string; marketShare: string; products: string[]; strengths: string[]; weaknesses: string[]; vs_huawei: string; recent_news_count: number };
+type FeedItem = News & { vendor: string };
 
-interface Vendor {
-  id: string;
-  name: string;
-  fullName: string;
-  region: string;
-  color: string;
-  bgColor: string;
-  icon: string;
-  marketShare: string;
-  description: string;
-  products: { name: string; url: string }[];
-  news: VendorNews[];
-}
-
-interface SummaryNewsItem {
-  id: number;
-  title: string;
-  summary: string;
-  link: string;
-  category: string;
-  date: string;
-}
-
-interface VendorSummary {
-  [vendor: string]: SummaryNewsItem[];
-}
-
-const allVendors: Vendor[] = [
-  {
-    id: "aws",
-    name: "AWS",
-    fullName: "Amazon Web Services",
-    region: "全球",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "AW",
-    marketShare: "全球 32% · 中国区 < 5%",
-    description: "全球云市场份额第一，AI/ML 服务成熟度最高。中国区由光环新网（北京）和西云数据（宁夏）运营，服务可用性受限。",
-    products: [
-      { name: "Amazon Bedrock (AI 模型平台)", url: "https://aws.amazon.com/bedrock/" },
-      { name: "Amazon SageMaker (机器学习)", url: "https://aws.amazon.com/sagemaker/" },
-      { name: "Amazon Q (AI 助手)", url: "https://aws.amazon.com/q/" },
-      { name: "AWS Lambda (无服务器)", url: "https://aws.amazon.com/lambda/" },
-    ],
-    news: [
-      { category: "产品发布", title: "Amazon Bedrock AgentCore 正式发布", summary: "支持多 Agent 编排、工具调用和长期记忆，企业客户可一键部署生产级 AI Agent。集成 Anthropic Claude、Meta Llama、Mistral 等 15+ 模型。", url: "https://aws.amazon.com/bedrock/" },
-      { category: "产品发布", title: "Amazon Q Developer 正式可用", summary: "面向企业的 AI 编程助手，支持代码补全、Bug 修复、代码审查、单测生成。已集成到 VS Code 和 JetBrains IDE。", url: "https://aws.amazon.com/q/" },
-      { category: "产品发布", title: "AWS Lambda 支持 GPU 实例", summary: "Lambda 新增 GPU 函数支持，企业可在无服务器架构中运行 AI 推理任务，按调用计费。AI 推理成本降低 40%。", url: "https://aws.amazon.com/lambda/" },
-      { category: "最新动态", title: "AWS 中国区新增银川可用区", summary: "西云数据运营的宁夏区域新增第三个可用区，为中国西部客户提供更低延迟的云服务。", url: "https://aws.amazon.com/cn/" },
-    ],
-  },
-  {
-    id: "azure",
-    name: "Microsoft Azure",
-    fullName: "Microsoft Azure",
-    region: "全球",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "AZ",
-    marketShare: "全球 23% · 中国区 < 3%",
-    description: "全球第二大云厂商，OpenAI 独占整合优势。中国区由世纪互联运营，Azure OpenAI Service 已在中国区有限可用。",
-    products: [
-      { name: "Azure AI Foundry (AI 开发平台)", url: "https://azure.microsoft.com/zh-cn/products/ai-foundry/" },
-      { name: "Azure OpenAI Service", url: "https://azure.microsoft.com/zh-cn/products/cognitive-services/openai-service/" },
-      { name: "Azure Arc (混合云)", url: "https://azure.microsoft.com/zh-cn/products/azure-arc/" },
-    ],
-    news: [
-      { category: "产品发布", title: "Azure AI Foundry 正式发布", summary: "统一的 AI 开发平台，整合 Azure AI Studio、Azure Machine Learning 和 Azure OpenAI Service。支持可视化 RAG 编排、多模型路由。", url: "https://azure.microsoft.com/zh-cn/products/ai-foundry/" },
-      { category: "产品发布", title: "Azure OpenAI 在中国区上线 GPT-4o", summary: "世纪互联运营的 Azure 中国区正式提供 GPT-4o 多模态模型，支持图文混合理解和实时语音。", url: "https://azure.microsoft.com/zh-cn/products/cognitive-services/openai-service/" },
-      { category: "最新动态", title: "Microsoft 365 Copilot 在华定价下调 30%", summary: "面对国内办公 AI 竞争加剧，微软下调中国区 Copilot 定价以争夺中小企业市场。", url: "https://www.microsoft.com/zh-cn/" },
-      { category: "解决方案", title: "Azure Arc 新增边缘 K8s 管理能力", summary: "Azure Arc 支持在边缘设备上统一管理 Kubernetes 集群，面向制造和零售场景。", url: "https://azure.microsoft.com/zh-cn/products/azure-arc/" },
-    ],
-  },
-  {
-    id: "aliyun",
-    name: "阿里云",
-    fullName: "阿里云计算有限公司",
-    region: "中国",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "AL",
-    marketShare: "国内 34% · 第一",
-    description: "国内市场份额第一，双11 高并发验证。通义千问大模型持续开源，百炼平台为企业提供一站式 AI 应用开发能力。",
-    products: [
-      { name: "通义千问 (大模型)", url: "https://www.aliyun.com/product/tongyi" },
-      { name: "百炼 (AI 应用平台)", url: "https://www.aliyun.com/product/bailian" },
-      { name: "PAI (机器学习平台)", url: "https://www.aliyun.com/product/pai" },
-      { name: "PolarDB (云原生数据库)", url: "https://www.aliyun.com/product/polardb" },
-      { name: "ECS (云服务器)", url: "https://www.aliyun.com/product/ecs" },
-      { name: "OSS (对象存储)", url: "https://www.aliyun.com/product/oss" },
-    ],
-    news: [
-      { category: "产品发布", title: "通义千问 3.0 发布，推理成本降低 60%", summary: "阿里云发布通义千问 3.0 大模型，在代码和数学推理能力上接近 GPT-4。Qwen3 系列在多项基准测试中表现优异。API 价格大幅下调。", url: "https://www.aliyun.com/product/tongyi" },
-      { category: "产品发布", title: "PolarDB Serverless V2 正式可用", summary: "支持秒级弹性伸缩，数据库成本降低 70%。适合波峰波谷明显的业务场景（电商、教育）。", url: "https://www.aliyun.com/product/polardb" },
-      { category: "最新动态", title: "钉钉 AI 助手全面开放", summary: "钉钉内置 AI 助手支持文档总结、会议纪要、智能审批等 20+ 场景。已接入通义千问 3.0，月活用户超 2 亿。", url: "https://www.dingtalk.com/" },
-      { category: "案例发布", title: "阿里云与浙江省签署数字政务战略合作", summary: "阿里云将为浙江省提供全域政务云底座，覆盖 11 个地市 80+ 委办局的数字化转型。", url: "https://www.aliyun.com/" },
-    ],
-  },
-  {
-    id: "volcano",
-    name: "火山云",
-    fullName: "火山引擎（字节跳动）",
-    region: "中国",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "VC",
-    marketShare: "国内 5% · 增速最快",
-    description: "依托字节跳动抖音生态，在 AI 推理和内容分发上增长迅猛。豆包大模型以极低价格抢占市场，Coze 成为中国最流行的 AI Agent 搭建平台之一。",
-    products: [
-      { name: "豆包大模型 (AI 模型)", url: "https://www.volcengine.com/product/doubao" },
-      { name: "火山方舟 (模型服务平台)", url: "https://www.volcengine.com/product/ark" },
-      { name: "扣子 Coze (AI Agent 平台)", url: "https://www.volcengine.com/product/coze" },
-      { name: "火山引擎 ECS", url: "https://www.volcengine.com/product/ecs" },
-    ],
-    news: [
-      { category: "产品发布", title: "火山方舟 3.0 发布，新增 MoE 架构支持", summary: "方舟平台 3.0 支持混合专家模型部署，企业客户可自定义路由策略。推理成本再降 40%，已接入豆包、DeepSeek 等多款模型。", url: "https://www.volcengine.com/product/ark" },
-      { category: "产品发布", title: "扣子 Coze 平台用户突破 1000 万", summary: "Coze 成为中国最受欢迎的 AI Agent 搭建平台之一。支持可视化工作流、插件市场、多平台发布（微信、飞书、网页）。", url: "https://www.volcengine.com/product/coze" },
-      { category: "案例发布", title: "火山云与抖音电商联合发布零售 AI 方案", summary: "基于豆包大模型的智能选品和直播脚本生成工具，已服务 5,000+ 抖音商家。", url: "https://www.volcengine.com/" },
-      { category: "最新动态", title: "豆包 App 日活突破 1600 万", summary: "豆包已成为中国最受欢迎的 AI 对话应用。火山引擎持续以低价策略抢占市场，AI 推理价格降至 0.8 元/千 Token。", url: "https://www.volcengine.com/product/doubao" },
-    ],
-  },
-  {
-    id: "huawei",
-    name: "华为云",
-    fullName: "华为云计算技术有限公司",
-    region: "中国",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "HW",
-    marketShare: "国内第二 · 政企市场第一",
-    description: "国内政企市场份额第一，全栈自主可控（鲲鹏+欧拉+GaussDB+盘古）。端边云协同能力在制造、政务、能源等重资产行业具有独特优势。",
-    products: [
-      { name: "ModelArts (AI 开发平台)", url: "https://www.huaweicloud.com/product/modelarts.html" },
-      { name: "GaussDB (分布式数据库)", url: "https://www.huaweicloud.com/product/gaussdb.html" },
-      { name: "OBS (对象存储)", url: "https://www.huaweicloud.com/product/obs.html" },
-      { name: "ROMA (应用集成平台)", url: "https://www.huaweicloud.com/product/roma.html" },
-      { name: "ECS (弹性云服务器)", url: "https://www.huaweicloud.com/product/ecs.html" },
-    ],
-    news: [
-      { category: "产品发布", title: "盘古大模型 5.0 发布，多模态能力全面升级", summary: "盘古大模型 5.0 在气象预测、药物研发、矿山、铁路等行业场景中持续迭代。新增具身智能和多模态理解能力。", url: "https://www.huaweicloud.com/product/modelarts.html" },
-      { category: "案例发布", title: "湘钢 × 华为云：钢铁行业智能制造标杆", summary: "湖南华菱湘潭钢铁集团基于华为云实现智能质检和预测性维护，缺陷检测准确率 99.5%。", url: "https://www.huaweicloud.com/cases/xg.html" },
-      { category: "案例发布", title: "深圳机场 × 华为云：智慧机场标杆", summary: "深圳机场基于华为云打造智慧运维管理平台，覆盖设备预测性维护、航班智能调度。", url: "https://www.huaweicloud.com/cases/shenzhenjichang.html" },
-      { category: "案例发布", title: "招商银行 × 华为云：最佳零售银行", summary: "华为云携手招商银行打造业界'最佳零售银行'，GaussDB 分布式数据库支撑核心交易系统。", url: "https://www.huaweicloud.com/cases/zsyh.html" },
-      { category: "案例发布", title: "三峡集团 × 华为云：大国重器云端守护", summary: "三峡集团基于华为云实现水电站智能巡检和设备健康管理，覆盖 100+ 水电站。", url: "https://www.huaweicloud.com/cases/sanxia.html" },
-    ],
-  },
-  {
-    id: "tencent",
-    name: "腾讯云",
-    fullName: "腾讯云计算（深圳）有限公司",
-    region: "中国",
-    color: "text-primary",
-    bgColor: "bg-primary-soft border-primary/20",
-    icon: "TC",
-    marketShare: "国内 16% · 第三",
-    description: "依托微信生态（13亿用户）在 C 端场景占据优势。混元大模型深度集成到微信、QQ、腾讯文档等产品中。游戏和社交场景技术领先。",
-    products: [
-      { name: "混元大模型", url: "https://cloud.tencent.com/product/hunyuan" },
-      { name: "TI-ONE (机器学习平台)", url: "https://cloud.tencent.com/product/tione" },
-      { name: "大模型知识引擎 LKE", url: "https://cloud.tencent.com/product/lke" },
-      { name: "CVM (云服务器)", url: "https://cloud.tencent.com/product/cvm" },
-      { name: "COS (对象存储)", url: "https://cloud.tencent.com/product/cos" },
-      { name: "TKE (容器服务)", url: "https://cloud.tencent.com/product/tke" },
-    ],
-    news: [
-      { category: "产品发布", title: "混元大模型 Turbo S 发布", summary: "混元 Turbo S 推理速度提升 3 倍，成本降低 50%。重点面向游戏、广告和社交场景优化。已深度集成到微信和 QQ 中。", url: "https://cloud.tencent.com/product/hunyuan" },
-      { category: "产品发布", title: "腾讯云大模型知识引擎 LKE 上线", summary: "企业级 RAG 知识库平台，支持零代码构建 AI 问答系统。可对接微信客服、企业微信等腾讯生态。", url: "https://cloud.tencent.com/product/lke" },
-      { category: "案例发布", title: "腾讯云 TDSQL 中标六大行分布式数据库项目", summary: "腾讯云 TDSQL 在六大国有银行分布式数据库招标中中标 3 个，金融行业份额持续扩大。", url: "https://cloud.tencent.com/product/tdsql" },
-      { category: "最新动态", title: "腾讯云与深圳地铁签署智慧交通协议", summary: "腾讯云将为深圳地铁提供 AI 调度和客流预测系统，覆盖 16 条线路 300+ 站点。", url: "https://cloud.tencent.com/" },
-    ],
-  },
-];
-
-const vendors = allVendors.filter((vendor) => vendor.id !== "huawei");
-
-const categoryIcons: Record<string, React.ElementType> = {
-  "产品发布": Package, "案例发布": FileText, "解决方案": ShieldCheck, "最新动态": Newspaper,
+const alias: Record<string, string> = { Azure: "Microsoft Azure", 火山云: "Volcengine", 火山引擎: "Volcengine" };
+const code = (name: string) => ({ AWS: "AWS", "Microsoft Azure": "AZ", "Alibaba Cloud": "AL", "Tencent Cloud": "TC", Volcengine: "VC" }[name] || name.slice(0, 2).toUpperCase());
+const vendorLabel = (name: string, en: boolean) => en ? name : ({ "Alibaba Cloud": "阿里云", "Tencent Cloud": "腾讯云", Volcengine: "火山引擎", "Microsoft Azure": "微软 Azure" }[name] || name);
+const categoryLabel = (name: string, en: boolean) => en ? name : ({ "Solution New": "解决方案上新", "Product Launch": "产品发布", "Price Change": "价格调整", "Region New": "地域新增", "Feature Update": "功能更新", "Case Study": "客户案例", "Product Update": "产品更新" }[name] || name);
+const aliyunProfile = {
+  strengths: ["国内云市场份额领先", "经过双十一高并发场景验证", "钉钉提供企业服务入口"],
+  weaknesses: ["政企行业纵深仍需持续加强", "海外市场覆盖相对有限", "大模型商业化落地仍在加速"],
+  vs_huawei: "阿里云在互联网行业与开发者生态方面领先；华为云则在政务、金融、制造等行业纵深以及云边端协同方面更具优势。",
 };
-
-const vendorMeta: Record<string, { icon: string; color: string; borderColor: string }> = {
-  "AWS": { icon: "AW", color: "text-primary", borderColor: "border-primary/20" },
-  "Azure": { icon: "AZ", color: "text-primary", borderColor: "border-primary/20" },
-  "阿里云": { icon: "AL", color: "text-primary", borderColor: "border-primary/20" },
-  "腾讯云": { icon: "TC", color: "text-primary", borderColor: "border-primary/20" },
-  "火山云": { icon: "VC", color: "text-primary", borderColor: "border-primary/20" },
+const tencentProfile = {
+  strengths: ["微信生态与企业微信提供业务入口", "游戏、音视频和实时互动场景积累深", "混元模型、知识引擎与数据库产品形成组合"],
+  weaknesses: ["企业级场景覆盖与交付能力仍需逐项验证", "大模型应用的规模化效果需要持续观察", "跨行业解决方案的完整度有待对比"],
+  vs_huawei: "腾讯云在社交、游戏和实时音视频场景有积累；可重点比较双方在企业 Agent、行业应用和云上部署方案中的能力与落地案例。",
 };
+const awsProfile = {
+  strengths: ["全球云基础设施与服务覆盖广", "Bedrock、SageMaker 等 AI 服务形成产品组合", "开发者与企业生态成熟"],
+  weaknesses: ["中国市场可用服务与全球区域存在差异", "跨区域部署与合规要求需要逐项评估", "产品与计费体系复杂，方案成本需要核算"],
+  vs_huawei: "重点比较 AWS 与华为云在模型平台、全球部署、国内行业交付及成本上的适用场景。",
+};
+const volcengineProfile = {
+  strengths: ["豆包模型与火山方舟形成 AI 服务入口", "视频、互动与数据产品有场景积累", "Coding Plan 等开发者产品更新活跃"],
+  weaknesses: ["跨行业交付能力需要结合案例验证", "产品覆盖与区域可用性需要逐项比较", "模型及套餐变化需要持续跟踪"],
+  vs_huawei: "重点比较火山引擎与华为云在模型服务、Agent 开发、数据基础设施和行业方案中的能力与落地案例。",
+};
+const chineseVendors = ["Alibaba Cloud", "Tencent Cloud", "AWS", "Volcengine"];
 
 export default function CompetitorsPage() {
-  const [activeVendor, setActiveVendor] = useState<string | null>(null);
-  const [summary, setSummary] = useState<VendorSummary>({});
-  const [summaryLoading, setSummaryLoading] = useState(true);
-  const selectedVendor = vendors.find((v) => v.id === activeVendor);
+  const { preferences } = usePreferences();
+  const { user } = useAuth();
+  const en = preferences.language === "en";
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [summary, setSummary] = useState<Record<string, News[]>>({});
+  const [vendor, setVendor] = useState("Alibaba Cloud");
+  const [category, setCategory] = useState("全部");
+  const [query, setQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetch(`${API}/api/competitors/summary`)
-      .then((res) => { if (!res.ok) throw new Error(`API error: ${res.status}`); return res.json(); })
-      .then((data) => {
-        setSummary(Object.fromEntries(
-          Object.entries(data.vendors || {}).filter(([vendor]) => vendor !== "华为云")
-        ) as VendorSummary);
-        setSummaryLoading(false);
-      })
-      .catch(() => setSummaryLoading(false));
-  }, []);
+  async function load() {
+    const [profiles, updates] = await Promise.all([fetch(`${API}/api/competitors`), fetch(`${API}/api/competitors/summary`)]);
+    if (!profiles.ok || !updates.ok) throw new Error(en ? "Could not load competitor updates" : "友商动态加载失败，请重试");
+    const [profileData, updateData] = await Promise.all([profiles.json(), updates.json()]);
+    setVendors(profileData.vendors || []);
+    setSummary(updateData.vendors || {});
+  }
 
-  return (
-    <div className="page-stack">
-      <SectionHeader
-        badge="Cloud Vendor Research"
-        title="云厂商能力观察"
-        subtitle="集中查看五家云厂商的产品发布、技术方案与能力变化"
-        image="https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&q=80"
-      />
+  useEffect(() => { void Promise.resolve().then(load).catch(reason => setError(reason.message)).finally(() => setLoading(false)); }, []);
+  const allNews: FeedItem[] = useMemo(() => Object.entries(summary).flatMap(([name, items]) => items.map(item => ({ ...item, vendor: alias[name] || name }))), [summary]);
+  const visibleVendors = en ? vendors : vendors.filter(item => chineseVendors.includes(item.name));
+  const categories = ["全部", ...new Set(allNews.filter(item => vendor === "全部" || item.vendor === vendor).map(item => item.category))];
+  const news = useMemo(() => allNews.filter(item => en || chineseVendors.includes(item.vendor)).filter(item => vendor === "全部" || item.vendor === vendor).filter(item => category === "全部" || item.category === category).filter(item => !query.trim() || `${item.title} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase())).sort((a, b) => (b.date || "").localeCompare(a.date || "")), [allNews, vendor, category, query, en]);
+  const selected = vendors.find(item => item.name === vendor);
+  const selectedProfile = !en && selected ? ({ "Alibaba Cloud": aliyunProfile, "Tencent Cloud": tencentProfile, AWS: awsProfile, Volcengine: volcengineProfile } as Record<string, typeof aliyunProfile>)[selected.name] : undefined;
+  const vendorCount = (name: string) => allNews.filter(item => item.vendor === name).length;
 
-      {/* News Summary Overview */}
-      {!summaryLoading && Object.keys(summary).length > 0 && (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
-          <div className="flex items-center gap-2 bg-surface-subtle px-6 py-4">
-            <Activity className="h-4 w-4 text-primary" />
-            <h4 className="font-bold text-sm serif-heading text-ink">友商最新动态概览</h4>
-            <span className="text-xs text-ink-muted ml-auto">
-              {Object.values(summary).reduce((acc, items) => acc + items.length, 0)} 条动态 · {Object.keys(summary).length} 家厂商
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-2 p-2 md:grid-cols-2 xl:grid-cols-3">
-            {Object.entries(summary).map(([vendor, items]) => {
-              const meta = vendorMeta[vendor] || { icon: "☁️", color: "text-ink-secondary", borderColor: "border-grid" };
-              return (
-                <div key={vendor} className="space-y-3 rounded-xl bg-surface-subtle/60 p-5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{meta.icon}</span>
-                    <span className={`font-bold text-sm ${meta.color}`}>{vendor}</span>
-                    <span className="text-xs text-ink-muted ml-auto">{items.length} 条</span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {items.map((item) => (
-                      <a
-                        key={item.id}
-                        href={item.link}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block group"
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded bg-surface-subtle text-ink-muted shrink-0 mt-0.5">
-                            {item.category}
-                          </span>
-                          <p className="text-xs font-semibold text-ink group-hover:text-primary transition-colors leading-snug line-clamp-2">
-                            {item.title}
-                          </p>
-                        </div>
-                        <p className="text-xs text-ink-secondary leading-relaxed mt-1 line-clamp-2 ml-[52px]">
-                          {item.summary}
-                        </p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+  async function refresh() {
+    setRefreshing(true); setError("");
+    try { const response = await authenticatedFetch(`${API}/api/competitors/refresh`, { method: "POST" }); if (!response.ok) throw new Error(en ? "Refresh failed; check your sign-in" : "刷新失败，请检查登录状态"); await load(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : (en ? "Refresh failed" : "刷新失败")); }
+    finally { setRefreshing(false); }
+  }
 
-      {/* Vendor Selector */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-        {vendors.map((v) => (
-          <button
-            key={v.id}
-            onClick={() => setActiveVendor(activeVendor === v.id ? null : v.id)}
-            className={`ui-card ui-card-interactive group text-left ${
-              activeVendor === v.id
-                ? "bg-primary-soft ring-2 ring-primary/25"
-                : ""
-            }`}
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <div className={`h-10 w-10 rounded-xl flex items-center justify-center transition-colors ${
-                  activeVendor === v.id
-                    ? "bg-primary text-white"
-                    : "bg-surface-subtle text-ink-secondary"
-                }`}>
-                  <Cloud className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="type-h3 text-ink">{v.name}</h3>
-                  <span className={`rounded-full text-[10px] font-semibold px-2 py-0.5 ${v.bgColor} ${v.color}`}>{v.region}</span>
-                </div>
-              </div>
-              <ChevronRight className={`h-5 w-5 text-ink-muted transition-transform duration-200 ${
-                activeVendor === v.id ? "rotate-90 text-primary" : ""
-              }`} />
-            </div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs font-semibold text-ink-muted uppercase tracking-wider">份额</span>
-              <span className="text-xs font-semibold text-ink-secondary">{v.marketShare}</span>
-            </div>
-            <p className="text-xs text-ink-secondary leading-relaxed line-clamp-2">{v.description}</p>
-          </button>
-        ))}
-      </div>
-
-      {/* Vendor Detail Panel */}
-      {selectedVendor && (
-        <div className="space-y-6">
-          {/* Vendor Header */}
-          <div className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
-            <div className="flex items-center justify-between bg-primary-dark px-8 py-5">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-white/20 flex items-center justify-center text-white text-lg font-bold">
-                  {selectedVendor.icon}
-                </div>
-                <div>
-                  <h3 className="type-h3 text-white">{selectedVendor.fullName}</h3>
-                  <p className="text-sm text-white/70">{selectedVendor.marketShare}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-white/60 font-semibold uppercase tracking-wider">核心产品</p>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {selectedVendor.products.slice(0, 3).map((p, i) => (
-                    <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 text-xs font-semibold text-white hover:bg-white/25 transition-colors">
-                      {p.name.split("(")[0].trim()}
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="p-8">
-              <p className="text-sm text-ink-secondary leading-relaxed border-l-4 border-primary pl-6">
-                {selectedVendor.description}
-              </p>
-            </div>
-          </div>
-
-          {/* Products */}
-          <div className="ui-card">
-            <div className="flex items-center gap-2 mb-4">
-              <Package className="h-4 w-4 text-primary" />
-              <h4 className="font-bold text-sm text-ink">核心产品与服务</h4>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {selectedVendor.products.map((p, i) => (
-                <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-                  className="group flex items-center gap-3 rounded-lg bg-surface-subtle p-3 transition-colors hover:bg-primary-soft">
-                  <div className="h-8 w-8 rounded-lg bg-surface-subtle flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                    <Server className="h-4 w-4 text-ink-muted group-hover:text-primary" />
-                  </div>
-                  <span className="text-xs font-semibold text-ink-secondary group-hover:text-primary transition-colors">{p.name}</span>
-                  <ArrowUpRight className="h-3 w-3 text-ink-muted ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* News Feed */}
-          <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-2 bg-surface-subtle px-6 py-4">
-              <Newspaper className="h-4 w-4 text-primary" />
-              <h4 className="font-bold text-sm text-ink">最新动态</h4>
-              <span className="text-xs text-ink-muted ml-auto">{selectedVendor.news.length} 条</span>
-            </div>
-            <div className="divide-y divide-grid/60">
-              {selectedVendor.news.map((item, i) => {
-                const CatIcon = categoryIcons[item.category] || Newspaper;
-                return (
-                  <a key={i} href={item.url} target="_blank" rel="noopener noreferrer"
-                    className="flex items-start gap-4 p-5 hover:bg-surface-subtle/50 transition-colors group">
-                    <div className="h-8 w-8 rounded-lg bg-surface-subtle flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
-                      <CatIcon className="h-4 w-4 text-ink-muted group-hover:text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className={`ui-tag ${item.category === "解决方案" ? "ui-tag-warning" : ""}`}>
-                          {item.category}
-                        </span>
-                        {item.date && <span className="text-[10px] text-ink-muted">{item.date}</span>}
-                      </div>
-                      <h5 className="font-bold text-sm serif-heading text-ink group-hover:text-primary transition-colors mb-1">
-                        {item.title}
-                      </h5>
-                      <p className="text-xs text-ink-secondary leading-relaxed">{item.summary}</p>
-                    </div>
-                    <ArrowUpRight className="h-4 w-4 text-ink-muted shrink-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </a>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Overview - No vendor selected */}
-      {!activeVendor && (
-        <div className="space-y-6">
-          {/* Quick Comparison */}
-          <div className="overflow-hidden rounded-xl bg-white shadow-[var(--shadow-card)]">
-            <div className="bg-surface-subtle px-6 py-4">
-              <h4 className="font-bold text-sm text-ink">五大竞争云厂商一览</h4>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-grid/60 bg-surface-subtle/50">
-                    <th className="text-left py-3 px-5 text-xs font-semibold text-ink-muted uppercase tracking-wider">厂商</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">市场份额</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">AI 核心产品</th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-ink-muted uppercase tracking-wider">核心优势</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vendors.map((v) => {
-                    const advantage: Record<string, string> = {
-                      aws: "全球基础设施最广，AI/ML 服务成熟度最高",
-                      azure: "OpenAI 独占整合，企业办公生态绑定",
-                      aliyun: "国内份额第一，开源生态成熟",
-                      volcano: "价格最低，抖音电商生态",
-                      tencent: "微信 13 亿用户生态，游戏场景领先",
-                    };
-                    return (
-                      <tr key={v.id} className="border-b border-grid/40 hover:bg-surface-subtle/50 transition-colors cursor-pointer"
-                        onClick={() => setActiveVendor(v.id)}>
-                        <td className="py-3 px-5">
-                          <div className="flex items-center gap-2">
-                            <span className="text-base">{v.icon}</span>
-                            <span className="font-semibold text-ink">{v.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-xs text-ink-secondary">{v.marketShare}</td>
-                        <td className="py-3 px-4 text-xs text-ink-secondary">{v.products[0]?.name.split("(")[0] || "—"}</td>
-                        <td className="py-3 px-4 text-xs text-ink-secondary max-w-xs">{advantage[v.id] || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* CTA */}
-          <div className="text-center py-6">
-            <p className="text-sm text-ink-muted mb-2">点击上方任意厂商卡片，查看该厂商最新动态详情</p>
-            <p className="text-xs text-ink-muted">每个厂商包含：产品发布 · 案例发布 · 解决方案 · 最新动态</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="page-stack">
+    <SectionHeader badge="Competitive Signals" title={en ? "Competitor Insights" : "友商洞察"} subtitle={en ? "Track product, case study and solution changes that affect cloud solution planning." : "跟踪阿里云、腾讯云、AWS 和火山引擎。"} image="https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=1200&q=80" action={user ? <button type="button" onClick={refresh} disabled={refreshing} className="ui-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />{refreshing ? (en ? "Refreshing..." : "刷新中") : (en ? "Refresh updates" : "刷新动态")}</button> : undefined} />
+    {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}</div>}
+    <section className="ui-card"><div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="swiss-kicker text-ink-muted">Vendor Lens</p><h2 className="mt-1 type-h2 text-ink"> {en ? "Choose a vendor" : "选择观察厂商"}</h2></div><div className="flex flex-wrap gap-2">{en && <VendorButton active={vendor === "全部"} label="All" code="ALL" onClick={() => setVendor("全部")} />}{visibleVendors.map(item => <VendorButton key={item.name} active={vendor === item.name} label={vendorLabel(item.name, en)} code={code(item.name)} count={vendorCount(item.name)} onClick={() => { setVendor(item.name); setCategory("全部"); }} />)}</div></div>
+      {selected && <div className="mt-6 grid gap-5 border-t border-grid pt-6 lg:grid-cols-[1fr_1fr_1.4fr]"><Insight title={en ? "Strengths" : "主要优势"} icon={CheckCircle2} items={selectedProfile?.strengths || selected.strengths} /><Insight title={en ? "Weaknesses" : "关注短板"} icon={ShieldAlert} items={selectedProfile?.weaknesses || selected.weaknesses} /><div className="rounded-xl bg-primary-soft p-5"><p className="swiss-kicker text-primary"> {en ? "Compared with Huawei Cloud" : "与华为云对照"}</p><p className="mt-3 text-sm leading-6 text-ink-secondary">{selectedProfile?.vs_huawei || selected.vs_huawei}</p><div className="mt-4 flex flex-wrap gap-2">{selected.products.map(item => <span key={item} className="ui-tag">{item}</span>)}</div></div></div>}
+  </section>
+    <section className="grid gap-5 xl:grid-cols-[260px_1fr]"><aside className="ui-card self-start xl:sticky xl:top-20"><p className="swiss-kicker text-ink-muted">Signal Filter</p><h2 className="mt-1 type-h3 text-ink"> {en ? "Filter updates" : "筛选情报"}</h2><label htmlFor="competitor-query" className="mt-5 block text-xs font-semibold text-ink-secondary"> {en ? "Search titles and summaries" : "搜索标题与摘要"}</label><div className="relative mt-2"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" /><input id="competitor-query" value={query} onChange={event => setQuery(event.target.value)} spellCheck={false} autoComplete="off" className="ui-input min-h-11 w-full pl-10 pr-3 text-sm" placeholder={en ? "Model, database, agent..." : "模型、数据库、Agent…"} /></div><p className="mt-6 text-xs font-semibold text-ink-secondary"> {en ? "Update type" : "动态类型"}</p><div className="mt-2 flex flex-wrap gap-2 xl:flex-col">{categories.map(item => <button key={item} type="button" onClick={() => setCategory(item)} className={`min-h-10 rounded-lg px-3 text-left text-sm ${category === item ? "bg-primary text-white" : "bg-surface-subtle text-ink-secondary hover:bg-primary-soft"}`}>{item === "全部" && en ? "All" : categoryLabel(item, en)}</button>)}</div></aside>
+      <div className="ui-card min-w-0"><div className="flex items-end justify-between gap-4"><div><p className="swiss-kicker text-ink-muted">Live Feed</p><h2 className="mt-1 type-h2 text-ink">{vendor === "全部" ? (en ? "All vendor updates" : "全部厂商动态") : (en ? `${vendor} updates` : `${vendorLabel(vendor, false)}动态`)}</h2></div><span className="font-mono text-sm text-ink-muted"> {news.length} {en ? "items" : "条"}</span></div><div className="mt-5 divide-y divide-grid">{loading ? <div className="h-72 animate-shimmer rounded-xl" /> : news.length ? news.map(item => <a key={item.intelligence?.key || `${item.vendor}-${item.id}`} href={item.intelligence?.source || item.link} target="_blank" rel="noopener noreferrer" className="group grid gap-3 py-5 sm:grid-cols-[88px_1fr_auto]"><div><span className="ui-tag">{categoryLabel(item.category, en)}</span><p className="mt-2 font-mono text-[10px] text-ink-muted">{item.date || (en ? "Date pending" : "日期待确认")}</p></div><div><div className="flex flex-wrap items-center gap-2"><span className="font-mono text-[11px] font-semibold text-primary"> {vendorLabel(item.vendor, en)}</span><h3 className="font-semibold text-ink group-hover:text-primary">{item.intelligence?.title || item.title}</h3></div><p className="mt-2 text-sm leading-6 text-ink-secondary">{(item.intelligence?.brief || item.summary || "").replace(/^Use:\s*/, en ? "Use: " : "用途：")}</p>{item.intelligence?.analysis && <p className="mt-2 text-sm leading-6 text-ink-secondary">{item.intelligence.analysis}</p>}</div><ArrowUpRight className="mt-1 h-4 w-4 text-ink-muted group-hover:text-primary" /></a>) : <div className="py-16 text-center"><Binoculars className="mx-auto h-7 w-7 text-ink-muted" /><p className="mt-3 text-sm text-ink-secondary"> {en ? "No updates match these filters" : "当前筛选下没有动态"}</p><button type="button" onClick={() => { setCategory("全部"); setQuery(""); }} className="ui-button-secondary mt-4"> {en ? "Clear filters" : "清除筛选"}</button></div>}</div></div>
+    </section>
+  </div>;
 }
+
+function VendorButton({ active, label, code: vendorCode, count, onClick }: { active: boolean; label: string; code: string; count?: number; onClick: () => void }) { return <button type="button" onClick={onClick} aria-pressed={active} className={`flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold ${active ? "bg-primary text-white" : "bg-surface-subtle text-ink-secondary hover:bg-primary-soft"}`}><span className="font-mono text-[10px] opacity-65">{vendorCode}</span>{label}{typeof count === "number" && <span className="rounded-full bg-white/15 px-1.5 font-mono text-[10px]">{count}</span>}</button>; }
+function Insight({ title, icon: Icon, items }: { title: string; icon: typeof CheckCircle2; items: string[] }) { return <div><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /><h3 className="text-sm font-semibold text-ink">{title}</h3></div><ul className="mt-3 space-y-2">{items.map(item => <li key={item} className="flex gap-2 text-sm leading-5 text-ink-secondary"><span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" />{item}</li>)}</ul></div>; }

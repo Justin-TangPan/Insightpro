@@ -43,17 +43,20 @@ export const priorityLabels: Record<Priority, string> = {
 export const solutionStatusLabels: Record<SolutionStatus, string> = {
   draft: "草稿", active: "使用中", deprecated: "已弃用", archived: "已归档",
 };
+export const solutionStatusEnglish: Record<SolutionStatus, string> = {
+  draft: "Draft", active: "Active", deprecated: "Deprecated", archived: "Archived",
+};
 
 export async function workbenchFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(`${API}/api/workbench${path}`, init);
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || `请求失败：${response.status}`);
+    throw new Error(data.detail || (document.documentElement.lang.startsWith("en") ? `Request failed: ${response.status}` : `请求失败：${response.status}`));
   }
   if (response.status === 204) return undefined as T;
   return response.json();
 }
 
-export const formatWorkbenchDate = (value: string) => new Date(value).toLocaleString("zh-CN", {
+export const formatWorkbenchDate = (value: string, locale = "zh") => new Date(value).toLocaleString(locale === "en" ? "en-US" : "zh-CN", {
   month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
 });

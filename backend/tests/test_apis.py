@@ -2,6 +2,7 @@ import sys, os
 import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from fastapi.testclient import TestClient
+from settings import settings
 from main import app
 from settings import _required_env, settings
 
@@ -18,7 +19,7 @@ class TestAPIEndpoints:
         resp = client.get("/")
         assert resp.status_code == 200
         assert "message" in resp.json()
-        assert resp.json()["version"] == "0.8.24"
+        assert resp.json()["version"] == settings.APP_VERSION
 
     def test_configured_frontend_origin_is_allowed(self):
         origin = settings.CORS_ORIGINS[0]

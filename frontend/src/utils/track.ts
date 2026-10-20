@@ -1,4 +1,5 @@
 import { API } from "@/lib/api";
+import { optionalAuthenticatedFetch } from "@/lib/authenticated-fetch";
 
 // 生成或读取访客 ID（基于浏览器指纹）
 function getVisitorId(): string {
@@ -16,19 +17,6 @@ export function trackPage(path: string) {
   if (typeof window === "undefined") return;
   const visitorId = getVisitorId();
   const ua = navigator.userAgent;
-
-  // 使用 sendBeacon 优先（不阻塞页面卸载），降级用 fetch
   const payload = JSON.stringify({ page: path, visitor_id: visitorId, user_agent: ua });
-
-  if (navigator.sendBeacon) {
-    const blob = new Blob([payload], { type: "application/json" });
-    navigator.sendBeacon(`${API}/api/track`, blob);
-  } else {
-    fetch(`${API}/api/track`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: payload,
-      keepalive: true,
-    }).catch(() => {});
-  }
+  void optionalAuthenticatedFetch(`${API}/api/track`, { method: "POST", headers: { "Content-Type": "application/json" }, body: payload, keepalive: true }).catch(() => undefined);
 }

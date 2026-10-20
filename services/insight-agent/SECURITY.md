@@ -5,7 +5,7 @@
 Insight-Agent 可以修改独立 Workspace，但没有生产写权限。边界由多层共同保证，而不是依赖提示词：
 
 1. 独立 Workspace 不包含 `.env`，也不是生产部署目录。
-2. Hermes 只启用文件工具，写入由 `HERMES_WRITE_SAFE_ROOT` 和文件系统权限共同限制；Terminal、Web、Browser、Cron 等工具关闭。
+2. Hermes 只启用文件工具，写入由 `HERMES_WRITE_SAFE_ROOT` 和文件系统权限共同限制；Terminal、Web、Browser、Cron 等工具关闭。Workflow 质量检查仅由 Runtime Manager 使用无 Shell 插值的固定白名单命令执行。
 3. Hermes 子进程按用户使用独立非 root UID；Runtime Manager 仅保留创建和切换这些 UID 所需的 capability，根文件系统只读且不挂载 Docker Socket。
 4. 不挂载 InsightPro PostgreSQL、生产目录、Service Role、SMTP 或生产 `.env`。
 5. Gateway 是唯一发布端口，未授权请求不能直达 Hermes Dashboard。

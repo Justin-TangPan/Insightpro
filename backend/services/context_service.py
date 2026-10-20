@@ -18,8 +18,8 @@ def _content(*parts: str | None) -> str:
 def _solution_content(item: dict) -> str:
     requirements = item["requirements"]
     lead = _content(
-        f"方案实践：{item['name']}",
-        f"来源：{item['reference_url']}" if item.get("reference_url") else None,
+        f"Solution Practice: {item['name']}",
+        f"Source: {item['reference_url']}" if item.get("reference_url") else None,
         item.get("description"),
     )
     if not requirements:
@@ -30,8 +30,8 @@ def _solution_content(item: dict) -> str:
     for row in requirements:
         source = " / ".join(str(value) for value in (row.get("source_type"), row.get("source_id"), row.get("source_url")) if value)
         block = _content(
-            f"背景材料：{row['title']}",
-            f"来源：{source}" if source else None,
+            f"Background Material: {row['title']}",
+            f"Source: {source}" if source else None,
             row.get("description"),
         )
         backgrounds.append(block[:allowance])
@@ -54,7 +54,7 @@ def _context(context_type: str, context_id: str, title: str, summary: str, metad
 
 def get_context(user_id: str, context_type: str, context_id: str) -> dict:
     if context_type not in CONTEXT_TYPES:
-        raise HTTPException(status_code=422, detail="不支持的 Context 类型")
+        raise HTTPException(status_code=422, detail="Unsupported Context type")
     if context_type == "requirement":
         item = workbench_service.get_requirement(user_id, int(context_id))
         related = [{"type": "solution", "id": str(s["id"]), "title": s["name"]} for s in item["solutions"]]
@@ -66,17 +66,17 @@ def get_context(user_id: str, context_type: str, context_id: str) -> dict:
     if context_type == "github_project":
         item = repository.github_project(context_id)
         if not item:
-            raise HTTPException(status_code=404, detail="GitHub Project 不存在")
+            raise HTTPException(status_code=404, detail="GitHub Project does not exist")
         related = [{"type": "requirement", "id": str(r["id"]), "title": r["title"]} for r in repository.related_requirements(user_id, "github_project", context_id)]
         metadata = {key: item.get(key) for key in ("repo_url", "language", "stars", "forks", "today_stars", "scrape_date", "evaluation_score", "evaluation_level", "recommendation")}
         return _context(context_type, context_id, item["repo_name"], item.get("evaluation_summary") or item.get("description") or "", metadata, _content(f"Project: {item['repo_name']}", item.get("description"), item.get("evaluation_summary"), item.get("reasoning")), item.get("repo_url"), related)
     if context_type == "cloud_solution":
         item = repository.cloud_solution(int(context_id))
         if not item:
-            raise HTTPException(status_code=404, detail="Cloud Solution 不存在")
+            raise HTTPException(status_code=404, detail="Cloud Solution does not exist")
         related = [{"type": "requirement", "id": str(r["id"]), "title": r["title"]} for r in repository.related_requirements(user_id, "cloud_solution", context_id)]
         return _context(context_type, context_id, item["title"], item["summary"], {"category": item["category"], "last_changed_date": item["last_changed_date"]}, _content(f"Cloud Solution: {item['title']}", item["summary"], item.get("source_description")), item["url"], related)
     item = repository.vendor_update(int(context_id))
     if not item:
-        raise HTTPException(status_code=404, detail="Vendor Update 不存在")
+        raise HTTPException(status_code=404, detail="Vendor Update does not exist")
     return _context(context_type, context_id, item["title"], item.get("summary") or "", {"vendor": item["vendor"], "category": item.get("category"), "crawl_date": item["crawl_date"]}, _content(f"Vendor Update: {item['title']}", item.get("summary")), item.get("url"))

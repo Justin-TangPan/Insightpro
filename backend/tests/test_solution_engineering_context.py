@@ -55,8 +55,8 @@ def test_solution_engineering_context_loads_public_rules_and_dynamic_context():
     assert "Terraform 执行成功不等于 Solution 成功" in system
     assert "Discover" in system and "Validate" in system
     assert "企业 AI Gateway" in system
-    assert "当前工作阶段：Understand" in system
-    assert "本轮用户消息优先于预置任务" in system
+    assert "Current work stage: Understand" in system
+    assert "This round's user message takes priority over the preset task" in system
 
 
 def test_prebuilt_task_is_only_a_suggestion_for_a_different_user_question():
@@ -68,7 +68,7 @@ def test_prebuilt_task_is_only_a_suggestion_for_a_different_user_question():
     system = insight_agent_runtime.messages_for(session, "解释 OAuth 的 PKCE")[0]["content"]
     assert "技术深度调研" not in system
     assert "评估成熟度和 PoC。" not in system
-    assert "用户提出其他问题时，只回答该问题" in system
+    assert "when the user asks a different question, answer only that question" in system
 
 
 def test_prebuilt_task_is_injected_only_for_its_exact_prompt():
@@ -79,8 +79,8 @@ def test_prebuilt_task_is_injected_only_for_its_exact_prompt():
 
     system = insight_agent_runtime.messages_for(session, "请验证当前方案。 ")[0]["content"]
 
-    assert "预置任务：方案验证" in system
-    assert "预置任务说明：请验证当前方案。" in system
+    assert "Preset task: 方案验证" in system
+    assert "Preset task description: 请验证当前方案。" in system
 
 
 def test_solution_context_keeps_role_practice_and_expected_output_together():
@@ -90,8 +90,8 @@ def test_solution_context_keeps_role_practice_and_expected_output_together():
         "context_snapshot": {"source_type": "solution", "title": "企业 AI Gateway"},
     }
     system = insight_agent_runtime.messages_for(session, "请分析当前方案。 ")[0]["content"]
-    assert "当前用户角色：Solution Architect" in system
-    assert "当前工作阶段：Design" in system
+    assert "Current user role: Solution Architect" in system
+    assert "Current work stage: Design" in system
     assert "企业 AI Gateway" in system
     assert "资源创建 → 应用安装 → 服务健康" in system
-    assert "本轮用户消息优先于预置任务" in system
+    assert "This round's user message takes priority over the preset task" in system

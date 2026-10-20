@@ -27,23 +27,43 @@ def list_for_user(user_id: str, limit: int = 30) -> list[dict]:
 
 def get_for_user(user_id: str, artifact_id: str) -> dict | None:
     with get_db() as conn:
-        cursor = conn.cursor(); cursor.execute("SELECT *, octet_length(content) AS size_bytes FROM agent_artifacts WHERE id=%s AND user_id=%s", (artifact_id, user_id)); row = cursor.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("SELECT *, octet_length(content) AS size_bytes FROM agent_artifacts WHERE id=%s AND user_id=%s", (artifact_id, user_id))
+        row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def delete_knowledge_for_session(user_id: str, session_id: str) -> None:
+    """Remove derived knowledge before the session cascades its artifacts."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """DELETE FROM knowledge_chunks
+               WHERE source_type='agent_artifact' AND source_id IN (
+                 SELECT id::text FROM agent_artifacts WHERE user_id=%s AND session_id=%s
+               )""",
+            (user_id, session_id),
+        )
 
 
 def request_knowledge(user_id: str, artifact_id: str) -> dict | None:
     with get_db() as conn:
-        cursor = conn.cursor(); cursor.execute("UPDATE agent_artifacts SET knowledge_status='requested', updated_at=NOW() WHERE id=%s AND user_id=%s AND knowledge_status='private' RETURNING *", (artifact_id, user_id)); row = cursor.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE agent_artifacts SET knowledge_status='requested', updated_at=NOW() WHERE id=%s AND user_id=%s AND knowledge_status='private' RETURNING *", (artifact_id, user_id))
+        row = cursor.fetchone()
         return dict(row) if row else None
 
 
 def requested() -> list[dict]:
     with get_db() as conn:
-        cursor = conn.cursor(); cursor.execute("SELECT id::text, user_id::text, title, type, content, knowledge_status, created_at FROM agent_artifacts WHERE knowledge_status='requested' ORDER BY updated_at ASC")
+        cursor = conn.cursor()
+        cursor.execute("SELECT id::text, user_id::text, title, type, content, knowledge_status, created_at FROM agent_artifacts WHERE knowledge_status='requested' ORDER BY updated_at ASC")
         return [dict(row) for row in cursor.fetchall()]
 
 
 def publish(artifact_id: str, path: str, reviewer_id: str) -> dict | None:
     with get_db() as conn:
-        cursor = conn.cursor(); cursor.execute("UPDATE agent_artifacts SET knowledge_status='published', knowledge_path=%s, reviewed_by=%s, reviewed_at=NOW(), updated_at=NOW() WHERE id=%s AND knowledge_status='requested' RETURNING *", (path, reviewer_id, artifact_id)); row = cursor.fetchone()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE agent_artifacts SET knowledge_status='published', knowledge_path=%s, reviewed_by=%s, reviewed_at=NOW(), updated_at=NOW() WHERE id=%s AND knowledge_status='requested' RETURNING *", (path, reviewer_id, artifact_id))
+        row = cursor.fetchone()
         return dict(row) if row else None

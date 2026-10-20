@@ -7,6 +7,26 @@ from fastapi import HTTPException
 from routers import auth
 
 
+def test_public_registration_is_closed():
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(auth.auth_register(auth.RegisterRequest(email="visitor@example.com", password="password123")))
+    assert error.value.status_code == 403
+
+
+def test_only_active_internal_members_can_use_authenticated_routes(monkeypatch):
+    credentials = SimpleNamespace(credentials="token")
+    for metadata, allowed in [({}, False), ({"role": "user"}, True), ({"role": "admin"}, True), ({"role": "user", "status": "disabled"}, False)]:
+        account = SimpleNamespace(id="member-1", app_metadata=metadata)
+        monkeypatch.setattr(auth.supabase.auth, "get_user", lambda _token: SimpleNamespace(user=account))
+        if allowed:
+            assert asyncio.run(auth.require_auth(credentials)) is account
+        else:
+            with pytest.raises(HTTPException) as error:
+                asyncio.run(auth.require_auth(credentials))
+            assert error.value.status_code == 403
+            assert asyncio.run(auth.get_current_user(credentials)) is None
+
+
 def test_ticket_and_gateway_session_are_one_time_and_revocable(monkeypatch):
     stored = {}
     sessions = {}
@@ -67,7 +87,7 @@ def test_admin_user_directory_exposes_no_credentials(monkeypatch):
     result = asyncio.run(auth.auth_users())
     assert result["users"] == [{
         "id": "user-1", "email": "user@example.com", "name": "User", "role": "user", "status": "active",
-        "agent_space_status": "首次进入自动创建",
+        "agent_space_status": "Auto-created on first access",
         "created_at": "2026-01-01", "last_sign_in_at": None,
     }]
 
@@ -92,8 +112,20 @@ def test_admin_invitation_assigns_member_role(monkeypatch):
     monkeypatch.setattr(auth.supabase.auth.admin, "invite_user_by_email", lambda *_: SimpleNamespace(user=account))
     monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**account.__dict__, "app_metadata": values["app_metadata"]})))
     result = asyncio.run(auth.invite_user(auth.InviteRequest(email="member@example.com", name="Member", role="admin")))
-    assert result["message"] == "邀请已发送"
+    assert result["message"] == "Invitation sent"
     assert result["user"]["role"] == "admin"
+
+
+def test_admin_can_create_email_free_test_account(monkeypatch):
+    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000003", app_metadata={"role": "user", "status": "active"}, user_metadata={"name": "Demo"}, email="demo01@test.insightpro.invalid", created_at="2026-01-01", last_sign_in_at=None)
+    captured = {}
+    monkeypatch.setattr(auth.supabase.auth.admin, "create_user", lambda data: captured.update(data) or SimpleNamespace(user=account))
+    monkeypatch.setattr(auth.agent_audit_service, "log", lambda *_: None)
+    admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
+    result = asyncio.run(auth.create_test_user(auth.TestUserCreate(username="demo01", password="safe-pass", name="Demo"), admin))
+    assert captured["email"] == "demo01@test.insightpro.invalid"
+    assert captured["email_confirm"] is True
+    assert result["message"].startswith("Test account created")
 
 
 def test_admin_can_view_agent_space_states(monkeypatch):

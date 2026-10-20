@@ -19,14 +19,11 @@ export function SectionHeader({ badge, title, subtitle, action, image }: Section
         </div>
       )}
 
-      <div className="relative px-6 py-7 md:px-8 md:py-8">
-        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-          <div className="max-w-3xl space-y-4">
+      <div className="relative px-5 py-4 md:px-6 md:py-5">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="max-w-3xl space-y-2">
             {badge && <GradientBadge>{badge}</GradientBadge>}
-            <div className="editorial-rule opacity-80">
-              <span className="editorial-rule__diamond" />
-            </div>
-            <h1 className="serif-display text-ink">
+            <h1 className="type-h2 text-ink">
               {title}
             </h1>
             {subtitle && (

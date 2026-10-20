@@ -1,194 +1,98 @@
 "use client";
 
-import {
-  ArrowUpRight,
-  BarChart3,
-  ChevronRight,
-  Clock,
-  History,
-  Layers3,
-  Blocks,
-  Radio,
-  ShieldCheck,
-} from "lucide-react";
 import Link from "next/link";
+import { ArrowUpRight, Radar, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { API } from "@/lib/api";
-import type { LucideIcon } from "lucide-react";
+import { radarMarkerPositions } from "@/lib/radar-markers";
+import { usePreferences } from "@/lib/preferences";
 import { useAuth } from "@/components/auth-provider";
-import { Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
+import { ExpandableText } from "@/components/expandable-text";
+import type { Intelligence } from "@/lib/intelligence";
 
-interface InsightModule {
-  id: string;
-  label: string;
-  icon: LucideIcon;
-  href: string;
-  items: { title: string; tag: string }[];
-  freshness?: string;
-  status?: "fresh" | "empty";
-}
-
-interface ApiModule {
-  id: string;
-  items?: { title: string; tag?: string }[];
-  as_of?: string;
-  status?: "fresh" | "empty";
-}
-
-const modules: InsightModule[] = [
-  { id: "hotspots", label: "技术热点", icon: Radio, href: "/insights/hotspots", items: [] },
-  { id: "solutions", label: "解决方案洞察", icon: Layers3, href: "/insights/solutions", items: [] },
-  { id: "competitors", label: "友商洞察", icon: ShieldCheck, href: "/insights/competitors", items: [] },
-];
+type Signal = { title: string; summary: string; tagline?: string; why?: string; category: string; source: string; url: string; day: string; intelligence?: Intelligence };
+type Category = { name: string; current: number; previous: number; direction: string };
+type Snapshot = { as_of: string; today_count: number; recent_count: number; categories: Category[]; top_signals: Signal[]; apps: Signal[] };
 
 export default function HomePage() {
+  const { preferences } = usePreferences();
   const { user } = useAuth();
-  const [dynamicModules, setDynamicModules] = useState(modules);
-  const [stats, setStats] = useState<Record<string, number>>({});
-  const [practices, setPractices] = useState<Solution[]>([]);
+  const en = preferences.language === "en";
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [moduleResponse, statsResponse] = await Promise.all([
-          fetch(`${API}/api/homepage/modules`),
-          fetch(`${API}/api/homepage/stats`),
-        ]);
-        if (moduleResponse.ok) {
-          const data = await moduleResponse.json() as ApiModule[];
-          setDynamicModules(modules.map((module) => {
-            const source = data.find((item) => item.id === module.id);
-            const items = source?.items || [];
-            return { ...module, items: items.map((item) => ({ title: item.title, tag: item.tag || "" })), freshness: source?.as_of, status: source?.status };
-          }));
-        }
-        if (statsResponse.ok) setStats(await statsResponse.json());
-      } catch {
-        // The empty states below keep the homepage usable while data refreshes.
-      }
-    };
-    void load();
+    void fetch(`${API}/api/radar/snapshot`)
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(setSnapshot)
+      .catch(() => setError(true));
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
-    void workbenchFetch<Solution[]>("/solutions").then(setPractices).catch(() => setPractices([]));
-  }, [user]);
+  const categories = snapshot?.categories || [];
+  const rising = categories.filter(item => item.direction === "↑");
+  const lead = snapshot?.apps[0];
+  const radarItems = [
+    ...(snapshot?.apps ?? []).map((signal, index) => ({ signal, code: `A${index + 1}`, target: `radar-app-${index + 1}`, kind: "app" as const })),
+    ...(snapshot?.top_signals ?? []).map((signal, index) => ({ signal, code: `V${index + 1}`, target: `radar-vendor-${index + 1}`, kind: "vendor" as const })),
+  ];
+  const markerPositions = radarMarkerPositions(radarItems.map(item => item.signal), categories.map(item => item.name));
 
-  return (
-    <div className="page-stack">
-      <section className="overflow-hidden rounded-2xl bg-primary-dark text-white shadow-[var(--shadow-brand)]">
-        <div className="grid lg:grid-cols-[1.08fr_0.92fr]">
-          <div className="flex flex-col justify-center px-6 py-10 md:px-10 md:py-12 lg:px-12">
-            <div className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/80">
-              <Clock className="h-3 w-3" />
-              Technical Solution Intelligence
-            </div>
-            <h1 className="mt-6 max-w-2xl serif-display text-white">
-              从技术信号，到可落地的方案实践。
-            </h1>
-            <p className="mt-5 max-w-xl text-[0.9375rem] leading-7 text-white/70">
-              发现值得关注的技术变化，判断落地价值，再用 AI 协作沉淀为可验证、可交付的解决方案实践。
-            </p>
-          </div>
-          <div className="grid gap-2 bg-white/5 p-3 md:p-4 lg:grid-rows-3">
-            {[
-              ["发现信号", "捕捉技术与方案变化"],
-              ["判断价值", "提炼场景、能力与风险"],
-              ["形成实践", "协作完成验证与交付"],
-            ].map(([title, description], index) => (
-              <div key={title} className="group flex min-h-28 items-center gap-5 rounded-xl bg-white/[0.08] px-6 py-5 transition-colors hover:bg-white/[0.13]">
-                <span className="font-mono text-3xl font-bold tracking-[-0.08em] text-white/25 transition-colors group-hover:text-white/45">0{index + 1}</span>
-                <div className="min-w-0">
-                  <p className="text-xl font-bold tracking-tight text-white">{title}</p>
-                  <p className="mt-1 text-sm leading-6 text-white/65">{description}</p>
-                </div>
-                <ChevronRight className="ml-auto h-5 w-5 text-white/30 transition-transform group-hover:translate-x-1 group-hover:text-white/70" />
-              </div>
-            ))}
-          </div>
+  return <div className="radar-home page-stack">
+    <section className="radar-board" aria-labelledby="radar-heading">
+      <div className="radar-board__head">
+        <div>
+          <p className="radar-kicker">INSIGHTPRO / AI RADAR</p>
+          <h1 id="radar-heading" className="mt-3 text-[clamp(2rem,3.8vw,3.6rem)] font-semibold leading-[1.08] tracking-[-.055em] text-ink">{en ? "What's worth watching in AI?" : "最近 AI 有什么值得关注？"}</h1>
         </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "方案目录", value: stats.solution_count || 0, unit: "项", icon: Layers3, href: "/insights/solutions" },
-          { label: "近 7 日变化", value: stats.solution_recent_count || 0, unit: "项", icon: ArrowUpRight, href: "/insights/solutions" },
-          { label: "今日技术热点", value: stats.trending_today || 0, unit: "个", icon: Radio, href: "/insights/hotspots" },
-          { label: "AI 价值评估", value: stats.evaluation_today || 0, unit: "项", icon: ShieldCheck, href: "/insights/hotspots" },
-        ].map((item) => (
-          <Link key={item.label} href={item.href} className="ui-card ui-card-interactive group flex min-h-40 flex-col justify-between">
-            <item.icon className="h-5 w-5 text-primary" strokeWidth={1.7} />
-            <div>
-            <p className="mb-2 swiss-kicker">{item.label}</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-[2rem] text-ink serif-stat">{item.value}</span>
-              <span className="type-meta">{item.unit}</span>
-            </div>
-            </div>
-          </Link>
-        ))}
-      </section>
-
-      <section className="space-y-5">
-        <div className="flex items-end justify-between gap-4">
-          <div>
-            <p className="swiss-kicker text-primary">Technology radar</p>
-            <h2 className="mt-1 type-h2 text-ink">今日技术信号</h2>
-          </div>
-          <span className="type-meta hidden sm:block">从变化到选型判断 →</span>
-        </div>
-
-        <div className="grid gap-3 lg:grid-cols-3">
-          {dynamicModules.map((module) => (
-            <Link key={module.id} href={module.href} className="ui-card ui-card-interactive group">
-              <div className="ui-card-header">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-soft text-primary">
-                  <module.icon className="h-4 w-4" strokeWidth={1.5} />
-                </div>
-                <h3 className="type-h3 flex-1 text-ink">{module.label}</h3>
-                <ChevronRight className="h-4 w-4 text-primary transition-transform group-hover:translate-x-1" />
-              </div>
-              <div className="space-y-2">
-                <p className="text-[11px] text-ink-muted">{module.status === "fresh" ? `数据状态 · ${module.freshness || "已更新"}` : "数据状态 · 暂无可用数据"}</p>
-                {module.items.length === 0 && <p className="type-meta">暂无可用数据，请稍后重试</p>}
-                {module.items.map((item) => (
-                  <div key={`${module.id}-${item.title}`} className="rounded-lg bg-surface-subtle px-3.5 py-3">
-                    <p className="line-clamp-2 text-[0.8125rem] leading-5 text-ink-secondary">{item.title}</p>
-                    <span className="mt-1.5 block font-mono text-[10px] font-semibold text-ink-muted">{item.tag}</span>
-                  </div>
-                ))}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-2xl bg-surface-subtle p-4 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Solution practice</p><h2 className="mt-1 type-h2 text-ink">把有价值的信号变成方案实践</h2></div>
-          <div className="flex gap-2"><Link href="/workbench/ai" className="ui-button-secondary">AI 工作</Link><Link href="/workbench/solutions/new" className="ui-button-primary">收纳方案实践</Link></div>
-        </div>
-        <div className="mt-5 grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <Link href="/workbench/solutions" className="rounded-xl bg-white p-5 transition-shadow hover:shadow-[var(--shadow-card)]"><Blocks className="h-5 w-5 text-primary" /><p className="mt-5 swiss-kicker text-ink-muted">方案实践</p><p className="mt-1 serif-stat text-3xl text-ink">{user ? practices.length : 0}</p></Link>
-          <div className="rounded-xl bg-white p-5"><div className="flex items-center justify-between"><h3 className="type-h3 text-ink">最近方案实践</h3><Link href="/workbench/solutions/new" className="ui-link text-xs">收纳实践</Link></div><div className="mt-3 space-y-2">{practices.slice(0, 3).map((item) => <Link key={item.id} href={`/workbench/solutions/${item.id}`} className="flex items-center justify-between gap-3 rounded-lg bg-surface-subtle px-3 py-2.5 text-sm transition-colors hover:bg-primary-soft"><span className="truncate font-medium text-ink-secondary">{item.name}</span><span className="ui-tag shrink-0">{solutionStatusLabels[item.status]}</span></Link>)}{!practices.length && <p className="py-5 text-center text-sm text-ink-muted">{user ? "还没有方案实践" : "登录后查看工作台信息"}</p>}</div></div>
-        </div>
-      </section>
-
-      <div className="flex flex-wrap gap-2">
-        <Link href="/insights/solutions" className="ui-button-primary">
-          <Layers3 className="h-3.5 w-3.5" />
-          浏览方案目录
-        </Link>
-        <Link href="/history" className="ui-button-secondary">
-          <History className="h-3.5 w-3.5" />
-          历史日报
-        </Link>
-        <Link href="/dashboard" className="ui-button-secondary">
-          <BarChart3 className="h-3.5 w-3.5" />
-          数据大屏
-        </Link>
+        <p className="radar-board__date">{snapshot ? `${snapshot.as_of} · ${en ? "Last 7 days" : "近 7 天"}` : error ? (en ? "Radar data is temporarily unavailable" : "雷达数据暂不可用") : (en ? "Loading today's brief…" : "正在整理今日简报…")}</p>
       </div>
-    </div>
-  );
+
+      <div className="radar-board__metrics">{[
+        [snapshot?.today_count, en ? "Signals today" : "今日采集"],
+        [snapshot?.recent_count, en ? "Signals this week" : "近 7 天信号"],
+        [snapshot?.apps.length, en ? "AI apps" : "AI 应用"],
+        [rising.length, en ? "Rising directions" : "升温方向"],
+      ].map(([value, label]) => <div key={label} className="radar-board__metric"><strong className="tabular-nums">{snapshot ? value : "—"}</strong><span>{label}</span></div>)}</div>
+
+      <div className="radar-board__main">
+        <div className="radar-board__plot">
+          <div className="radar-board__plot-head"><div className="flex items-center gap-2"><Radar className="h-4 w-4 text-primary" aria-hidden="true" /><h2 className="text-sm font-semibold text-ink">{en ? "AI Radar · featured signals" : "AI 雷达 · 代表情报"}</h2></div><span className="text-xs text-ink-muted">{en ? "Signal volume" : "信号量"}</span></div>
+          <div className="radar-board__chart">
+            <svg className="radar-board__map" viewBox="-190 -190 380 380" role="group" aria-label={en ? "AI intelligence radar: five directions and linked signals" : "AI 情报雷达：五个方向及可点击的情报点"}>
+              {[46, 88, 130].map(radius => <circle key={radius} r={radius} className="radar-board__ring" />)}
+              {categories.map((category, index) => {
+                const angle = -Math.PI / 2 + index * 2 * Math.PI / categories.length;
+                const x = Math.cos(angle), y = Math.sin(angle);
+                return <g key={category.name}>
+                  <line x1="0" y1="0" x2={x * 132} y2={y * 132} className="radar-board__spoke" />
+                  <text x={x * 158} y={y * 158} textAnchor={x > 0.2 ? "start" : x < -0.2 ? "end" : "middle"} dominantBaseline="central" className="radar-board__category">{category.name === "商业化与产业" ? "商业化" : category.name}</text>
+                  <text x={x * 158} y={y * 158 + 15} textAnchor={x > 0.2 ? "start" : x < -0.2 ? "end" : "middle"} dominantBaseline="central" className="radar-board__count">{category.current} {en ? "signals" : "条情报"}</text>
+                </g>;
+              })}
+              <circle r="20" className="radar-board__hub" />
+              <text y="1" textAnchor="middle" dominantBaseline="central" className="radar-board__hub-text">AI</text>
+              {radarItems.map((item, index) => { const position = markerPositions[index]; return position && <a key={item.code} href={`#${item.target}`} aria-label={`${item.code} ${item.signal.title}`}><title>{item.signal.title}</title><g className={`radar-board__marker radar-board__marker--${item.kind}`} transform={`translate(${position.x} ${position.y})`}><rect x="-15" y="-13" width="30" height="26" rx="13" /><text textAnchor="middle" dominantBaseline="central">{item.code}</text></g></a>; })}
+            </svg>
+          </div>
+          <div className="radar-board__legend"><span><i className="radar-board__legend-current" />{en ? "Signal" : "情报点"}</span><span><i className="radar-board__legend-app" />{en ? "AI app" : "AI 应用"}</span></div>
+          <p className="mt-3 text-center text-[11px] leading-4 text-ink-muted">{en ? "Each spoke is a topic. Select a numbered point to read the signal below." : "每个方向代表一类主题；点击编号查看对应情报。"}</p>
+        </div>
+        <div className="radar-board__side">
+          <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-semibold text-ink">{en ? "On the radar" : "雷达情报"}</h2><span className="text-xs text-ink-muted">{en ? "Select to view" : "点击查看"}</span></div>
+          {radarItems.length ? <div className="mt-3">{radarItems.map(item => <a key={item.code} href={`#${item.target}`} className="radar-board__signal"><span className={`radar-board__signal-code radar-board__signal-code--${item.kind}`}>{item.code}</span><span className="min-w-0 flex-1"><span className="block truncate text-xs font-medium text-ink" title={item.signal.title}>{item.signal.title}</span><span className="block text-[11px] text-ink-muted">{item.signal.source} · {item.signal.category}</span></span><ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-ink-muted" aria-hidden="true" /></a>)}</div> : <p className="mt-4 text-xs text-ink-muted">{en ? "No featured signals yet." : "暂无代表情报。"}</p>}
+          <p className="mt-auto pt-4 text-[11px] leading-4 text-ink-muted">{en ? "Outline compares signal volume with the prior seven days; volume is not a trend score." : "轮廓对比前 7 天信号量；信号量不等于趋势强度。"}</p>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="apps-heading"><div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="radar-kicker">DISCOVER / OFFICIAL AI APPS</p><h2 id="apps-heading" className="mt-1 text-2xl font-semibold tracking-tight text-ink">{en ? "AI apps" : "AI 应用"}</h2></div><Link href="/insights/app-launches" className="text-xs font-semibold text-primary hover:underline">{en ? "View all" : "查看全部"} <ArrowUpRight className="inline h-3.5 w-3.5" aria-hidden="true" /></Link></div>
+      {snapshot?.apps.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{snapshot.apps.map((app, index) => <article key={app.intelligence?.key || app.url} id={`radar-app-${index + 1}`} className="radar-home-card flex scroll-mt-24 flex-col"><div className="flex items-center justify-between gap-2"><span className="radar-tag">A{index + 1} · {app.source}</span><span className="text-xs text-ink-muted">{app.day ? app.day.slice(5) : ""}</span></div><h3 className="mt-4 text-lg font-semibold text-ink">{app.intelligence?.title || app.title}</h3><ExpandableText lines={3} en={en} className="mt-2 flex-1 text-sm leading-6 text-ink-secondary">{app.intelligence?.analysis || app.summary}</ExpandableText>{app.url && <a href={app.intelligence?.source || app.url} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">{en ? "Official source" : "查看官方原文"}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a>}</article>)}</div> : <div className="radar-home-card text-sm text-ink-muted">{error ? (en ? "Official app feed is unavailable." : "官方应用信息暂不可用。") : snapshot ? (en ? "No official AI app matched the current sources." : "当前来源暂无符合条件的官方 AI 应用。") : (en ? "Finding official apps…" : "正在发现官方应用…")}</div>}
+    </section>
+
+    <section aria-labelledby="signals-heading"><div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="radar-kicker">INDUSTRY / SIGNALS</p><h2 id="signals-heading" className="mt-1 text-2xl font-semibold tracking-tight text-ink">{en ? "Vendor launch signals" : "厂商产品发布信号"}</h2></div><span className="text-xs text-ink-muted">{en ? "Existing competitor feed" : "现有友商动态采集"}</span></div>
+      {snapshot?.top_signals.length ? <div className="grid gap-3 lg:grid-cols-3">{snapshot.top_signals.map((item, index) => <article key={item.intelligence?.key || `${item.title}-${index}`} id={`radar-vendor-${index + 1}`} className="radar-home-card scroll-mt-24"><div className="flex items-center justify-between gap-2"><span className="radar-tag">V{index + 1} · {item.category}</span><span className="text-xs text-ink-muted">{item.day.slice(5)}</span></div><h3 className="mt-4 text-base font-semibold leading-6 text-ink">{item.intelligence?.title || item.title}</h3><ExpandableText lines={3} en={en} className="mt-2 text-sm leading-6 text-ink-secondary">{item.intelligence?.brief || item.summary || (en ? "Brief pending" : "来源摘要待补充")}</ExpandableText>{item.intelligence?.analysis && <div className="mt-3 border-t border-grid pt-3"><span className="text-xs font-semibold text-primary">{en ? "AI analysis" : "AI 分析"}</span><ExpandableText lines={3} en={en} className="mt-1 text-xs leading-5 text-ink-secondary">{item.intelligence.analysis}</ExpandableText></div>}<p className="mt-3 text-xs text-ink-muted">{item.source}</p>{item.url && <a href={item.intelligence?.source || item.url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">{en ? "Verify source" : "核实来源"}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a>}</article>)}</div> : <div className="radar-home-card text-sm text-ink-muted">{en ? "No clear official launch signal in the current sample." : "当前样本中暂无明确的官方发布信号。"}</div>}
+    </section>
+
+    {user && <section className="radar-home-card flex flex-wrap items-center justify-between gap-5"><div><div className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /><h2 className="text-base font-semibold text-ink">{en ? "Suggested next step" : "建议下一步"}</h2></div><p className="mt-2 max-w-3xl text-sm leading-6 text-ink-secondary">{lead ? (en ? `Review "${lead.title}" with its official analysis.` : `查看「${lead.title}」的官方应用与分析。`) : (en ? "Review original sources before choosing a research topic." : "先核实原始来源，再决定需要深入研究的对象。")}</p></div><Link href="/workbench/ai" className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary-dark px-5 text-sm font-semibold text-white hover:opacity-90">{en ? "Research in AI workspace" : "进入 AI 工作区研究"}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></Link></section>}
+  </div>;
 }

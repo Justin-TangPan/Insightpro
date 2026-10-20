@@ -25,3 +25,5 @@ backend/*.log
 backend/stderr*
 **/__pycache__
 **/*.pyc
+vendor/hermes-agent/.git
+vendor/hermes-agent/.venv

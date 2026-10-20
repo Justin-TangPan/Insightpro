@@ -1,4 +1,4 @@
-"""华为云解决方案实践采集与内容变更检测。"""
+"""Huawei Cloud solution practice collection and content change detection."""
 from __future__ import annotations
 
 import html
@@ -18,7 +18,7 @@ INDEX_URL = "https://www.huaweicloud.com/solution/reference-architecture.html"
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; InsightPro/0.4)"}
 CARD_RE = re.compile(r'&quot;cardItem&quot;:\{([^{}]+)\}', re.S)
 FIELD_RE = re.compile(r'&quot;(label|href|caption|description)&quot;:&quot;(.*?)&quot;', re.S)
-CATEGORY_ORDER = ("AI", "数据分析与管理", "应用现代化", "安全与合规", "网络", "运维监控", "云迁移")
+CATEGORY_ORDER = ("AI", "Data Analytics & Management", "App Modernization", "Security & Compliance", "Networking", "Ops & Monitoring", "Cloud Migration")
 
 
 def _clean(text: str) -> str:
@@ -27,7 +27,7 @@ def _clean(text: str) -> str:
 
 def _category(value: str) -> str:
     categories = [_clean(item) for item in re.split(r"[,，]", value) if _clean(item)]
-    return "AI" if "AI" in categories else (categories[0] if categories else "其他")
+    return "AI" if "AI" in categories else (categories[0] if categories else "Other")
 
 
 def _parse_catalog(page: str) -> list[dict]:
@@ -46,12 +46,12 @@ def _parse_catalog(page: str) -> list[dict]:
         description = _clean(BeautifulSoup(html.unescape(description), "html.parser").get_text(" "))
         items.append({
             "title": title, "url": url,
-            "category": f"{category} / 解决方案实践",
+            "category": f"{category} / Solution Practice",
             "source_description": description,
             "menu_order": len(items),
         })
     if not items:
-        raise ValueError("华为云解决方案目录没有可访问条目")
+        raise ValueError("Huawei Cloud solution catalog has no accessible entries")
     order = {category: index for index, category in enumerate(CATEGORY_ORDER)}
     items.sort(key=lambda item: (order.get(item["category"].split(" / ")[0], len(order)), item["menu_order"]))
     for index, item in enumerate(items):
@@ -92,7 +92,7 @@ def refresh_huawei_solutions() -> dict:
     today = datetime.now().strftime("%Y-%m-%d")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT url, title, category, source_description, content_hash, content_snapshot FROM aliyun_solutions WHERE vendor='华为云'")
+        cursor.execute("SELECT url, title, category, source_description, summary, content_hash, content_snapshot FROM aliyun_solutions WHERE vendor='Huawei Cloud'")
         existing = {row["url"]: dict(row) for row in cursor.fetchall()}
         initial_baseline = not existing
         for item in items:
@@ -103,10 +103,12 @@ def refresh_huawei_solutions() -> dict:
                 if isinstance(snapshot, str):
                     snapshot = json.loads(snapshot)
                 item["detail_text"] = snapshot.get("detail_text", "")
-            item["vendor"] = "华为云"
+            item["vendor"] = "Huawei Cloud"
             item["content_snapshot"] = {key: item.get(key, "") for key in ("title", "category", "source_description", "detail_text")}
             item["content_hash"] = _content_hash(item)
-        changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]]
+        changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]
+                   or "Solution value:" not in (existing[item["url"]].get("summary") or "")
+                   or "Huawei Cloud resources:" not in (existing[item["url"]].get("summary") or "")]
         summaries = _summarize(changed)
         new_count = changed_count = 0
         for item in items:
@@ -116,13 +118,16 @@ def refresh_huawei_solutions() -> dict:
                 cursor.execute("""INSERT INTO aliyun_solutions
                     (title, url, category, source_description, summary, content_hash, vendor, content_snapshot, change_summary, first_seen_date, last_seen_date, last_changed_date, is_active, is_baseline, menu_order, removed_at)
                     VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,'',%s,%s,%s,TRUE,%s,%s,NULL)""",
-                    (item["title"], item["url"], item["category"], item["source_description"], summaries[item["url"]], item["content_hash"], "华为云", json.dumps(item["content_snapshot"], ensure_ascii=False), today, today, today, initial_baseline, item["menu_order"]))
+                    (item["title"], item["url"], item["category"], item["source_description"], summaries[item["url"]], item["content_hash"], "Huawei Cloud", json.dumps(item["content_snapshot"], ensure_ascii=False), today, today, today, initial_baseline, item["menu_order"]))
             elif old["content_hash"] != item["content_hash"]:
                 changed_count += 1
                 cursor.execute("""UPDATE aliyun_solutions SET title=%s, category=%s, source_description=%s, summary=%s, content_hash=%s, content_snapshot=%s::jsonb, change_summary=%s, last_seen_date=%s, last_changed_date=%s, is_active=TRUE, is_baseline=FALSE, menu_order=%s, removed_at=NULL, updated_at=NOW() WHERE url=%s""",
                     (item["title"], item["category"], item["source_description"], summaries[item["url"]], item["content_hash"], json.dumps(item["content_snapshot"], ensure_ascii=False), _change_summary(old, item), today, today, item["menu_order"], item["url"]))
+            elif item["url"] in summaries:
+                cursor.execute("UPDATE aliyun_solutions SET summary=%s, last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s",
+                               (summaries[item["url"]], today, item["url"]))
             else:
                 cursor.execute("UPDATE aliyun_solutions SET last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s", (today, item["url"]))
-        cursor.execute("UPDATE aliyun_solutions SET is_active=FALSE, removed_at=NOW(), updated_at=NOW() WHERE is_active=TRUE AND vendor='华为云' AND url <> ALL(%s)", ([item["url"] for item in items],))
+        cursor.execute("UPDATE aliyun_solutions SET is_active=FALSE, removed_at=NOW(), updated_at=NOW() WHERE is_active=TRUE AND vendor='Huawei Cloud' AND url <> ALL(%s)", ([item["url"] for item in items],))
         removed_count = cursor.rowcount
     return {"status": "success", "checked_date": today, "total": len(items), "new": new_count, "updated": changed_count, "removed": removed_count}

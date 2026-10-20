@@ -3,6 +3,8 @@
 import { SectionHeader } from "@/components/section-header";
 import { useCallback, useEffect, useState } from "react";
 import { API } from "@/lib/api";
+import { usePreferences } from "@/lib/preferences";
+import type { Intelligence } from "@/lib/intelligence";
 import {
   CalendarDays, FileText, Activity, Search,
   ExternalLink, Star, RefreshCw
@@ -27,13 +29,18 @@ interface HistoryEntry {
 
 interface EvaluationItem {
   repo_name: string;
+  repo_url?: string;
+  summary?: string;
   total: number;
   level: string;
   recommendation: string;
   reasoning: string;
+  intelligence?: Intelligence;
 }
 
 export default function HistoryPage() {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,7 +49,7 @@ export default function HistoryPage() {
   const fetchHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/github-trending/history?days=30&category=${category}`);
+      const res = await fetch(`${API}/api/github-trending/history?days=30&category=${category}&locale=${preferences.language}`);
       if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       const data = await res.json();
       setHistory(data.history || []);
@@ -51,7 +58,7 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  }, [category]);
+  }, [category, preferences.language]);
 
   useEffect(() => {
     void Promise.resolve().then(fetchHistory);
@@ -74,12 +81,12 @@ export default function HistoryPage() {
     <div className="page-stack">
       <SectionHeader
         badge="Archive"
-        title="历史日报存档"
-        subtitle="按日期查阅每天采集的技术热点与业务价值分析，追溯技术趋势变化轨迹"
+        title={en ? "Project Archive" : "历史日报存档"}
+        subtitle={en ? "Browse daily project insights and business value analysis by date" : "按日期查阅每天采集的项目洞察与业务价值分析，追溯项目趋势变化轨迹"}
         action={
           <div className="flex items-center gap-2 text-xs text-ink-muted">
             <FileText className="h-4 w-4" />
-            <span>已收录 {history.length} 天数据</span>
+            <span>{en ? `${history.length} days archived` : `已收录 ${history.length} 天数据`}</span>
           </div>
         }
       />
@@ -90,7 +97,7 @@ export default function HistoryPage() {
           <Search className="h-3.5 w-3.5 text-ink-muted" />
           <input
             type="text"
-            placeholder="按日期或仓库名搜索..."
+            placeholder={en ? "Search dates or repositories..." : "按日期或仓库名搜索..."}
             className="bg-transparent border-none text-[13px] focus:outline-none w-full text-ink placeholder:text-ink-muted"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -107,7 +114,7 @@ export default function HistoryPage() {
                   : ""
               }`}
             >
-              {c === "daily" ? "日榜" : c === "weekly" ? "周榜" : "月榜"}
+              {c === "daily" ? (en ? "Daily" : "日榜") : c === "weekly" ? (en ? "Weekly" : "周榜") : (en ? "Monthly" : "月榜")}
             </button>
           ))}
         </div>
@@ -116,7 +123,7 @@ export default function HistoryPage() {
           className="ui-button-secondary"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-          刷新
+          {en ? "Refresh" : "刷新"}
         </button>
       </div>
 
@@ -133,9 +140,9 @@ export default function HistoryPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-lg font-serif font-bold text-ink-muted">暂无历史记录</p>
+          <p className="text-lg font-serif font-bold text-ink-muted">{en ? "No history" : "暂无历史记录"}</p>
           <p className="text-sm text-ink-muted mt-1">
-            {searchQuery ? "没有匹配的记录，试试其他关键词" : "每天 09:00 自动抓取，数据将逐步积累"}
+            {searchQuery ? (en ? "No matches; try another term" : "没有匹配的记录，试试其他关键词") : (en ? "Daily crawls at 09:00 will build this archive" : "每天 09:00 自动抓取，数据将逐步积累")}
           </p>
         </div>
       ) : (
@@ -154,14 +161,14 @@ export default function HistoryPage() {
                       <span className="text-sm font-semibold text-ink">{entry.date}</span>
                     </div>
                     <p className="text-xs text-ink-muted">
-                      {new Date(entry.date).toLocaleDateString("zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                      {new Date(entry.date).toLocaleDateString(en ? "en-US" : "zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-ink-muted">
                   <span className="flex items-center gap-1">
                     <Activity className="h-3 w-3" />
-                    {entry.items.length} 个项目
+                    {entry.items.length} {en ? "projects" : "个项目"}
                   </span>
                 </div>
               </div>
@@ -185,7 +192,7 @@ export default function HistoryPage() {
                           {item.repo_name}
                         </p>
                         <p className="text-xs text-ink-muted line-clamp-1 mt-0.5">
-                          {item.description || "暂无描述"}
+                          {item.description || (en ? "No description" : "暂无描述")}
                         </p>
                         <div className="flex items-center gap-3 mt-1.5">
                           {item.language && item.language !== "N/A" && (
@@ -206,20 +213,21 @@ export default function HistoryPage() {
                 {entry.evaluations?.length > 0 && (
                   <div className="mt-5 border-t border-grid/60 pt-5">
                     <div className="mb-3 flex items-center justify-between">
-                      <h3 className="type-h3 text-ink">当日业务价值分析</h3>
-                      <span className="text-xs text-ink-muted">{entry.evaluations.length} 个项目</span>
+                      <h3 className="type-h3 text-ink">{en ? "Business value analysis" : "项目业务价值分析"}</h3>
+                      <span className="text-xs text-ink-muted">{entry.evaluations.length} {en ? "projects" : "个项目"}</span>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                       {entry.evaluations.map((item) => (
                         <div key={item.repo_name} className="rounded-xl bg-surface-subtle p-4">
                           <div className="flex items-center justify-between gap-3">
-                            <p className="truncate text-xs font-semibold text-ink">{item.repo_name}</p>
+                            <a href={item.intelligence?.source || item.repo_url} target="_blank" rel="noopener noreferrer" className="truncate text-xs font-semibold text-ink hover:text-primary">{item.intelligence?.title || item.repo_name}</a>
                             <span className="ui-tag shrink-0">
                               {item.total} · {item.level}
                             </span>
                           </div>
-                          <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{item.recommendation}</p>
-                          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">{item.reasoning}</p>
+                          {(item.intelligence?.brief || item.summary) && <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{item.intelligence?.brief || item.summary}</p>}
+                          <p className="mt-2 text-xs leading-relaxed text-ink-secondary">{en ? "Next step: " : "建议："}{item.recommendation}</p>
+                          <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">{item.intelligence?.analysis || item.reasoning}</p>
                         </div>
                       ))}
                     </div>

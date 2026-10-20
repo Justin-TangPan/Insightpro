@@ -96,7 +96,7 @@ def absorb_requirements_into_solutions() -> int:
                     """,
                     (
                         requirement["user_id"], requirement["title"], requirement["description"],
-                        requirement.get("source_type") or "未分类",
+                        requirement.get("source_type") or "Uncategorized",
                         status_map.get(requirement["status"], "draft"), requirement.get("source_url"),
                     ),
                 )
@@ -192,7 +192,7 @@ def create_solution(user_id: str, data: dict, requirement_id: int | None = None)
             RETURNING *
             """,
             (
-                user_id, data["name"], data.get("description", ""), data.get("category", "未分类"),
+                user_id, data["name"], data.get("description", ""), data.get("category", "Uncategorized"),
                 data.get("status", "draft"), data.get("version", "v0.1.0"), data.get("reference_url"),
             ),
         )

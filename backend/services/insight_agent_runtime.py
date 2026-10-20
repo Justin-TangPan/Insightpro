@@ -16,6 +16,7 @@ from urllib.parse import urlparse
 import httpx
 
 from settings import settings
+from services.ai_service import chat_completions_url
 
 
 _PACKAGED_KNOWLEDGE_ROOT = Path(__file__).resolve().parent.parent / "agent_knowledge"
@@ -104,14 +105,13 @@ def plugin_knowledge(task_key: str | None = None) -> str:
 
 
 def available_models() -> tuple[str, ...]:
-    return settings.CHAT_MODELS or (settings.CHAT_MODEL,)
+    return (settings.CHAT_MODEL,)
 
 
 def resolve_model(model: str | None) -> str:
-    selected = (model or settings.CHAT_MODEL).strip()
-    if selected not in available_models():
-        raise ValueError("不支持的模型")
-    return selected
+    if model and model != settings.CHAT_MODEL:
+        raise ValueError("Unsupported model")
+    return settings.CHAT_MODEL
 
 
 def _context(session: dict) -> str:
@@ -123,28 +123,39 @@ def _context(session: dict) -> str:
 
 
 def messages_for(session: dict, message: str) -> list[dict]:
-    task = session.get("task_title") or "自由讨论"
+    task = session.get("task_title") or "Free Discussion"
     prompt = (session.get("default_prompt") or "").strip()
-    preset = f"预置任务：{task}\n预置任务说明：{prompt}" if prompt and message.strip() == prompt else ""
+    preset = f"Preset task: {task}\nPreset task description: {prompt}" if prompt and message.strip() == prompt else ""
     stage = STAGES.get(session.get("task_key"), "Understand")
-    background_rule = "" if session.get("context_type") != "solution" else "当前业务对象是方案实践。其已保存的背景信息和关联背景材料是本次工作的基线：先引用并校验，明确事实、假设、缺口与待确认项；不要擅自刷新、重写或覆盖背景信息。"
-    system = f"""你是 Insight-Agent，InsightPro 的 Solution Engineering Agent。
+    background_rule = "" if session.get("context_type") != "solution" else "The current business object is a solution practice. Its saved background information and associated background materials are the baseline for this work: first reference and verify, clarifying facts, assumptions, gaps, and items to confirm; do not arbitrarily refresh, rewrite, or overwrite background information."
+    solution_contract = ""
+    if (session.get("context_snapshot") or {}).get("page_path") == "/workbench/ai":
+        solution_contract = """The current entry point is for generating solutions, not executing deployments. When information is insufficient, first ask necessary clarifying questions that would change the solution; once information is sufficient, the final solution must include:
+1. Value narrative: application scenarios, solution advantages, applicable customers.
+2. Exactly two downloadable deliverables: `cloud-stack.tf` and `deploy-guide.md`.
+`cloud-stack.tf` must be a Terraform configuration for Huawei Cloud Resource Orchestration Service (RFS), including necessary variables and outputs; resource parameters that cannot be confirmed must be exposed as variables or marked as to-be-confirmed, and must not be fabricated.
+`deploy-guide.md` must describe prerequisites, parameters, steps to create a resource stack in RFS, verification methods, rollback/deletion methods, and risk notices.
+Use file code blocks to generate these two files. Only generate solutions and files; do not invoke deployments, cloud resource creation, or other operations with side effects, and do not claim that deployment is complete."""
+    system = f"""You are Insight-Agent, InsightPro's Solution Engineering Agent.
 
-# 公共长期知识（按以下顺序加载）
+# Public long-term knowledge (loaded in the following order)
 {public_knowledge()}
 
-# 已启用插件
+# Enabled plugins
 {plugin_knowledge(session.get("task_key"))}
 
-# 本次动态上下文
-当前用户角色：Solution Architect
-当前工作阶段：{stage}
+# Current dynamic context
+Current user role: Solution Architect
+Current work stage: {stage}
 {preset}
 {background_rule}
-当前业务对象 Context（仅使用其中可验证的信息，不要编造）：
+{solution_contract}
+Current business object Context (use only verifiable information from it, do not fabricate):
 {_context(session)}
 
-本轮用户消息优先于预置任务：用户提出其他问题时，只回答该问题，并把当前业务对象作为可选背景；不要自动套用预置任务。需要交付不超过 100KB 的文本文件时，使用 ```file:文件名.扩展名 换行 文件正文 换行 ```；仅使用常见文本/代码扩展名，不要输出服务器路径。"""
+This round's user message takes priority over the preset task: when the user asks a different question, answer only that question, using the current business object as optional background; do not automatically apply the preset task. When delivering text files no larger than 100KB, use ```file:filename.ext newline file content newline ```; use only common text/code extensions, and do not output server paths."""
+    if any(token in message.lower() for token in ("csv", "sales", "bar chart", "data analysis")):
+        system += """\nData analysis delivery rule: when the user provides a CSV or table and requests analysis, verified key conclusions (including the top three items, values, and sorting criteria) must be presented in the main text first, followed by a concise Markdown table and text bar chart; when the user requests an export, additionally use deliver_file to generate a CSV. Do not provide only a download file while omitting in-page conclusions."""
     history = [{"role": item["role"], "content": item["content"]} for item in session.get("conversation", []) if item.get("role") in {"user", "assistant"} and item.get("content")][-12:]
     return [{"role": "system", "content": system}, *history, {"role": "user", "content": message}]
 
@@ -156,13 +167,13 @@ def generated_files(reply: str) -> list[dict]:
 
 def reply_without_files(reply: str, filenames: set[str]) -> str:
     cleaned = FILE_BLOCK.sub(lambda match: "" if match.group(1).strip() in filenames else match.group(0), reply).strip()
-    return cleaned or "已生成文件。"
+    return cleaned or "Files generated."
 
 
 async def generate_practice_background(payload: dict[str, str], model: str | None = None, user_id: str = "") -> str:
     """Generate editable background text; saving remains a user action."""
     if not settings.CHAT_API_KEY:
-        raise RuntimeError("AI 模型未配置")
+        raise RuntimeError("AI model not configured")
     selected = resolve_model(model)
     reference = payload.get("reference_url") or ""
     async with httpx.AsyncClient(timeout=httpx.Timeout(60, connect=15)) as client:
@@ -176,12 +187,12 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
                 break
         source = json.dumps(payload, ensure_ascii=False)
         messages: list[dict[str, Any]] = [
-            {"role": "system", "content": f"""你是 InsightPro 的 Solution Architect。\n\n{plugin_knowledge("solution_analysis")}\n\n根据用户提供的方案实践名称、参考链接、参考内容和已有材料，输出可直接填入“背景信息”的中文 Markdown。内容包括业务目标、适用场景、范围与约束、关键能力、依赖与风险、待确认项。只陈述已知事实；不把推测说成验证结果，也不声称已部署。只能输出最终 Markdown，禁止输出思考过程、工具调用、JSON 或 `<|tool_call...|>` 标记。参考内容缺失时应明确待补充，不能自行读取 URL。"""},
+            {"role": "system", "content": f"""You are InsightPro's Solution Architect.\n\n{plugin_knowledge("solution_analysis")}\n\nBased on the solution practice name, reference link, reference content, and existing materials provided by the user, output Markdown that can be directly filled into the 'Background Information' field. Content should include business objectives, applicable scenarios, scope and constraints, key capabilities, dependencies and risks, and items to confirm. Only state known facts; do not present speculation as verified results, and do not claim deployment is complete. Output only the final Markdown; do not output thinking processes, tool calls, JSON, or `<|tool_call...|>` markers. When reference content is missing, explicitly state what needs to be supplemented; do not read URLs on your own."""},
             {"role": "user", "content": source},
         ]
         for attempt in range(2):
             response = await client.post(
-                settings.CHAT_API_URL,
+                chat_completions_url(),
                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
                 json={"model": selected, "messages": messages, "temperature": 0.25, "max_tokens": 1600},
             )
@@ -194,28 +205,28 @@ async def generate_practice_background(payload: dict[str, str], model: str | Non
                     ai_usage_service.record(user_id, selected, "practice_background", result.get("usage"))
                 return content[:5000]
             if attempt == 0:
-                messages.append({"role": "user", "content": "上一结果不是背景信息。请直接输出最终中文 Markdown，不要调用或描述任何工具。"})
-    raise RuntimeError("模型未返回有效背景信息，请重试")
+                messages.append({"role": "user", "content": "The previous result is not background information. Please output the final Markdown directly, without calling or describing any tools."})
+    raise RuntimeError("Model did not return valid background information, please retry")
 
 
 async def generate_suggestions(payload: dict[str, Any], model: str | None = None, user_id: str = "") -> list[str]:
     """Generate short, context-grounded starter questions for a free discussion."""
     if not settings.CHAT_API_KEY:
-        raise RuntimeError("AI 模型未配置")
+        raise RuntimeError("AI model not configured")
     selected = resolve_model(model)
     context = json.dumps(payload, ensure_ascii=False, default=str)[:9000]
     messages = [
-        {"role": "system", "content": "你是企业级 AI 洞察产品的对话引导器。根据当前页面上下文生成 4 个用户可以直接点击发送的中文问题。问题必须具体指向当前页面对象，避免‘继续完善’‘下一步做什么’等空泛表达；每条不超过 22 个汉字。只输出 JSON 字符串数组，不要 Markdown、解释或工具调用。"},
+        {"role": "system", "content": "You are the conversation guide for an enterprise AI insights product. Based on the current page context, generate 4 questions that users can click and send directly. Questions must specifically reference the current page object; avoid vague expressions like 'continue refining' or 'what to do next'. Each question must be no longer than 22 characters. Output only a JSON string array; no Markdown, explanations, or tool calls."},
         {"role": "user", "content": context},
     ]
     async with httpx.AsyncClient(timeout=httpx.Timeout(30, connect=10)) as client:
-        response = await client.post(settings.CHAT_API_URL, headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"}, json={"model": selected, "messages": messages, "temperature": 0.7, "max_tokens": 180})
+        response = await client.post(chat_completions_url(), headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"}, json={"model": selected, "messages": messages, "temperature": 0.7, "max_tokens": 180})
         response.raise_for_status()
         result = response.json()
     items = [str(item).strip() for item in _json_array(result.get("choices", [{}])[0].get("message", {}).get("content", "")) if str(item).strip()]
     items = list(dict.fromkeys(item[:80] for item in items))[:4]
     if len(items) < 3:
-        raise RuntimeError("模型未返回足够的上下文建议")
+        raise RuntimeError("Model did not return enough context suggestions")
     if user_id:
         from services import ai_usage_service
         ai_usage_service.record(user_id, selected, "suggestions", result.get("usage"))
@@ -237,7 +248,7 @@ def _json_array(raw: str) -> list[Any]:
 async def stream_reply(session: dict, message: str, model: str | None = None) -> AsyncGenerator[str, None]:
     """Yield provider answer tokens only; reasoning and tool traces are never forwarded."""
     if not settings.CHAT_API_KEY:
-        raise RuntimeError("AI 模型未配置")
+        raise RuntimeError("AI model not configured")
     selected = resolve_model(model)
     usage: dict[str, Any] | None = None
     from services import ai_usage_service
@@ -246,7 +257,7 @@ async def stream_reply(session: dict, message: str, model: str | None = None) ->
         async with httpx.AsyncClient(timeout=httpx.Timeout(180, connect=15)) as client:
             async with client.stream(
                 "POST",
-                settings.CHAT_API_URL,
+                chat_completions_url(),
                 headers={"Content-Type": "application/json", "Authorization": f"Bearer {settings.CHAT_API_KEY}"},
                 json={"model": selected, "messages": messages_for(session, message), "temperature": 0.35, "max_tokens": 4096, "stream": True, "stream_options": {"include_usage": True}},
             ) as response:

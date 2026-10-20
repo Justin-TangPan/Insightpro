@@ -21,11 +21,14 @@ const firstPort = 12000
 const maxActive = Number(process.env.HERMES_MAX_ACTIVE || 6)
 const idleMs = Number(process.env.HERMES_IDLE_SECONDS || 1800) * 1000
 const internalSecret = process.env.HERMES_GATEWAY_SECRET || ""
-const providerUrl = new URL(process.env.HERMES_PROVIDER_BASE_URL || "http://127.0.0.1:9")
-const providerKey = process.env.HERMES_PROVIDER_API_KEY || ""
+const providerUrl = new URL((process.env.CHAT_API_URL || "http://127.0.0.1:9").replace(/\/chat\/completions\/?$/, ""))
+const providerKey = process.env.CHAT_API_KEY || ""
 const publicApi = process.env.INSIGHT_PUBLIC_API_URL || "http://host.docker.internal:8000/api"
 const active = new Map()
 const starting = new Map()
+const agentSessions = new Map()
+const interactions = new Map()
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
 function providerApiPath(basePath, requestPath) {
   return `${basePath.replace(/\/$/, "")}${requestPath.replace(/^\/v1(?=\/|$)/, "")}`
@@ -94,7 +97,7 @@ function nextUid(role, records = Object.values(registry.users)) {
 function identity(req) {
   if (!safeEqual(req.headers["x-insight-runtime-secret"], internalSecret)) return null
   const userId = String(req.headers["x-insight-user-id"] || "").toLowerCase()
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId)) return null
+  if (!uuidPattern.test(userId)) return null
   return {
     userId,
     role: req.headers["x-insight-agent-role"] === "admin" ? "admin" : "user",
@@ -164,7 +167,7 @@ function copyConfig(space, role, uid) {
   mkdirSync(hermesRoot, { recursive: true, mode: 0o2770 })
   const config = `_config_version: 38
 model:
-  default: openpangu-2.0-flash
+  default: ${process.env.CHAT_MODEL || "default"}
   provider: custom
   base_url: http://127.0.0.1:4199/v1
 platform_toolsets:
@@ -211,9 +214,9 @@ function ensureSpace(identityValue, record) {
 
 async function syncBusinessContext(identityValue, workspace) {
   const sessionId = identityValue.agentSessionId
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(sessionId)) {
+  if (!uuidPattern.test(sessionId)) {
     try { unlinkSync(path.join(workspace, ".insight", "INSIGHT_CONTEXT.md")) } catch {}
-    return
+    return { binding: { skills: [], workflow: null, phases: [] } }
   }
   try {
     const response = await fetch(`${publicApi}/agent/internal/sessions/${sessionId}`, {
@@ -222,20 +225,185 @@ async function syncBusinessContext(identityValue, workspace) {
     })
     if (!response.ok) throw new Error(`context session: ${response.status}`)
     const session = await response.json()
-    const context = session.context_snapshot
+    const context = { ...(session.context_snapshot || {}) }
+    for (const key of context.excluded_sections || []) delete context[key]
     const directory = path.join(workspace, ".insight")
     mkdirSync(directory, { recursive: true, mode: 0o770 })
     const contextPath = path.join(directory, "INSIGHT_CONTEXT.md")
     writeFileSync(contextPath, `# Current InsightPro Context\n\nSession: ${session.id}\n\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\`\n`, { mode: 0o640 })
-    writeFileSync(path.join(directory, "INSIGHT_ACTION.json"), JSON.stringify({ session_id: session.id, action: "", payload: {} }, null, 2), { mode: 0o640 })
+    const actionPath = path.join(directory, "INSIGHT_ACTION.json")
+    let currentAction = {}
+    try { currentAction = JSON.parse(readFileSync(actionPath, "utf8")) } catch {}
+    if (currentAction.session_id !== session.id) writeFileSync(actionPath, JSON.stringify({ session_id: session.id, action: "", payload: {} }, null, 2), { mode: 0o640 })
+    const binding = workflowBinding(session)
+    writeFileSync(path.join(directory, "INSIGHT_RUNTIME.md"), runtimeBindingMarkdown(session, binding), { mode: 0o640 })
+    ensureWorkflowState(directory, session.id, binding)
     ownTree(directory, registry.users[identityValue.userId].uid, adminGid)
     // The Hermes process runs as the owning user. Keeping this file root-owned
     // made a successfully injected context unreadable inside the workspace.
     chownSync(contextPath, registry.users[identityValue.userId].uid, adminGid)
     chmodSync(contextPath, 0o640)
+    return { binding }
   } catch (error) {
     console.error("Business context sync failed", error)
+    throw error
   }
+}
+
+function workflowBinding(session) {
+  try {
+    const pluginRoot = path.join(knowledgeRoot, "plugins", "sac")
+    const manifest = JSON.parse(readFileSync(path.join(pluginRoot, "manifest.json"), "utf8"))
+    if (!manifest.enabled) return { skills: [], workflow: null, phases: [] }
+    const skills = manifest.task_skills?.[session.task_key] || []
+    const workflow = manifest.task_workflows?.[session.task_key] || null
+    if (!workflow) return { skills, workflow: null, phases: [] }
+    const workflowPath = path.join(pluginRoot, "workflows", `${workflow}.yaml`)
+    const source = readFileSync(workflowPath, "utf8")
+    const starts = [...source.matchAll(/^  - id:\s*([^\s#]+)\s*$/gm)]
+    const phases = starts.map((match, index) => {
+      const block = source.slice(match.index, starts[index + 1]?.index || source.length)
+      const outputBlock = block.match(/^    outputs:\s*\n((?:      - [^\n]+\n?)*)/m)?.[1] || ""
+      return {
+        id: match[1],
+        skill: block.match(/^    skill:\s*([^\s#]+)/m)?.[1] || "",
+        outputs: [...outputBlock.matchAll(/^      -\s*([^\s#]+)/gm)].map(item => item[1]),
+        gate: block.match(/^      type:\s*([^\s#]+)/m)?.[1] || "manual",
+      }
+    })
+    return { skills, workflow, workflowPath, phases }
+  } catch (error) {
+    console.error("Workflow binding failed", error)
+    return { skills: [], workflow: null, phases: [] }
+  }
+}
+
+function runtimeBindingMarkdown(session, binding) {
+  const skillPaths = binding.skills.map(skill => `- /knowledge/public/plugins/sac/skills/${skill}/SKILL.md`).join("\n") || "- none"
+  return `# InsightPro Runtime Binding\n\nTask: ${session.task_key || "free_chat"}\nWorkflow: ${binding.workflowPath || "none"}\n\nSkills:\n${skillPaths}\n`
+}
+
+function ensureWorkflowState(directory, sessionId, binding) {
+  if (!binding.phases.length) return null
+  const statePath = path.join(directory, "WORKFLOW_STATE.json")
+  try {
+    const current = JSON.parse(readFileSync(statePath, "utf8"))
+    if (current.session_id === sessionId && current.workflow === binding.workflow) return current
+  } catch {}
+  const first = binding.phases[0]
+  const state = {
+    session_id: sessionId, workflow: binding.workflow, phase: first.id, phase_outputs: {},
+    gate_type: first.gate, gate_requested: false, gate_passed: false,
+    next_phase: binding.phases[1]?.id || null, status: "running", validation: [],
+  }
+  writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o640 })
+  return state
+}
+
+function prepareWorkflowState(workspace, sessionId, binding) {
+  if (!binding.phases.length) return null
+  const directory = path.join(workspace, ".insight")
+  let state = ensureWorkflowState(directory, sessionId, binding)
+  if (state.gate_passed && state.next_phase) {
+    const index = binding.phases.findIndex(item => item.id === state.next_phase)
+    const phase = binding.phases[index]
+    state = { ...state, phase: phase.id, gate_type: phase.gate, gate_requested: false, gate_passed: false, next_phase: binding.phases[index + 1]?.id || null, status: "running", validation: [] }
+    writeFileSync(path.join(directory, "WORKFLOW_STATE.json"), JSON.stringify(state, null, 2), { mode: 0o640 })
+  }
+  return state
+}
+
+function workspaceFiles(directory, match, found = []) {
+  if (found.length >= 80) return found
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (found.length >= 80 || [".git", ".terraform", "node_modules", "public-knowledge"].includes(entry.name)) continue
+    const target = path.join(directory, entry.name)
+    if (entry.isDirectory()) workspaceFiles(target, match, found)
+    else if (entry.isFile() && match(target)) found.push(target)
+  }
+  return found
+}
+
+const generatedFileExtensions = new Set([".tf", ".hcl", ".sh", ".bash", ".py", ".js", ".ts", ".json", ".yaml", ".yml", ".md", ".txt", ".csv"])
+function workspaceFileSnapshot(workspace) {
+  const files = new Map()
+  for (const file of workspaceFiles(workspace, target => generatedFileExtensions.has(path.extname(target).toLowerCase()))) {
+    try { const stat = lstatSync(file); files.set(file, `${stat.size}:${stat.mtimeMs}`) } catch {}
+  }
+  return files
+}
+function generatedWorkspaceFiles(workspace, before) {
+  return workspaceFiles(workspace, target => generatedFileExtensions.has(path.extname(target).toLowerCase()))
+    .filter(file => { try { const stat = lstatSync(file); return !before.has(file) || before.get(file) !== `${stat.size}:${stat.mtimeMs}` } catch { return false } })
+    .slice(0, 20)
+    .flatMap(file => {
+      try {
+        if (lstatSync(file).size > 100 * 1024) return []
+        return [{ filename: path.relative(workspace, file), content: readFileSync(file, "utf8") }]
+      } catch { return [] }
+    })
+}
+
+function runAllowedCommand(command, args, cwd, identityValue) {
+  return new Promise(resolve => {
+    const record = registry.users[identityValue.userId]
+    const child = spawn(command, args, {
+      cwd, uid: record.uid, gid: identityValue.role === "admin" ? adminGid : record.uid,
+      env: { PATH: "/usr/local/bin:/usr/bin:/bin", HOME: path.join(spacesRoot, identityValue.userId, "home"), TF_IN_AUTOMATION: "1", SAC_PROJECT_ROOT: cwd, PYTHONPATH: path.join(knowledgeRoot, "plugins", "sac") },
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+    const chunks = []; let size = 0
+    for (const stream of [child.stdout, child.stderr]) stream.on("data", chunk => { size += chunk.length; if (size <= 64 * 1024) chunks.push(chunk) })
+    const timer = setTimeout(() => child.kill("SIGTERM"), 60_000)
+    child.on("error", error => { clearTimeout(timer); resolve({ command: `${command} ${args.join(" ")}`, passed: false, output: error.message }) })
+    child.on("exit", code => { clearTimeout(timer); resolve({ command: `${command} ${args.join(" ")}`, passed: code === 0 && size <= 64 * 1024, output: Buffer.concat(chunks).toString().slice(-4000) }) })
+  })
+}
+
+async function runGateValidation(workspace, identityValue, gateType) {
+  const checks = []
+  if (gateType === "terraform_valid") {
+    const terraformFiles = workspaceFiles(workspace, target => target.endsWith(".tf"))
+    if (!terraformFiles.length) return [{ command: "terraform validate", passed: false, output: "No Terraform files found" }]
+    const directories = [...new Set(terraformFiles.map(file => path.dirname(file)))].slice(0, 10)
+    for (const directory of directories) checks.push(await runAllowedCommand("terraform", ["validate", "-no-color"], directory, identityValue))
+    const shellFiles = [...new Set(directories.flatMap(directory => workspaceFiles(directory, target => target.endsWith(".sh"))))].slice(0, 20)
+    for (const file of shellFiles.slice(0, 20)) checks.push(await runAllowedCommand("bash", ["-n", file], workspace, identityValue))
+  } else if (["no_blocker", "docs_valid"].includes(gateType)) {
+    checks.push(await runAllowedCommand("/opt/hermes/.venv/bin/python", ["-m", "scripts.tests.runner", "--json"], workspace, identityValue))
+  }
+  return checks
+}
+
+async function finalizeWorkflowState(workspace, identityValue, binding, baseline) {
+  if (!baseline) return null
+  const statePath = path.join(workspace, ".insight", "WORKFLOW_STATE.json")
+  let candidate = {}
+  try { if (lstatSync(statePath).size <= 256 * 1024) candidate = JSON.parse(readFileSync(statePath, "utf8")) } catch {}
+  const phase = binding.phases.find(item => item.id === baseline.phase)
+  const outputs = candidate.phase_outputs && typeof candidate.phase_outputs === "object" && !Array.isArray(candidate.phase_outputs) ? candidate.phase_outputs : baseline.phase_outputs
+  const requested = candidate.gate_requested === true
+  const validation = requested ? await runGateValidation(workspace, identityValue, phase.gate) : []
+  const namedOutputsPresent = phase.outputs.every(name => {
+    const output = outputs?.[name]
+    if (typeof output !== "string" || output.includes("\0")) return false
+    const target = path.resolve(workspace, output)
+    return target.startsWith(`${workspace}${path.sep}`) && !target.startsWith(path.join(workspace, "public-knowledge")) && existsSync(target) && lstatSync(target).isFile()
+  })
+  const passed = requested && namedOutputsPresent && validation.every(item => item.passed)
+  const state = {
+    ...baseline, phase_outputs: outputs, gate_requested: requested, gate_passed: passed,
+    status: requested ? (passed ? (baseline.next_phase ? "gate_passed" : "completed") : "failed") : "running",
+    validation,
+  }
+  writeFileSync(statePath, JSON.stringify(state, null, 2), { mode: 0o640 })
+  return state
+}
+
+function failWorkflowState(workspace, baseline, message) {
+  if (!baseline) return
+  const state = { ...baseline, gate_passed: false, status: "failed", validation: [{ command: "hermes", passed: false, output: message }] }
+  writeFileSync(path.join(workspace, ".insight", "WORKFLOW_STATE.json"), JSON.stringify(state, null, 2), { mode: 0o640 })
 }
 
 async function processHealthy(port) {
@@ -278,6 +446,39 @@ function spaceStatus(userId, record) {
     disk_bytes: existsSync(path.join(spacesRoot, userId)) ? diskBytes(path.join(spacesRoot, userId)) : 0,
   }
 }
+
+function rpc(ws, method, params = {}) {
+  const id = randomBytes(8).toString("hex")
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${method} timed out`)), 30_000)
+    const receive = event => {
+      for (const line of String(event.data || "").split("\n").filter(Boolean)) {
+        const frame = JSON.parse(line)
+        if (frame.id !== id) continue
+        clearTimeout(timer); ws.removeEventListener("message", receive)
+        frame.error ? reject(new Error(frame.error.message || `${method} failed`)) : resolve(frame.result)
+      }
+    }
+    ws.addEventListener("message", receive)
+    ws.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n")
+  })
+}
+
+async function openGateway(instance, userId) {
+  const ws = new WebSocket(`ws://127.0.0.1:${instance.port}/api/ws?token=${encodeURIComponent(dashboardTokenFor(userId))}`)
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("Hermes gateway timed out")), 10_000)
+    ws.addEventListener("open", () => { clearTimeout(timer); resolve() }, { once: true })
+    ws.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Hermes gateway unavailable")) }, { once: true })
+  })
+  return ws
+}
+
+const streamType = type => ({
+  "message.delta": "text.delta", "reasoning.delta": "reasoning.delta", "thinking.delta": "reasoning.delta",
+  "tool.start": "tool.start", "tool.complete": "tool.end", "status.update": "tool.progress",
+  "clarify.request": "interaction.request", "clarify.expire": "interaction.expire",
+}[type] || type)
 
 function managementRequest(req, res) {
   if (!safeEqual(req.headers["x-insight-runtime-secret"], internalSecret)) {
@@ -331,11 +532,22 @@ function managementRequest(req, res) {
   if (url.pathname === "/_insight/runtime/action" && req.method === "GET") {
     const userId = String(req.headers["x-insight-user-id"] || "").toLowerCase()
     const sessionId = String(url.searchParams.get("session_id") || "")
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(userId) || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(sessionId)) { res.writeHead(422); res.end("invalid session"); return true }
+    if (!uuidPattern.test(userId) || !uuidPattern.test(sessionId)) { res.writeHead(422); res.end("invalid session"); return true }
     try {
       const action = JSON.parse(readFileSync(path.join(spacesRoot, userId, "workspace", ".insight", "INSIGHT_ACTION.json"), "utf8"))
       if (action.session_id !== sessionId || !action.action || typeof action.payload !== "object") { res.writeHead(404); res.end("no action"); return true }
       res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" }); res.end(JSON.stringify(action)); return true
+    } catch { res.writeHead(404); res.end("no action"); return true }
+  }
+  if (url.pathname === "/_insight/runtime/action" && req.method === "DELETE") {
+    const userId = String(req.headers["x-insight-user-id"] || "").toLowerCase()
+    const sessionId = String(url.searchParams.get("session_id") || "")
+    if (!uuidPattern.test(userId) || !uuidPattern.test(sessionId)) { res.writeHead(422); res.end("invalid session"); return true }
+    const actionPath = path.join(spacesRoot, userId, "workspace", ".insight", "INSIGHT_ACTION.json")
+    try {
+      writeFileSync(actionPath, JSON.stringify({ session_id: sessionId, action: "", payload: {} }, null, 2), { mode: 0o640 })
+      chownSync(actionPath, registry.users[userId].uid, adminGid)
+      res.writeHead(204); res.end(); return true
     } catch { res.writeHead(404); res.end("no action"); return true }
   }
   if (url.pathname === "/_insight/runtime/chat" && req.method === "POST") {
@@ -346,11 +558,17 @@ function managementRequest(req, res) {
     req.on("end", async () => {
       if (size > 16 * 1024) { res.writeHead(413); res.end("message too large"); return }
       try {
-        const message = String(JSON.parse(Buffer.concat(chunks).toString()).message || "").trim()
-        if (!message || message.length > 8000) { res.writeHead(422); res.end("invalid message"); return }
+        const payload = JSON.parse(Buffer.concat(chunks).toString())
+        const message = String(payload.message || "").trim()
+        const model = String(payload.model || "").trim()
+        if (!message || message.length > 8000 || !uuidPattern.test(current.agentSessionId) || !/^[A-Za-z0-9_.:\/-]{1,100}$/.test(model)) { res.writeHead(422); res.end("invalid message, model or session"); return }
         const instance = await ensureInstance(current)
+        instance.binding = (await syncBusinessContext(current, instance.workspace)).binding
         const record = registry.users[current.userId]
-        const child = spawn("hermes", ["chat", "--quiet", "--query-file", "-", "--continue", `insight-${current.agentSessionId}`, "--create-if-missing", "--in", instance.workspace, "--run-budget", "300"], {
+        const binding = instance.binding
+        const workflow = prepareWorkflowState(instance.workspace, current.agentSessionId, binding)
+        const workspaceBefore = workspaceFileSnapshot(instance.workspace)
+        const child = spawn("hermes", ["chat", "--quiet", "--query-file", "-", "--model", model, "--continue", `insight-${current.agentSessionId}`, "--create-if-missing", "--in", instance.workspace, "--run-budget", "300"], {
           cwd: instance.workspace,
           uid: record.uid,
           gid: current.role === "admin" ? adminGid : record.uid,
@@ -368,7 +586,7 @@ function managementRequest(req, res) {
           const cliReply = Buffer.concat(stdout).toString().trim()
           // Hermes can persist the final assistant message while --quiet emits
           // no stdout. Treat the dashboard record as the source of truth.
-          if (code !== 0) { console.error("Hermes chat failed", Buffer.concat(stderr).toString()); res.writeHead(502); res.end("Hermes Agent execution failed"); return }
+          if (code !== 0) { const error = Buffer.concat(stderr).toString(); failWorkflowState(instance.workspace, workflow, error); console.error("Hermes chat failed", error); res.writeHead(502); res.end("Hermes Agent execution failed"); return }
           instance.lastUsed = Date.now()
           const token = dashboardTokenFor(current.userId)
           const sessionsResponse = await fetch(`http://127.0.0.1:${instance.port}/api/sessions?limit=100&order=recent`, {
@@ -385,12 +603,93 @@ function managementRequest(req, res) {
             reply = messages.filter(item => item.role === "assistant" && item.content?.trim()).at(-1)?.content.trim() || cliReply
           }
           if (!reply) { console.error("Hermes chat returned no final reply", Buffer.concat(stderr).toString()); res.writeHead(502); res.end("Hermes Agent returned no final reply"); return }
+          const workflowState = await finalizeWorkflowState(instance.workspace, current, binding, workflow)
+          const files = generatedWorkspaceFiles(instance.workspace, workspaceBefore)
           res.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" })
-          res.end(JSON.stringify({ reply, hermes_session_id: hermesSessionId }))
+          res.end(JSON.stringify({ reply, hermes_session_id: hermesSessionId, workflow: workflowState, files }))
         })
       } catch (error) {
         console.error("Hermes chat request failed", error); res.writeHead(503); res.end("Hermes Agent unavailable")
       }
+    })
+    return true
+  }
+  if (url.pathname === "/_insight/runtime/chat/stream" && req.method === "POST") {
+    const current = identity(req)
+    if (!current) { res.writeHead(403); res.end("forbidden"); return true }
+    const chunks = []; let size = 0
+    req.on("data", chunk => { size += chunk.length; if (size <= 16 * 1024) chunks.push(chunk) })
+    req.on("end", async () => {
+      let ws
+      try {
+        const payload = JSON.parse(Buffer.concat(chunks).toString())
+        const message = String(payload.message || "").trim()
+        const model = String(payload.model || "").trim()
+        if (size > 16 * 1024 || !message || message.length > 8000 || !uuidPattern.test(current.agentSessionId) || !/^[A-Za-z0-9_.:\/-]{1,100}$/.test(model)) { res.writeHead(422); res.end("invalid message, model or session"); return }
+        const instance = await ensureInstance(current)
+        instance.binding = (await syncBusinessContext(current, instance.workspace)).binding
+        const workflow = prepareWorkflowState(instance.workspace, current.agentSessionId, instance.binding)
+        const workspaceBefore = workspaceFileSnapshot(instance.workspace)
+        ws = await openGateway(instance, current.userId)
+        const sessionKey = `${current.userId}:${current.agentSessionId}`
+        let hermesSessionId = agentSessions.get(sessionKey)
+        if (!hermesSessionId) {
+          const created = await rpc(ws, "session.create", { title: `insight-${current.agentSessionId}`, cwd: instance.workspace, source: "tool", model, close_on_disconnect: false })
+          hermesSessionId = created.session_id
+          agentSessions.set(sessionKey, hermesSessionId)
+        }
+        res.writeHead(200, { "Content-Type": "application/x-ndjson", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" })
+        const write = event => res.write(JSON.stringify(event) + "\n")
+        let reply = ""; let finished = false
+        ws.addEventListener("message", async event => {
+          for (const line of String(event.data || "").split("\n").filter(Boolean)) {
+            const frame = JSON.parse(line); const params = frame.params || {}
+            if (frame.method !== "event" || params.session_id !== hermesSessionId) continue
+            const payload = params.payload || {}; const type = streamType(params.type)
+            if (type === "text.delta") reply += String(payload.delta ?? payload.text ?? "")
+            if (type === "interaction.request") {
+              const interactionId = String(payload.request_id || "")
+              if (interactionId) interactions.set(interactionId, { ws, sessionId: hermesSessionId, userId: current.userId, choices: Array.isArray(payload.choices) ? payload.choices.map(String) : [] })
+            }
+            if (type !== "message.complete") { write({ type, ...payload }); continue }
+            if (finished) continue
+            finished = true
+            reply = String(payload.text || reply).trim()
+            if (!reply) throw new Error("Hermes Agent returned no final reply")
+            const workflowState = await finalizeWorkflowState(instance.workspace, current, instance.binding, workflow)
+            const files = generatedWorkspaceFiles(instance.workspace, workspaceBefore)
+            instance.lastUsed = Date.now()
+            write({ type: "message.end", text: reply, hermes_session_id: hermesSessionId, workflow: workflowState, files, usage: payload.usage })
+            ws.close(); res.end()
+          }
+        })
+        ws.addEventListener("close", () => { if (!finished && !res.writableEnded) { failWorkflowState(instance.workspace, workflow, "Hermes gateway closed"); res.end() } })
+        await rpc(ws, "prompt.submit", { session_id: hermesSessionId, text: message })
+      } catch (error) {
+        console.error("Hermes stream failed", error)
+        if (!res.headersSent) res.writeHead(503)
+        if (!res.writableEnded) res.end("Hermes Agent unavailable")
+        ws?.close()
+      }
+    })
+    return true
+  }
+  if (url.pathname === "/_insight/runtime/interaction" && req.method === "POST") {
+    const current = identity(req)
+    if (!current) { res.writeHead(403); res.end("forbidden"); return true }
+    const chunks = []
+    req.on("data", chunk => chunks.push(chunk))
+    req.on("end", async () => {
+      try {
+        const payload = JSON.parse(Buffer.concat(chunks).toString())
+        const interaction = interactions.get(String(payload.interaction_id || ""))
+        const answer = String(payload.answer || "").trim()
+        if (!interaction || interaction.userId !== current.userId) { res.writeHead(404); res.end("interaction not found"); return }
+        if (!answer || (interaction.choices.length && !interaction.choices.includes(answer))) { res.writeHead(422); res.end("invalid answer"); return }
+        await rpc(interaction.ws, "clarify.respond", { session_id: interaction.sessionId, request_id: payload.interaction_id, answer })
+        interactions.delete(payload.interaction_id)
+        res.writeHead(204); res.end()
+      } catch (error) { console.error("Interaction response failed", error); res.writeHead(422); res.end("invalid interaction") }
     })
     return true
   }
@@ -452,7 +751,7 @@ async function ensureInstance(identityValue) {
   if (existing && !existing.child.killed && existing.role === identityValue.role) {
     existing.lastUsed = Date.now()
     if (existing.contextSessionId !== identityValue.agentSessionId) {
-      await syncBusinessContext(identityValue, existing.workspace)
+      existing.binding = (await syncBusinessContext(identityValue, existing.workspace)).binding
       existing.contextSessionId = identityValue.agentSessionId
     }
     return existing
@@ -477,7 +776,7 @@ async function ensureInstance(identityValue) {
     record.lastUsedAt = new Date().toISOString()
     saveRegistry()
     const { space, workspace } = ensureSpace(identityValue, record)
-    await syncBusinessContext(identityValue, workspace)
+    const { binding } = await syncBusinessContext(identityValue, workspace)
     const log = openSync(path.join(space, "runtime.log"), "a")
     const child = spawn("hermes", ["dashboard", "--host", "127.0.0.1", "--port", String(record.port), "--no-open", "--skip-build", "--isolated"], {
       cwd: workspace,
@@ -487,7 +786,7 @@ async function ensureInstance(identityValue) {
       stdio: ["ignore", log, log],
     })
     child.once("exit", () => active.delete(identityValue.userId))
-    const instance = { child, port: record.port, workspace, role: identityValue.role, contextSessionId: identityValue.agentSessionId, lastUsed: Date.now() }
+    const instance = { child, port: record.port, workspace, binding, role: identityValue.role, contextSessionId: identityValue.agentSessionId, lastUsed: Date.now() }
     active.set(identityValue.userId, instance)
     for (let attempt = 0; attempt < 300; attempt += 1) {
       if (await processHealthy(record.port)) return instance
@@ -594,9 +893,13 @@ if (process.argv.includes("--self-test")) {
   if (!identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": id } })) process.exit(1)
   if (identity({ headers: { "x-insight-runtime-secret": internalSecret, "x-insight-user-id": "../escape" } })) process.exit(1)
   if (providerApiPath("/openai/v1", "/v1/chat/completions") !== "/openai/v1/chat/completions") process.exit(1)
+  if (streamType("message.delta") !== "text.delta" || streamType("clarify.request") !== "interaction.request") process.exit(1)
   if (nextUid("admin", [{ uid: adminGid }, { uid: firstAdminUid }]) !== firstAdminUid + 1) process.exit(1)
   const rules = readFileSync(workspaceRulesTemplate, "utf8")
   if (!rules.includes("/knowledge/public/insight-public-data.json") || !rules.includes("/knowledge/public/plugins")) process.exit(1)
+  const binding = workflowBinding({ task_key: "solution_practice" })
+  if (binding.workflow !== "new-practice" || binding.phases[0]?.id !== "architect" || binding.phases[1]?.gate !== "terraform_valid") process.exit(1)
+  if (!existsSync("/usr/local/bin/terraform")) process.exit(1)
   process.exit(0)
 }
 

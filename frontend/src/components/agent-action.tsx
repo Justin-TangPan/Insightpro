@@ -2,6 +2,7 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { emitAgentRoute } from "@/lib/agent-events";
+import { useAuth } from "@/components/auth-provider";
 
 type AgentActionProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   contextType: "github_project" | "cloud_solution" | "requirement" | "solution";
@@ -11,6 +12,8 @@ type AgentActionProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 export function AgentAction({ contextType, contextId, actionKey, children, onClick, ...props }: AgentActionProps) {
+  const { user } = useAuth();
+  if (!user) return null;
   return <button {...props} type="button" onClick={event => {
     onClick?.(event);
     if (event.defaultPrevented) return;

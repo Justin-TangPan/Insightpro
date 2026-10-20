@@ -1,16 +1,20 @@
 """
-邮件服务
-封装邮件发送、订阅管理、每日摘要构建功能。
+Email service
+Encapsulates email sending, subscription management, and daily digest construction.
 """
 import smtplib
+import logging
 from html import escape
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
 from typing import Optional
 from pytz import timezone
+from bs4 import BeautifulSoup
 from db import get_db
 from settings import settings
 
+logger = logging.getLogger(__name__)
 SHANGHAI_TZ = timezone("Asia/Shanghai")
 
 
@@ -30,38 +34,39 @@ def get_subscriber(subscriber_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = None, send_time: str = "09:05") -> bool:
+def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = None, send_time: str = "09:05", language: str = "zh") -> bool:
     try:
         with get_db() as conn:
             c = conn.cursor()
             c.execute(
                 """
-                INSERT INTO email_subscribers (email, name, weekdays, send_time)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO email_subscribers (email, name, weekdays, send_time, language)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (email) DO UPDATE SET
                   name = EXCLUDED.name,
                   weekdays = EXCLUDED.weekdays,
                   send_time = EXCLUDED.send_time,
+                  language = EXCLUDED.language,
                   active = 1
                 """,
-                (email, name, weekdays or list(range(7)), send_time),
+                (email, name, weekdays or list(range(7)), send_time, "en" if language == "en" else "zh"),
             )
         return True
     except Exception:
         return False
 
 
-def update_subscriber(subscriber_id: int, weekdays: list[int], send_time: str) -> Optional[dict]:
+def update_subscriber(subscriber_id: int, weekdays: list[int], send_time: str, language: str = "zh") -> Optional[dict]:
     with get_db() as conn:
         c = conn.cursor()
         c.execute(
             """
             UPDATE email_subscribers
-            SET weekdays = %s, send_time = %s
+            SET weekdays = %s, send_time = %s, language = %s
             WHERE id = %s AND active = 1
             RETURNING *
             """,
-            (weekdays, send_time, subscriber_id),
+            (weekdays, send_time, "en" if language == "en" else "zh", subscriber_id),
         )
         row = c.fetchone()
         return dict(row) if row else None
@@ -71,7 +76,7 @@ def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
     """One small, testable rule used by the minute scheduler."""
     if now.weekday() not in (subscriber.get("weekdays") or []):
         return False
-    if (subscriber.get("send_time") or "")[:5] != now.strftime("%H:%M"):
+    if now.strftime("%H:%M") < (subscriber.get("send_time") or "")[:5]:
         return False
     last_sent = subscriber.get("last_sent_at")
     if not last_sent:
@@ -81,265 +86,62 @@ def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
     return last_sent.astimezone(SHANGHAI_TZ).date() < now.date()
 
 
-def build_daily_digest_html() -> str:
-    """构建技术解决方案日报：方案变化 + 技术热点 + 价值评估。"""
-    BASE_URL = settings.BASE_URL
-    today = datetime.now().strftime("%Y-%m-%d")
-    today_cn = datetime.now().strftime("%Y年%m月%d日")
-    weekday = ["周一","周二","周三","周四","周五","周六","周日"][datetime.now().weekday()]
+def daily_digest_ready(now: datetime) -> bool:
+    """Send after today's Radar has at least one collected signal."""
+    from services.radar_service import build_radar_snapshot
+    return build_radar_snapshot(now.astimezone(SHANGHAI_TZ).date())["today_count"] > 0
 
-    github_items = []
-    eval_items = []
-    solution_items = []
-    solution_total = 0
-    solution_new = 0
-    solution_updated = 0
-    try:
-        with get_db() as conn:
-            c = conn.cursor()
-            c.execute("SELECT * FROM github_trending WHERE scrape_date = %s AND category = 'daily' ORDER BY id LIMIT 8", (today,))
-            github_items = [dict(r) for r in c.fetchall()]
-            c.execute("SELECT * FROM trending_business_eval WHERE scrape_date = %s ORDER BY total DESC LIMIT 5", (today,))
-            eval_items = [dict(r) for r in c.fetchall()]
-            c.execute("SELECT COUNT(*)::int AS count FROM aliyun_solutions WHERE is_active=TRUE")
-            solution_total = c.fetchone()["count"]
-            c.execute(
-                """SELECT
-                     COUNT(*) FILTER (WHERE first_seen_date=%s)::int AS new_count,
-                     COUNT(*) FILTER (WHERE last_changed_date=%s AND first_seen_date<>last_changed_date)::int AS updated_count
-                   FROM aliyun_solutions WHERE is_active=TRUE AND NOT is_baseline""",
-                (today, today),
-            )
-            solution_changes = c.fetchone()
-            solution_new = solution_changes["new_count"]
-            solution_updated = solution_changes["updated_count"]
-            c.execute(
-                """SELECT title, url, category, summary, vendor, first_seen_date, last_changed_date
-                   FROM aliyun_solutions
-                   WHERE is_active=TRUE AND NOT is_baseline AND last_changed_date=%s
-                   ORDER BY CASE WHEN first_seen_date=%s THEN 0 ELSE 1 END, menu_order, id LIMIT 8""",
-                (today, today),
-            )
-            solution_items = [dict(r) for r in c.fetchall()]
-    except Exception:
-        pass
 
-    INK = "#183028"
-    PAPER = "#F3F7F4"
-    GRID = "#DCE8E0"
-    MUTED = "#6B7F74"
-    SECONDARY = "#385146"
-    PRIMARY = "#3F8062"
-    SANS = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif"
+def build_daily_digest_html(language: str = "zh") -> str:
+    """Compact, email-safe Radar Snapshot shared with the homepage."""
+    from services.radar_service import build_radar_snapshot
 
-    # ── 云厂商官方解决方案变化 ──
-    solution_cards = ""
-    for item in solution_items:
-        is_new = item.get("first_seen_date") == today
-        badge = "新增" if is_new else "更新"
-        primary, _, secondary = (item.get("category") or "未分类").partition(" / ")
-        category = f"{item.get('vendor', '云厂商')} · {primary} · {secondary}" if secondary else f"{item.get('vendor', '云厂商')} · {primary}"
-        solution_cards += f"""\
-          <tr>
-            <td style="padding:13px 16px;border-bottom:1px solid {GRID};">
-              <span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:700;background:{'#DFF3E7' if is_new else PAPER};color:{PRIMARY};margin-right:7px;">{badge}</span>
-              <span style="font-size:10px;color:{MUTED};">{escape(category)}</span>
-              <a href="{escape(str(item.get('url') or '#'), quote=True)}" style="display:block;margin-top:7px;color:{INK};text-decoration:none;font-size:13px;font-weight:700;">{escape(str(item.get('title') or ''))}</a>
-              <p style="margin:5px 0 0;font-size:11px;color:{SECONDARY};line-height:1.55;">{escape(str(item.get('summary') or '暂无摘要'))}</p>
-            </td>
-          </tr>"""
-    solution_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日官方目录暂无新增或更新</td></tr>' if not solution_cards else ""
-
-    # ── GitHub 趋势榜 ──
-    github_cards = ""
-    eval_by_repo = {item.get("repo_name"): item for item in eval_items}
-    for i, item in enumerate(github_items[:8]):
-        bg = INK if i < 3 else MUTED
-        summary = (eval_by_repo.get(item.get("repo_name")) or {}).get("summary")
-        summary_html = f'<p style="margin:8px 0 0;padding:8px 10px;border-left:2px solid {PRIMARY};background:{PAPER};font-size:11px;color:{SECONDARY};line-height:1.55;"><strong style="color:{PRIMARY};">AI 项目速读：</strong>{escape(str(summary))}</p>' if summary else ""
-        lang_badge = f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:600;letter-spacing:0.06em;background:{PAPER};color:{SECONDARY};border:1px solid {GRID};">{item.get("language","")}</span>' if item.get("language") and item.get("language") != "N/A" else ""
-        today_stars = f'<span style="display:inline-block;padding:3px 8px;border-radius:999px;font-size:9px;font-weight:700;background:#DFF3E7;color:{PRIMARY};">{item.get("today_stars","")}</span>' if item.get("today_stars") else ""
-        github_cards += f"""\
-          <tr>
-            <td style="padding:12px 14px;border-bottom:1px solid {GRID};vertical-align:top;width:34px;">
-              <span style="display:inline-block;width:24px;height:24px;line-height:24px;border-radius:8px;text-align:center;font-size:11px;font-weight:700;color:#FFFFFF;background:{bg};">{i+1}</span>
-            </td>
-            <td style="padding:12px 14px;border-bottom:1px solid {GRID};">
-              <a href="{item.get('repo_url','#')}" style="color:{INK};text-decoration:none;font-size:13px;font-weight:600;">{item.get('repo_name','')}</a>
-              <p style="margin:4px 0 0;font-size:11px;color:{MUTED};line-height:1.45;">{item.get('description','')[:90]}</p>
-              {summary_html}
-              <div style="margin-top:5px;">{lang_badge} {today_stars}</div>
-            </td>
-            <td style="padding:12px 14px;border-bottom:1px solid {GRID};text-align:right;vertical-align:top;width:64px;">
-              <span style="font-size:13px;font-weight:700;color:{INK};">{item.get('stars','')}</span>
-              <p style="margin:2px 0 0;font-size:9px;color:{MUTED};letter-spacing:0.08em;text-transform:uppercase;">stars</p>
-            </td>
-          </tr>"""
-
-    eval_cards = ""
-    level_colors = {"强烈推荐": "#2F7D5A", "值得做": "#B7791F", "勉强可做": "#C56A30", "不建议": "#B94A48"}
-    for item in eval_items:
-        level = item.get("level", "")
-        color = next((value for key, value in level_colors.items() if key in level), MUTED)
-        eval_cards += f"""\
-          <tr>
-            <td style="padding:0 0 10px;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid {GRID};border-radius:14px;overflow:hidden;">
-                <tr>
-                  <td style="padding:14px 16px;">
-                    <a href="{item.get('repo_url') or '#'}" style="color:{INK};text-decoration:none;font-size:13px;font-weight:700;">{item.get('repo_name','')}</a>
-                    <span style="float:right;padding:3px 9px;border-radius:999px;background:{PAPER};border:1px solid {GRID};color:{color};font-size:10px;font-weight:700;">{item.get('total',0)} · {level}</span>
-                    <p style="margin:8px 0 0;font-size:11px;color:{SECONDARY};line-height:1.55;">建议：{item.get('recommendation') or '暂无'}</p>
-                    <p style="margin:4px 0 0;font-size:11px;color:{MUTED};line-height:1.55;">{item.get('reasoning') or ''}</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>"""
-
-    github_empty = f'<tr><td colspan="3" style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日数据抓取中</td></tr>' if not github_cards else ""
-    eval_empty = f'<tr><td style="padding:24px;text-align:center;color:{MUTED};font-size:12px;">今日 AI 评估生成中</td></tr>' if not eval_cards else ""
-
-    html = f"""<!DOCTYPE html>
-<html lang="zh">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style type="text/css">
-  body{{margin:0;padding:0;background:{PAPER};font-family:{SANS};color:{INK};-webkit-font-smoothing:antialiased;-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%;}}
-  table{{border-collapse:collapse;mso-table-lspace:0;mso-table-rspace:0;}}
-  td,a{{word-break:break-word;}}
-  img{{border:0;outline:none;}}
-  @media only screen and (max-width:480px){{
-    .email-wrap{{width:100% !important;}}
-    .email-pad{{padding-left:16px !important;padding-right:16px !important;}}
-    .stat-cell{{display:block !important;width:100% !important;padding:8px 12px !important;}}
-    .stat-gap{{display:none !important;}}
-  }}
-</style>
-</head>
-<body>
-<!--[if mso]><center><table cellpadding="0" cellspacing="0" width="600"><tr><td><![endif]-->
-<table class="email-wrap" width="100%" cellpadding="0" cellspacing="0" style="background:{PAPER};padding:28px 0;">
-  <tr>
-    <td align="center">
-
-      <!-- 主容器 -->
-      <table class="email-wrap" width="600" cellpadding="0" cellspacing="0" style="background:#FFFFFF;border:1px solid {GRID};border-radius:22px;overflow:hidden;box-shadow:0 12px 36px rgba(24,48,40,0.08);">
-
-        <!-- ════ Header ════ -->
-        <tr>
-          <td style="background:{INK};padding:36px 40px;" class="email-pad">
-            <p style="margin:0 0 8px;font-size:10px;font-weight:600;color:#A9E5C4;letter-spacing:0.22em;text-transform:uppercase;">Technology Solution Intelligence</p>
-            <h1 style="margin:0 0 6px;font-size:24px;font-weight:800;color:#FFFFFF;letter-spacing:-0.02em;">InsightPro · 技术解决方案日报</h1>
-            <p style="margin:0;font-size:12px;color:#A0B5AA;">{today_cn} {weekday}</p>
-          </td>
-        </tr>
-
-        <!-- ════ 统计概览 ════ -->
-        <tr>
-          <td style="padding:20px 40px 0;" class="email-pad">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-radius:14px;overflow:hidden;">
-              <tr>
-                <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">官方方案库</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{solution_total} 项</span>
-                </td>
-                <td class="stat-gap" width="6" style="font-size:1px;line-height:1px;">&nbsp;</td>
-                <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">今日新增</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{PRIMARY};margin-top:3px;">{solution_new} 项</span>
-                </td>
-                <td class="stat-gap" width="6" style="font-size:1px;line-height:1px;">&nbsp;</td>
-                <td class="stat-cell" style="background:{PAPER};border:1px solid {GRID};padding:14px 16px;text-align:center;">
-                  <span style="font-size:9px;color:{MUTED};letter-spacing:0.16em;text-transform:uppercase;">今日更新</span>
-                  <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">{solution_updated} 项</span>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-
-        <!-- ════ 解决方案变化 ════ -->
-        <tr>
-          <td style="padding:28px 40px 0;" class="email-pad">
-            <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">Solution Updates</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">云厂商官方解决方案变化</span>
-            <span style="display:block;font-size:11px;color:{MUTED};margin-top:5px;">每日对比官方目录，仅标记当天真实新增与更新</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 40px 0;" class="email-pad">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {GRID};border-radius:14px;overflow:hidden;">
-              {solution_cards}
-              {solution_empty}
-            </table>
-          </td>
-        </tr>
-
-        <!-- ════ GitHub 趋势 ════ -->
-        <tr>
-          <td style="padding:28px 40px 0;" class="email-pad">
-            <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">GitHub Trending</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">今日技术洞察</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 40px 0;" class="email-pad">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid {GRID};border-radius:14px;overflow:hidden;">
-              {github_cards}
-              {github_empty}
-            </table>
-          </td>
-        </tr>
-
-        <!-- ════ AI 价值评估 ════ -->
-        <tr>
-          <td style="padding:28px 40px 0;" class="email-pad">
-            <span style="font-size:11px;font-weight:600;color:{MUTED};letter-spacing:0.18em;text-transform:uppercase;">AI Value Assessment</span>
-            <span style="display:block;font-size:18px;font-weight:700;color:{INK};margin-top:3px;">技术价值评估</span>
-            <span style="display:block;font-size:11px;color:{MUTED};margin-top:5px;">服务端 · 营销 · 场景 · 云上部署四维分析</span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:12px 40px 0;" class="email-pad">
-            <table width="100%" cellpadding="0" cellspacing="0">
-              {eval_cards}
-              {eval_empty}
-            </table>
-          </td>
-        </tr>
-
-        <!-- ════ CTA ════ -->
-        <tr>
-          <td style="padding:32px 40px;text-align:center;" class="email-pad">
-            <a href="{BASE_URL}/insights/solutions" style="display:inline-block;padding:13px 40px;border-radius:999px;background:{PRIMARY};color:#FFFFFF;font-size:13px;font-weight:600;letter-spacing:0.04em;text-decoration:none;">查看完整解决方案洞察 →</a>
-            <p style="margin:12px 0 0;font-size:10px;color:{MUTED};">技术热点 · 解决方案洞察 · 技术价值评估</p>
-          </td>
-        </tr>
-
-        <!-- ════ Footer ════ -->
-        <tr>
-          <td style="padding:16px 40px;background:{PAPER};border-top:1px solid {GRID};" class="email-pad">
-            <p style="margin:0;font-size:10px;color:{MUTED};">InsightPro 自动发送 · 投递时间由订阅计划设定</p>
-          </td>
-        </tr>
-
-      </table>
-    </td>
-  </tr>
-</table>
-<!--[if mso]></td></tr></table></center><![endif]-->
-</body>
-</html>"""
-    return html
+    en = language == "en"
+    snapshot = build_radar_snapshot()
+    base_url = settings.BASE_URL.rstrip("/")
+    categories = snapshot["categories"]
+    max_count = max((item["current"] for item in categories), default=0) or 1
+    rising = [item["name"] for item in categories if item["direction"] == "↑"]
+    radar_rows = "".join(
+        f'<tr><td style="padding:7px 8px 7px 0;color:#50606a;font-size:12px;width:105px">{escape(item["name"])}</td>'
+        f'<td style="padding:7px 4px;width:220px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:#e7ecea;height:9px"><div style="background:#78958c;width:{round(item["current"] / max_count * 100)}%;height:9px"></div></td></tr></table></td>'
+        f'<td style="padding:7px 0 7px 8px;color:#283a38;font-size:12px;white-space:nowrap;text-align:right">{item["current"]} &nbsp;{item["direction"]}</td></tr>'
+        for item in categories
+    )
+    signals = "".join(
+        f'<tr><td style="padding:13px 0;border-top:1px solid #e2e7e8"><span style="color:#4f6c62;font-size:11px">{escape(item["category"])} · {escape(str(item["source"]))}</span>'
+        f'<p style="margin:5px 0;font-size:15px;font-weight:bold;color:#1c2529">{escape(item["title"])}</p>'
+        f'<p style="margin:0;font-size:12px;line-height:1.6;color:#50606a">{escape(item["summary"][:85] + ("…" if len(item["summary"]) > 85 else "") or ("Brief pending" if en else "一句话解读待补充"))}</p>'
+        f'<a href="{escape(item["url"] or base_url, quote=True)}" style="display:inline-block;margin-top:6px;color:#607a72;font-size:12px">{"Read source" if en else "查看来源"}</a></td></tr>'
+        for item in snapshot["top_signals"][:3]
+    ) or f'<tr><td style="padding:12px 0;color:#70808a;font-size:12px">{"No vendor launch signal matched this sample" if en else "本期暂无符合筛选条件的厂商发布线索"}</td></tr>'
+    apps = "".join(
+        f'<tr><td style="padding:13px 0;border-top:1px solid #e2e7e8"><a href="{escape(app["url"], quote=True)}" style="font-size:15px;font-weight:bold;color:#607a72;text-decoration:none">{escape(app["title"])}</a>'
+        f'<span style="margin-left:8px;font-size:11px;color:#78858b">Product Hunt · {escape(app["day"])}</span>'
+        f'<p style="margin:5px 0;color:#1c2529;font-size:12px;line-height:1.6">{escape(app["tagline"] if en else app["summary"])}</p>'
+        f'<p style="margin:0;color:#70808a;font-size:11px;line-height:1.5">{escape(app["tagline"] if not en else app["why"])}</p></td></tr>'
+        for app in snapshot["apps"][:2]
+    ) or f'<tr><td style="padding:12px 0;color:#70808a;font-size:12px">{"No recent AI app matched the discovery criteria" if en else "本期暂无符合条件的新 AI 应用线索"}</td></tr>'
+    focus = snapshot["apps"][0] if snapshot["apps"] else None
+    next_step = (f'{"Check" if en else "建议验证"} {escape(focus["title"])}: {escape(focus["why"])}' if focus
+                 else ("Review the source evidence before taking action." if en else "建议先核实来源，再决定是否跟进。"))
+    title = "AI Radar · Daily Brief" if en else "AI Radar · 今日简报"
+    return f'''<!doctype html><html lang="{"en" if en else "zh-CN"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;background:#f5f6f7;color:#1c2529;font-family:Arial,'Microsoft YaHei',sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6f7"><tr><td align="center" style="padding:20px 10px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e2e7e8"><tr><td style="padding:27px 28px 22px;border-bottom:3px solid #78958c"><p style="margin:0 0 7px;color:#4f6c62;font-size:11px;font-weight:bold;letter-spacing:1px">INSIGHTPRO / {snapshot["as_of"]}</p><h1 style="margin:0;font-size:24px;line-height:1.3;color:#1c2529">{title}</h1></td></tr><tr><td style="padding:22px 28px"><p style="margin:0 0 16px;color:#596771;font-size:12px">{"Collected today" if en else "今日采集"} <b style="color:#1c2529">{snapshot["today_count"]}</b> &nbsp;·&nbsp; {"New AI apps" if en else "本周新应用"} <b style="color:#1c2529">{len(snapshot["apps"])}</b> &nbsp;·&nbsp; {"Rising directions" if en else "升温方向"} <b style="color:#1c2529">{len(rising)}</b></p>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f5;border:1px solid #e2e7e8"><tr><td style="padding:15px"><p style="margin:0 0 7px;font-size:14px;font-weight:bold;color:#283a38">{"Small AI Radar" if en else "AI 热点小雷达"}</p><p style="margin:0 0 10px;font-size:11px;color:#70808a">{"Source signal volume · last 7 days versus prior 7 days" if en else "已采集信号量 · 近 7 天对比前 7 天"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{radar_rows}</table></td></tr></table>
+<p style="margin:18px 0 4px;font-size:12px;color:#50606a">{"Rising:" if en else "本周升温："} {escape('、'.join(rising) if rising else ('None clearly detected' if en else '暂无明显升温方向'))}</p><h2 style="margin:24px 0 8px;font-size:17px;color:#1c2529">{"New AI app discovery" if en else "新 AI 应用发现"}</h2><p style="margin:0 0 6px;font-size:11px;color:#78858b">Product Hunt · {"External launch feed" if en else "独立发布线索"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{apps}</table><h2 style="margin:24px 0 8px;font-size:17px;color:#1c2529">{"Vendor launch signals" if en else "厂商产品发布信号"}</h2><p style="margin:0 0 6px;font-size:11px;color:#78858b">{"Existing competitor feed" if en else "现有友商动态采集"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{signals}</table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;background:#e7eeeb"><tr><td style="padding:15px;color:#283a38;font-size:12px;line-height:1.6"><b>{"Suggested next step" if en else "建议下一步"}</b><br>{next_step}</td></tr></table><p style="margin:20px 0 4px"><a href="{escape(base_url, quote=True)}" style="display:inline-block;padding:12px 18px;background:#607a72;color:#ffffff;font-size:13px;text-decoration:none">{"Open the full AI Radar" if en else "进入 InsightPro 查看完整 AI Radar"}</a></p><p style="margin:14px 0 0;font-size:11px;line-height:1.5;color:#78858b">{"Product Hunt launch is discovery evidence, not user growth proof. Source signals are not yet clustered events." if en else "产品发布是发现线索，不代表用户增长；来源信号尚未完成跨来源事件聚类。"}</p></td></tr></table></td></tr></table></body></html>'''
 
 
 def send_email(to_addr: str, subject: str, html_content: str) -> bool:
-    """通过 SMTP 发送邮件"""
+    """Send email via SMTP"""
     if not settings.SMTP_USER or not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your-qq-auth-code-here":
-        print("邮件未配置：请在 .env 中设置 SMTP_PASSWORD（QQ 邮箱授权码）")
+        logger.warning("Email not configured: please set SMTP_PASSWORD in .env (QQ mail authorization code)")
         return False
     try:
-        msg = MIMEText(html_content, "html", "utf-8")
+        msg = MIMEMultipart("alternative")
+        plain = BeautifulSoup(html_content, "html.parser").get_text(" ", strip=True)
+        msg.attach(MIMEText(f"{plain}\n\n{settings.BASE_URL.rstrip('/')}", "plain", "utf-8"))
+        msg.attach(MIMEText(html_content, "html", "utf-8"))
         msg["Subject"] = subject
         msg["From"] = f"InsightPro <{settings.EMAIL_FROM}>"
         msg["To"] = to_addr
@@ -347,45 +149,50 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
         with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
             server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
             server.sendmail(settings.EMAIL_FROM, [to_addr], msg.as_string())
-        print(f"邮件发送成功: {to_addr}")
+        logger.info(f"Email sent successfully: {to_addr}")
         return True
     except Exception as e:
-        print(f"邮件发送失败: {e}")
+        logger.warning(f"Email send failed: {e}")
         return False
 
 
 def send_daily_digest():
-    """立即向全部有效订阅者发送洞察日报。"""
+    """Send the insights daily digest to all active subscribers immediately."""
     subscribers = get_subscribers()
     if not subscribers:
         if settings.EMAIL_TO:
             subscribers = [{"email": settings.EMAIL_TO, "name": ""}]
         else:
-            print("没有邮件订阅者，跳过发送")
+            logger.info("No email subscribers, skipping send")
             return
 
-    html = build_daily_digest_html()
-    today = datetime.now().strftime("%Y-%m-%d")
-    subject = f"InsightPro · 技术解决方案日报 ({today})"
     success = 0
     for sub in subscribers:
+        language = sub.get("language", "zh")
+        today = datetime.now().strftime("%Y-%m-%d")
+        html = build_daily_digest_html(language)
+        subject = f"InsightPro · AI Radar {'Daily Snapshot' if language == 'en' else '每日快照'} ({today})"
         if send_email(sub["email"], subject, html):
             success += 1
-    print(f"每日邮件发送完成: {success}/{len(subscribers)} 成功")
+    logger.info(f"Daily email send completed: {success}/{len(subscribers)} successful")
     return {"sent": success, "total": len(subscribers)}
 
 
 def send_scheduled_digests(now: Optional[datetime] = None):
-    """每分钟扫描一次，仅向当前到期且今日未发送的订阅者投递。"""
+    """Scan every minute, delivering only to subscribers currently due and not yet sent today."""
     now = now or datetime.now(SHANGHAI_TZ)
     due = [subscriber for subscriber in get_subscribers() if subscriber_is_due(subscriber, now)]
     if not due:
         return {"sent": 0, "total": 0}
+    if not daily_digest_ready(now):
+        logger.info("Daily Radar Snapshot delayed: no signals collected today")
+        return {"sent": 0, "total": 0}
 
-    html = build_daily_digest_html()
-    subject = f"InsightPro · 技术解决方案日报 ({now:%Y-%m-%d})"
     success = 0
     for subscriber in due:
+        language = subscriber.get("language", "zh")
+        html = build_daily_digest_html(language)
+        subject = f"InsightPro · AI Radar {'Daily Snapshot' if language == 'en' else '每日快照'} ({now:%Y-%m-%d})"
         if not send_email(subscriber["email"], subject, html):
             continue
         with get_db() as conn:
@@ -395,5 +202,5 @@ def send_scheduled_digests(now: Optional[datetime] = None):
                 (subscriber["id"],),
             )
         success += 1
-    print(f"订阅邮件发送完成: {success}/{len(due)} 成功")
+    logger.info(f"Subscription email send completed: {success}/{len(due)} successful")
     return {"sent": success, "total": len(due)}

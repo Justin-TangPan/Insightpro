@@ -8,9 +8,12 @@ import { SectionHeader } from "@/components/section-header";
 import { AgentAction } from "@/components/agent-action";
 import { BackgroundFillDialog } from "@/components/background-fill-dialog";
 import { ConfirmDialog, useToast } from "@/components/ui";
-import { priorityLabels, Solution, solutionStatusLabels, workbenchFetch } from "@/lib/workbench";
+import { priorityLabels, Solution, solutionStatusLabels, solutionStatusEnglish, workbenchFetch } from "@/lib/workbench";
+import { usePreferences } from "@/lib/preferences";
 
 export default function SolutionDetailPage() {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { toast } = useToast();
@@ -21,8 +24,8 @@ export default function SolutionDetailPage() {
 
   const load = useCallback(async () => {
     try { setItem(await workbenchFetch<Solution>(`/solutions/${id}`)); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "方案实践加载失败"); }
-  }, [id]);
+    catch (reason) { setError(reason instanceof Error ? reason.message : (en ? "Could not load practice" : "方案实践加载失败")); }
+  }, [id, en]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
   const save = async (event: FormEvent) => {
@@ -35,8 +38,8 @@ export default function SolutionDetailPage() {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: item.name, description: item.description, category: item.category, status: item.status, version: item.version, reference_url: item.reference_url || null }),
       }));
-      toast("方案实践已保存。", "success");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "保存失败"); }
+      toast(en ? "Practice saved." : "方案实践已保存。", "success");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : (en ? "Save failed" : "保存失败")); }
     finally { setSaving(false); }
   };
 
@@ -46,42 +49,42 @@ export default function SolutionDetailPage() {
       await workbenchFetch(`/solutions/${id}`, { method: "DELETE" });
       router.push("/workbench/solutions");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "删除失败");
+      setError(reason instanceof Error ? reason.message : (en ? "Delete failed" : "删除失败"));
       throw reason;
     }
   };
   if (!item) return <div className="page-stack">{error ? <ErrorBox message={error} /> : <div className="h-96 animate-shimmer rounded-xl bg-white" />}</div>;
   return (
     <div className="page-stack">
-      <SectionHeader badge="Insight → 方案实践 → AI 工作" title={item.name} subtitle={`${item.category} · ${solutionStatusLabels[item.status]} · ${item.version}`} action={<div className="flex gap-2"><AgentAction contextType="solution" contextId={item.id} actionKey="architecture" className="ui-button-primary"><Bot className="h-4 w-4" />基于背景开展实践</AgentAction><Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />返回列表</Link></div>} />
+      <SectionHeader badge={en ? "Insight → Practice → Insight Agent" : "Insight → 方案实践 → Insight Agent"} title={item.name} subtitle={`${item.category} · ${en ? solutionStatusEnglish[item.status] : solutionStatusLabels[item.status]} · ${item.version}`} action={<div className="flex gap-2"><AgentAction contextType="solution" contextId={item.id} actionKey="architecture" className="ui-button-primary"><Bot className="h-4 w-4" />{en ? "Analyze this context" : "基于背景开展实践"}</AgentAction><Link href="/workbench/solutions" className="ui-button-secondary"><ArrowLeft className="h-4 w-4" />{en ? "Back to list" : "返回列表"}</Link></div>} />
       {error && <ErrorBox message={error} />}
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <form onSubmit={save} className="ui-card space-y-5">
-          <div><p className="swiss-kicker text-primary">方案实践</p><h2 className="mt-1 type-h2 text-ink">背景信息</h2></div>
-          <Field label="实践名称"><input required value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} className="ui-input w-full px-4 py-3" /></Field>
-          <Field label="背景信息"><div className="mb-2 flex justify-end"><BackgroundFillDialog name={item.name} description={item.description} referenceUrl={item.reference_url} onApply={(content) => setItem((current) => current ? { ...current, description: content } : current)} /></div><textarea rows={8} value={item.description} onChange={(event) => setItem({ ...item, description: event.target.value })} className="ui-input w-full resize-y px-4 py-3" /></Field>
+          <div><p className="swiss-kicker text-primary">{en ? "Solution Practice" : "方案实践"}</p><h2 className="mt-1 type-h2 text-ink">{en ? "Context" : "背景信息"}</h2></div>
+          <Field label={en ? "Practice name" : "实践名称"}><input required value={item.name} onChange={(event) => setItem({ ...item, name: event.target.value })} className="ui-input w-full px-4 py-3" /></Field>
+          <Field label={en ? "Context" : "背景信息"}><div className="mb-2 flex justify-end"><BackgroundFillDialog name={item.name} description={item.description} referenceUrl={item.reference_url} onApply={(content) => setItem((current) => current ? { ...current, description: content } : current)} /></div><textarea rows={8} value={item.description} onChange={(event) => setItem({ ...item, description: event.target.value })} className="ui-input w-full resize-y px-4 py-3" /></Field>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="分类"><input value={item.category} onChange={(event) => setItem({ ...item, category: event.target.value })} className="ui-input w-full px-3 py-3" /></Field>
-            <Field label="状态"><select value={item.status} onChange={(event) => setItem({ ...item, status: event.target.value as Solution["status"] })} className="ui-input w-full px-3 py-3">{Object.entries(solutionStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
-            <Field label="版本"><input value={item.version} onChange={(event) => setItem({ ...item, version: event.target.value })} className="ui-input w-full px-3 py-3" /></Field>
+            <Field label={en ? "Category" : "分类"}><input value={item.category} onChange={(event) => setItem({ ...item, category: event.target.value })} className="ui-input w-full px-3 py-3" /></Field>
+            <Field label={en ? "Status" : "状态"}><select value={item.status} onChange={(event) => setItem({ ...item, status: event.target.value as Solution["status"] })} className="ui-input w-full px-3 py-3">{Object.entries(en ? solutionStatusEnglish : solutionStatusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></Field>
+            <Field label={en ? "Version" : "版本"}><input value={item.version} onChange={(event) => setItem({ ...item, version: event.target.value })} className="ui-input w-full px-3 py-3" /></Field>
           </div>
-          <Field label="参考链接"><input type="url" value={item.reference_url || ""} onChange={(event) => setItem({ ...item, reference_url: event.target.value })} className="ui-input w-full px-4 py-3" /></Field>
-          {item.reference_url && <a href={item.reference_url} target="_blank" rel="noreferrer" className="ui-link inline-flex items-center gap-1 text-sm">打开参考链接<ArrowUpRight className="h-4 w-4" /></a>}
-          <div className="flex flex-wrap justify-between gap-3 pt-2"><button type="button" onClick={() => setDeleteOpen(true)} className="ui-button-secondary text-warning"><Trash2 className="h-4 w-4" />删除</button><button disabled={saving} className="ui-button-primary"><Save className="h-4 w-4" />{saving ? "保存中" : "保存修改"}</button></div>
+          <Field label={en ? "Reference URL" : "参考链接"}><input type="url" value={item.reference_url || ""} onChange={(event) => setItem({ ...item, reference_url: event.target.value })} className="ui-input w-full px-4 py-3" /></Field>
+          {item.reference_url && <a href={item.reference_url} target="_blank" rel="noreferrer" className="ui-link inline-flex items-center gap-1 text-sm">{en ? "Open reference" : "打开参考链接"}<ArrowUpRight className="h-4 w-4" /></a>}
+          <div className="flex flex-wrap justify-between gap-3 pt-2"><button type="button" onClick={() => setDeleteOpen(true)} className="ui-button-secondary text-warning"><Trash2 className="h-4 w-4" />{en ? "Delete" : "删除"}</button><button disabled={saving} className="ui-button-primary"><Save className="h-4 w-4" />{saving ? (en ? "Saving..." : "保存中") : (en ? "Save changes" : "保存修改")}</button></div>
         </form>
         <aside className="rounded-xl bg-surface-subtle p-4 self-start">
-          <div className="flex items-center justify-between"><div><p className="swiss-kicker text-primary">Background</p><h2 className="mt-1 type-h3 text-ink">背景材料</h2></div><span className="ui-tag">{item.requirements?.length || 0}</span></div>
+          <div className="flex items-center justify-between"><div><p className="swiss-kicker text-primary">Background</p><h2 className="mt-1 type-h3 text-ink">{en ? "Context items" : "背景材料"}</h2></div><span className="ui-tag">{item.requirements?.length || 0}</span></div>
           <div className="mt-4 space-y-2">
             {item.requirements?.map((requirement) => (
               <div key={requirement.id} className="block rounded-lg bg-white p-4">
-                <div className="flex items-start gap-3"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><div><p className="text-sm font-semibold text-ink">{requirement.title}</p><p className="mt-1 text-xs text-ink-muted">{priorityLabels[requirement.priority]}优先级</p></div></div>
+                <div className="flex items-start gap-3"><ClipboardList className="mt-0.5 h-4 w-4 shrink-0 text-primary" /><div><p className="text-sm font-semibold text-ink">{requirement.title}</p><p className="mt-1 text-xs text-ink-muted">{en ? ({ low: "Low", medium: "Medium", high: "High", critical: "Critical" }[requirement.priority]) : `${priorityLabels[requirement.priority]}优先级`}</p></div></div>
               </div>
             ))}
-            {!item.requirements?.length && <div className="rounded-lg bg-white p-5 text-center text-sm text-ink-muted">尚未收纳背景材料</div>}
+            {!item.requirements?.length && <div className="rounded-lg bg-white p-5 text-center text-sm text-ink-muted">{en ? "No context items yet" : "尚未收纳背景材料"}</div>}
           </div>
         </aside>
       </div>
-      <ConfirmDialog open={deleteOpen} onOpenChange={setDeleteOpen} title="删除方案实践？" description={`“${item.name}”及其工作关联将被永久删除。`} confirmLabel="删除" danger onConfirm={remove} />
+      <ConfirmDialog open={deleteOpen} onOpenChange={setDeleteOpen} title={en ? "Delete practice?" : "删除方案实践？"} description={en ? `“${item.name}” and its work links will be deleted permanently.` : `“${item.name}”及其工作关联将被永久删除。`} confirmLabel={en ? "Delete" : "删除"} danger onConfirm={remove} />
     </div>
   );
 }

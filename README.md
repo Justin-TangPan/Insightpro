@@ -1,32 +1,32 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v0.8.15`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v1.0.0-rc.11`
 
-[![Version](https://img.shields.io/badge/version-0.8.15-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc.1-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](compose.yaml)
 
-InsightPro 面向解决方案架构师、技术负责人和技术决策团队：持续发现值得关注的技术项目与官方解决方案，将洞察沉淀为可跟踪的需求和可复用的方案，并在统一账号体系下提供隔离的团队 AI Space。
+InsightPro 面向解决方案架构师、技术负责人和技术决策团队：持续发现值得关注的技术项目与官方解决方案，将洞察沉淀为可跟踪、可复用的方案实践，并在统一账号体系下提供隔离的团队 AI Space。
 
 ## 核心价值
 
-- **持续洞察**：每日跟踪 GitHub 技术热点和官方技术解决方案目录变化，降低人工检索成本。
+- **持续洞察**：每日跟踪 GitHub 热门项目和官方技术解决方案目录变化，降低人工检索成本。
 - **辅助判断**：通过 AI 生成项目速读、技术价值评估和分析报告，帮助团队快速识别值得投入的方向。
-- **推动落地**：将洞察直接沉淀为 Requirement，并进一步创建或关联 Solution，形成从发现到执行的完整链路。
+- **推动落地**：将洞察保存为方案实践，并在 AI 工作区中基于背景材料开展分析和交付。
 
 ```text
-Insight → Requirement → Solution
+技术雷达 → 方案实践 → AI 工作区
 ```
 
-`v0.8.15` 修复 AI 流式请求与 Token 用量统计；InsightPro 仍是唯一账号、业务系统和写入边界。
+当前候选版本为 `v1.0.0-rc.11`；完成国内舆情数据接入验收后再标记正式 `v1.0.0`。详情见[版本记录](log/versions.md)；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 
-### 技术热点追踪
+### 项目洞察
 
-![InsightPro 技术热点追踪](doc/assets/readme/hotspots.png)
+![InsightPro 项目洞察](doc/assets/readme/hotspots.png)
 
 ### 解决方案洞察
 
@@ -34,21 +34,23 @@ Insight → Requirement → Solution
 
 ## 核心能力
 
-### 技术热点
+### 项目洞察
 
-跟踪 GitHub Trending 日榜、周榜和月榜，提供历史变化、项目用途速读和技术价值评估。热点项目可以一键暂存为 Requirement。
+跟踪 GitHub Trending 日榜、周榜和月榜，提供历史变化、项目用途速读和技术价值评估。热点项目可以一键保存为方案实践。
 
 ### 云厂商解决方案洞察
 
 同步阿里云、华为云官方技术解决方案目录，每日识别新增、更新和下线变化，并保留原始来源。
 
-### Workbench
+### 方案实践
 
-集中管理团队自己的 Requirements 和 Solutions，支持状态、优先级、版本、来源以及双向关联。用户数据按账号隔离。
+集中管理团队的方案实践，支持背景信息、状态、分类、版本和参考链接，并可进入 AI 工作区继续分析。历史 Requirement 材料保留兼容关联，旧需求列表入口跳转到方案实践。用户数据按账号隔离。
 
 ### Insight-Agent
 
-InsightPro 内置的 AI 智能工作区。GitHub Project、Cloud Solution、Requirement 与 Solution 可以直接“使用 Agent 分析”；Backend 生成已授权的对象快照，并自动发起流式分析。原生聊天界面不持有数据库或模型密钥。
+InsightPro 内置的 AI 智能工作区，直接复用 [Nous Research Hermes Agent](https://github.com/NousResearch/hermes-agent) 的源码核心。每轮由 Hermes `AIAgent` 执行模型流式调用、工具循环、工具参数累积和 `clarify` 人在环决策；InsightPro 负责身份、业务 Context、知识库、可下载交付件和业务写入确认。GitHub Project、Cloud Solution、Requirement 与 Solution 可以直接“使用 Agent 分析”；Backend 只向核心传入已授权的对象快照，前端不持有数据库或模型密钥。
+
+当前固定 Hermes 版本为 `v2026.8.19`（commit `fcbd1076a93841fa88855acce810e342a5b78101`），按 MIT License 使用。上游源码本地放在 `vendor/hermes-agent/`，被 Git 忽略，不会提交或上传；构建将其置于后端镜像的 `/opt/hermes`。适配边界、许可证和升级方式见 [Hermes 源码说明](services/insight-agent/HERMES_SOURCE.md)。
 
 ## 快速启动
 
@@ -118,3 +120,4 @@ Next.js · React · TypeScript · FastAPI · Supabase PostgreSQL · Supabase Aut
 - [部署与运维](doc/运维手册.md)
 - [Insight-Agent](services/insight-agent/README.md)
 - [版本记录](log/versions.md)
+架构图：[`TECHNICAL_ARCHITECTURE.svg`](./TECHNICAL_ARCHITECTURE.svg)

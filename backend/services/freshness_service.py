@@ -9,7 +9,6 @@ DATASETS = {
     "technical_evaluation": ("trending_business_eval", "scrape_date", 0),
     "aliyun_solutions": ("aliyun_solutions", "last_seen_date", 0),
     "baidu_hotsearch": ("baidu_hotsearch", "scrape_date", 0),
-    "cloud_vendor_news": ("cloud_vendor_news", "crawl_date", 1),
     "competitor_news": ("competitor_news", "scrape_date", 1),
 }
 
@@ -19,6 +18,20 @@ def has_rows_today(dataset: str) -> bool:
     today = datetime.now().strftime("%Y-%m-%d")
     with get_db() as conn:
         cursor = conn.cursor()
+        if dataset == "technical_evaluation":
+            from services.hotspot_service import _HEURISTIC_REASON, _LEGACY_HEURISTIC_REASON
+            cursor.execute(
+                """SELECT EXISTS(SELECT 1 FROM github_trending WHERE scrape_date = %s AND category = 'daily')
+                   AND NOT EXISTS (
+                     SELECT 1 FROM github_trending g
+                     LEFT JOIN trending_business_eval e
+                       ON e.scrape_date = g.scrape_date AND e.repo_name = g.repo_name
+                     WHERE g.scrape_date = %s AND g.category = 'daily'
+                       AND (e.id IS NULL OR COALESCE(e.reasoning, '') IN ('', %s, %s))
+                   ) AS present""",
+                (today, today, _HEURISTIC_REASON, _LEGACY_HEURISTIC_REASON),
+            )
+            return bool(cursor.fetchone()["present"])
         cursor.execute(
             f"SELECT EXISTS(SELECT 1 FROM {table} WHERE {date_column} = %s) AS present",
             (today,),
@@ -32,7 +45,7 @@ def solution_catalogs_fresh_today() -> bool:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT COUNT(DISTINCT vendor) AS count, COUNT(*) FILTER (WHERE vendor='华为云' AND category LIKE ' / %%') AS uncategorized FROM aliyun_solutions WHERE last_seen_date=%s AND vendor IN ('阿里云', '华为云')",
+            "SELECT COUNT(DISTINCT vendor) AS count, COUNT(*) FILTER (WHERE vendor='Huawei Cloud' AND category LIKE ' / %%') AS uncategorized FROM aliyun_solutions WHERE last_seen_date=%s AND vendor IN ('Alibaba Cloud', 'Huawei Cloud')",
             (today,),
         )
         row = cursor.fetchone()

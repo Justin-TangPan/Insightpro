@@ -1,16 +1,11 @@
 """
-Reconcile Supabase Postgres schema to match what backend code expects.
+[DEPRECATED] Reconcile Supabase Postgres schema.
 
-Idempotent. Safe to run repeatedly. Run once after deploy:
-    python reconcile_schema.py
+This script is superseded by Alembic migrations. Schema changes should now
+be managed via `alembic revision --autogenerate` and `alembic upgrade head`.
 
-Actions:
-  1. Rename columns that migrate_to_supabase.py had renamed (date→bid_date, etc.)
-     back to the names the code's SQL uses.
-  2. Add missing columns (ADD COLUMN IF NOT EXISTS).
-  3. Create missing tables (CREATE TABLE IF NOT EXISTS).
-  4. Create indexes / unique constraints (CREATE ... IF NOT EXISTS).
-  5. Backfill renamed-column data (old→new) where new is NULL.
+This file is kept for historical reference only. Do not run it for new deploys.
+The startup_service.ensure_runtime_schema() function now calls Alembic instead.
 """
 import os
 from dotenv import load_dotenv
@@ -57,6 +52,7 @@ def run():
     print("[competitor_news]")
     rename_col(c, "competitor_news", "date", "scrape_date")
     add_col(c, "competitor_news", "category", "TEXT")
+    add_col(c, "competitor_news", "published_date", "DATE")
     c.execute("CREATE INDEX IF NOT EXISTS idx_comp_news_date ON competitor_news(scrape_date)")
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_comp_news_unique ON competitor_news(scrape_date, vendor, title)")
 
@@ -65,6 +61,7 @@ def run():
     add_col(c, "email_subscribers", "active", "INTEGER DEFAULT 1")
     add_col(c, "email_subscribers", "weekdays", "INTEGER[] NOT NULL DEFAULT ARRAY[0,1,2,3,4,5,6]")
     add_col(c, "email_subscribers", "send_time", "TEXT NOT NULL DEFAULT '09:05'")
+    add_col(c, "email_subscribers", "language", "TEXT NOT NULL DEFAULT 'zh'")
     add_col(c, "email_subscribers", "last_sent_at", "TIMESTAMPTZ")
 
     # ── github_trending: unique + indexes (match SQLite schema) ──

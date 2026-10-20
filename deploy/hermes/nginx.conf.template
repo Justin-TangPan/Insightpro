@@ -26,7 +26,7 @@ server {
         proxy_set_header X-Insight-SSO-Ticket $sso_ticket;
     }
 
-    location ~ ^/_insight/runtime/(overview|status|start|stop|action|chat|session)$ {
+    location ~ ^/_insight/runtime/(overview|status|start|stop|action|chat(?:/stream)?|interaction|session)$ {
         if ($http_x_insight_runtime_secret != "${HERMES_GATEWAY_SECRET}") { return 403; }
         proxy_pass http://hermes:4096;
         proxy_set_header X-Insight-Runtime-Secret $http_x_insight_runtime_secret;
@@ -34,6 +34,9 @@ server {
         proxy_set_header X-Insight-Agent-Role $http_x_insight_agent_role;
         proxy_set_header X-Insight-Auth-Role $http_x_insight_auth_role;
         proxy_set_header X-Insight-Display-Name $http_x_insight_display_name;
+        proxy_set_header X-Insight-Agent-Session-Id $http_x_insight_agent_session_id;
+        proxy_buffering off;
+        proxy_read_timeout 320s;
     }
 
     location ~ ^/_insight/knowledge/(list|upload|delete)$ {

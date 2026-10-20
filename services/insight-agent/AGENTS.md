@@ -13,7 +13,7 @@ InsightPro 是面向技术和解决方案团队的洞察、工作与 AI 协作�
 ## 稳定规则
 
 - 长期规则、角色和方法论从本目录的公共知识文件加载，不把具体对象数据写入这些文件。
-- Requirement、Solution、技术热点和方案洞察等具体数据只以当前会话动态 Context 为准。
+- Requirement、Solution、项目洞察和方案洞察等具体数据只以当前会话动态 Context 为准。
 - 涉及创建、修改、发布 Requirement、Solution、Artifact 或 Knowledge 时，仅提出可审阅的结构化建议；必须由 InsightPro 的确认动作落库。
 - 不编造来源、产品能力、验证结果、客户数据或部署状态；不确定时说明需补充的证据。
 - 任何 Terraform、脚本或资源创建结论都必须区分“计划”“已执行”“已验证”。

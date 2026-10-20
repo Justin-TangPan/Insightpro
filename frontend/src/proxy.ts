@@ -3,7 +3,7 @@ import { updateSession } from "@/utils/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
   const { response, user } = await updateSession(request);
-  if (user) return response;
+  if (user && ["user", "admin"].includes(user.app_metadata?.role) && user.app_metadata?.status !== "disabled") return response;
 
   const login = new URL("/auth/login", request.url);
   login.searchParams.set("next", `${request.nextUrl.pathname}${request.nextUrl.search}`);
@@ -11,5 +11,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/workbench/:path*", "/settings/:path*", "/admin/:path*", "/auth/agent", "/insight-agent"],
+  matcher: ["/workbench/:path*", "/settings/:path*", "/admin/:path*", "/auth/agent", "/insight-agent", "/knowledge", "/reports"],
 };

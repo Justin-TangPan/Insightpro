@@ -1,8 +1,37 @@
 from crawlers import _is_quality_item
 from routers.hotspots import _heuristic_score_project
 from services import startup_service
+
+
+def test_startup_evaluation_requires_ai_results(monkeypatch):
+    from services import freshness_service
+    from services.hotspot_service import _HEURISTIC_REASON, _LEGACY_HEURISTIC_REASON
+    calls = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            pass
+
+        def cursor(self):
+            return self
+
+        def execute(self, sql, params):
+            calls.append((sql, params))
+
+        def fetchone(self):
+            return {"present": False}
+
+    monkeypatch.setattr(freshness_service, "get_db", Connection)
+    assert not freshness_service.has_rows_today("technical_evaluation")
+    sql, params = calls[0]
+    assert "LEFT JOIN trending_business_eval" in sql
+    assert "e.id IS NULL" in sql
+    assert params[2:] == (_HEURISTIC_REASON, _LEGACY_HEURISTIC_REASON)
 from services import aliyun_solution_service
-from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_menu_tree, _summarize
+from services.aliyun_solution_service import _change_summary, _classify_change, _fallback_summary, _parse_detail_payload, _parse_menu_tree, _summarize
 from services.huawei_solution_service import _parse_catalog
 from services.system_health_service import evaluate_readiness
 from deep_searcher_integration import context_to_str
@@ -47,8 +76,13 @@ def test_aliyun_solution_parser_and_summary_contract():
         "menu_data": {"id": 1, "parentId": 2, "type": "SOLUTION_DETAIL", "tags": []},
     }]
     summary = _fallback_summary("示例解决方案", "帮助企业快速部署智能体并自动完成复杂业务任务与流程协作。")
-    assert 20 <= len(summary) <= 30
-    assert 20 <= len(_fallback_summary("数据合规", "")) <= 30
+    assert "Open-source projects: not confirmed in official materials" in summary
+    assert "Alibaba Cloud resources: not confirmed in official materials" in _fallback_summary("数据合规", "")
+
+
+def test_aliyun_detail_keeps_plain_text_for_resource_analysis():
+    detail = _parse_detail_payload({"data": {"content": "<p>使用 ACK 部署 <b>Langfuse</b></p>"}})
+    assert detail["detail_text"] == "使用 ACK 部署 Langfuse"
 
 
 def test_solution_summaries_are_batched_instead_of_globally_downgraded(monkeypatch):
@@ -62,7 +96,7 @@ def test_solution_summaries_are_batched_instead_of_globally_downgraded(monkeypat
 
     summaries = _summarize(items)
 
-    assert len(calls) == 3
+    assert len(calls) == 6
     assert len(summaries) == 41
 
 
@@ -78,17 +112,17 @@ def test_solution_changes_name_the_changed_content_and_huawei_cards_parse():
     items = _parse_catalog(page)
     item = items[0]
     assert item["title"] == "示例方案"
-    assert item["category"] == "AI / 解决方案实践"
-    assert items[1]["category"] == "云迁移 / 解决方案实践"
+    assert item["category"] == "AI / Solution Practice"
+    assert items[1]["category"] == "云迁移 / Solution Practice"
     item["content_snapshot"] = {"title": "示例方案", "category": item["category"], "source_description": "新说明", "detail_text": ""}
     summary = _change_summary({"source_description": "旧说明"}, item)
-    assert "方案简介：旧说明 → 新说明" in summary
+    assert "Solution description: 旧说明 → 新说明" in summary
 
 
 def test_huawei_parser_normalizes_combined_category_and_polluted_url():
     page = '&quot;cardItem&quot;:{&quot;label&quot;:&quot;运维监控,AI&quot;,&quot;href&quot;:&quot;https://www.huaweicloud.com/solution/implementations/yolo.html运维监控&quot;,&quot;caption&quot;:&quot;YOLO&quot;,&quot;description&quot;:&quot;视觉训练&quot;}'
     item = _parse_catalog(page)[0]
-    assert item["category"] == "AI / 解决方案实践"
+    assert item["category"] == "AI / Solution Practice"
     assert item["url"] == "https://www.huaweicloud.com/solution/implementations/yolo.html"
 
 
@@ -133,7 +167,7 @@ def test_catalog_refresh_keeps_healthy_vendor_when_the_other_fails(monkeypatch):
     result = aliyun_solution_service.refresh_solution_catalogs()
     assert result["status"] == "partial"
     assert result["total"] == 2
-    assert result["vendors"]["华为云"]["status"] == "failed"
+    assert result["vendors"]["Huawei Cloud"]["status"] == "failed"
 
 def test_readiness_requires_fresh_nonempty_technical_data():
     healthy = evaluate_readiness(

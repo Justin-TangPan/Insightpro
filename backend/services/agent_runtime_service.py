@@ -1,5 +1,10 @@
-"""Admin-only bridge to the isolated Insight-Agent Runtime Manager."""
+"""Authenticated bridge to the isolated Insight-Agent Runtime Manager."""
 from __future__ import annotations
+
+import asyncio
+import json
+from collections.abc import AsyncIterator
+from urllib.parse import quote
 
 import httpx
 
@@ -20,7 +25,7 @@ def _headers(user_id: str = "", role: str = "", display_name: str = "", session_
         "X-Insight-User-Id": user_id,
         "X-Insight-Agent-Role": role,
         "X-Insight-Auth-Role": "admin",
-        "X-Insight-Display-Name": display_name,
+        "X-Insight-Display-Name": quote(display_name, safe=""),
         "X-Insight-Agent-Session-Id": session_id,
     }
 
@@ -52,14 +57,45 @@ async def read_action(user_id: str, session_id: str) -> dict:
         return response.json()
 
 
-async def chat(user_id: str, role: str, display_name: str, session_id: str, message: str) -> dict:
+async def clear_action(user_id: str, session_id: str) -> None:
+    async with httpx.AsyncClient(timeout=10) as client:
+        response = await client.delete(_url("action"), params={"session_id": session_id}, headers=_headers(user_id))
+        response.raise_for_status()
+
+
+async def chat(user_id: str, role: str, display_name: str, session_id: str, message: str, model: str) -> dict:
+    from services.knowledge_service import augment_message
+    message = await asyncio.to_thread(augment_message, user_id, message)
     async with httpx.AsyncClient(timeout=320) as client:
         response = await client.post(
-            _url("chat"), json={"message": message},
+            _url("chat"), json={"message": message, "model": model},
             headers=_headers(user_id, role, display_name, session_id),
         )
         response.raise_for_status()
         return response.json()
+
+
+async def stream_chat(user_id: str, role: str, display_name: str, session_id: str, message: str, model: str) -> AsyncIterator[dict]:
+    from services.knowledge_service import augment_message
+    message = await asyncio.to_thread(augment_message, user_id, message)
+    async with httpx.AsyncClient(timeout=httpx.Timeout(320, read=None)) as client:
+        async with client.stream(
+            "POST", _url("chat/stream"), json={"message": message, "model": model},
+            headers=_headers(user_id, role, display_name, session_id),
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if line:
+                    yield json.loads(line)
+
+
+async def resolve_interaction(user_id: str, role: str, display_name: str, session_id: str, interaction_id: str, answer: str) -> None:
+    async with httpx.AsyncClient(timeout=15) as client:
+        response = await client.post(
+            _url("interaction"), json={"interaction_id": interaction_id, "answer": answer},
+            headers=_headers(user_id, role, display_name, session_id),
+        )
+        response.raise_for_status()
 
 
 async def delete_session(user_id: str, role: str, display_name: str, session_id: str, hermes_session_id: str) -> None:

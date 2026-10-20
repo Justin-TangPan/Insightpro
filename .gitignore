@@ -53,3 +53,12 @@ frontend/-w
 scripts/*.log
 demo/business-insight-daily/err.log
 demo/business-insight-daily/test_out/
+
+# Local design/agent working material
+.agents/
+_gen_excel.py
+design-system/
+insight-pro-design.zip
+
+# Local upstream source dependency; retain locally, never stage or push.
+/vendor/hermes-agent/

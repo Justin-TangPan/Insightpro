@@ -5,6 +5,7 @@ import { Check, LoaderCircle, RefreshCw, Sparkles } from "lucide-react";
 import { AppDialog, useToast } from "@/components/ui";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { hasReadableGithubSource } from "@/lib/background-fill";
+import { usePreferences } from "@/lib/preferences";
 
 type Props = {
   name: string;
@@ -16,6 +17,8 @@ type Props = {
 type Status = "idle" | "reading" | "generating";
 
 export function BackgroundFillDialog({ name, description, referenceUrl, onApply }: Props) {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   const { toast } = useToast();
   const request = useRef<AbortController>(null);
   const [open, setOpen] = useState(false);
@@ -48,11 +51,11 @@ export function BackgroundFillDialog({ name, description, referenceUrl, onApply 
         signal: controller.signal,
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.detail || "无法生成背景信息");
+      if (!response.ok) throw new Error(data.detail || (en ? "Could not generate context" : "无法生成背景信息"));
       setDraft(data.content || "");
     } catch (reason) {
       if (reason instanceof DOMException && reason.name === "AbortError") return;
-      setError(reason instanceof Error ? reason.message : "无法生成背景信息");
+      setError(reason instanceof Error ? reason.message : (en ? "Could not generate context" : "无法生成背景信息"));
     } finally {
       if (request.current === controller) {
         request.current = null;
@@ -71,29 +74,29 @@ export function BackgroundFillDialog({ name, description, referenceUrl, onApply 
 
   const apply = () => {
     onApply(draft);
-    toast("已采用 AI 草稿，点击保存后生效。", "success");
+    toast(en ? "AI draft applied; save the practice to keep it." : "已采用 AI 草稿，点击保存后生效。", "success");
     close();
   };
 
   const busy = status !== "idle";
-  const progress = status === "reading" ? "正在读取参考资料并生成背景…" : "正在生成背景…";
+  const progress = status === "reading" ? (en ? "Reading sources and generating context..." : "正在读取参考资料并生成背景…") : (en ? "Generating context..." : "正在生成背景…");
 
   return (
     <>
       <button type="button" disabled={!name.trim()} onClick={start} className="ui-button-secondary px-2.5 py-1.5 text-xs" aria-haspopup="dialog">
-        <Sparkles className="h-3.5 w-3.5" />AI 填充
+        <Sparkles className="h-3.5 w-3.5" />{en ? "AI fill" : "AI 填充"}
       </button>
-      <AppDialog open={open} onClose={close} title="校对背景信息" description="AI 草稿不会直接覆盖，采用后仍需保存方案实践。" footer={<>
-        <button type="button" onClick={close} className="ui-button-secondary">取消</button>
-        {!busy && !error && draft && <button type="button" onClick={() => void generate()} className="ui-button-secondary"><RefreshCw className="h-4 w-4" />重新生成</button>}
-        <button type="button" disabled={busy || !draft || Boolean(error)} onClick={apply} className="ui-button-primary"><Check className="h-4 w-4" />采用草稿</button>
+      <AppDialog open={open} onClose={close} title={en ? "Review context" : "校对背景信息"} description={en ? "The AI draft applies only after you save the practice." : "AI 草稿不会直接覆盖，采用后仍需保存方案实践。"} footer={<>
+        <button type="button" onClick={close} className="ui-button-secondary">{en ? "Cancel" : "取消"}</button>
+        {!busy && !error && draft && <button type="button" onClick={() => void generate()} className="ui-button-secondary"><RefreshCw className="h-4 w-4" />{en ? "Regenerate" : "重新生成"}</button>}
+        <button type="button" disabled={busy || !draft || Boolean(error)} onClick={apply} className="ui-button-primary"><Check className="h-4 w-4" />{en ? "Apply draft" : "采用草稿"}</button>
       </>}>
         <div>
-          {busy && <div className="flex min-h-64 flex-col items-center justify-center rounded-xl bg-surface-subtle text-center" aria-live="polite"><LoaderCircle className="ui-spinner h-6 w-6 text-primary" /><p className="mt-3 text-sm font-semibold">{progress}</p><p className="mt-1 text-xs text-ink-muted">可随时取消，本次内容不会被修改。</p></div>}
-          {!busy && error && <div role="alert" className="rounded-xl bg-warning-soft p-5"><p className="font-semibold text-warning">背景信息生成失败</p><p className="mt-1 text-sm text-warning">{error}</p><button type="button" onClick={() => void generate()} className="ui-button-secondary mt-4"><RefreshCw className="h-4 w-4" />重试</button></div>}
+          {busy && <div className="flex min-h-64 flex-col items-center justify-center rounded-xl bg-surface-subtle text-center" aria-live="polite"><LoaderCircle className="ui-spinner h-6 w-6 text-primary" /><p className="mt-3 text-sm font-semibold">{progress}</p><p className="mt-1 text-xs text-ink-muted">{en ? "You can cancel at any time; existing content stays unchanged." : "可随时取消，本次内容不会被修改。"}</p></div>}
+          {!busy && error && <div role="alert" className="rounded-xl bg-warning-soft p-5"><p className="font-semibold text-warning">{en ? "Context generation failed" : "背景信息生成失败"}</p><p className="mt-1 text-sm text-warning">{error}</p><button type="button" onClick={() => void generate()} className="ui-button-secondary mt-4"><RefreshCw className="h-4 w-4" />{en ? "Retry" : "重试"}</button></div>}
           {!busy && !error && draft && <div className="grid gap-4">
-            <Preview label="当前内容 · 保留" content={original} empty="当前没有背景信息" />
-            <Preview label="AI 草稿 · 待采用" content={draft} />
+            <Preview label={en ? "Current content · keep" : "当前内容 · 保留"} content={original} empty={en ? "No context yet" : "当前没有背景信息"} />
+            <Preview label={en ? "AI draft · review" : "AI 草稿 · 待采用"} content={draft} />
           </div>}
         </div>
       </AppDialog>

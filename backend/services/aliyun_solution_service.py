@@ -1,4 +1,4 @@
-"""阿里云技术解决方案采集、摘要与更新检测。"""
+"""Alibaba Cloud tech solution collection, summarization, and change detection."""
 from __future__ import annotations
 import hashlib
 import json
@@ -9,9 +9,12 @@ from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import requests
+from bs4 import BeautifulSoup
 
 from db import get_db
 from settings import settings
+from services import ai_service
+from services.intelligence_format import solution as format_solution
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +38,7 @@ def _canonical_url(url: str) -> str:
 def _parse_menu_tree(payload: dict) -> list[dict]:
     roots = payload.get("data")
     if not isinstance(roots, list) or not roots:
-        raise ValueError("阿里云解决方案目录为空")
+        raise ValueError("Alibaba Cloud solution catalog is empty")
 
     solutions = []
     seen = set()
@@ -51,8 +54,8 @@ def _parse_menu_tree(payload: dict) -> list[dict]:
             if title and url and url not in seen:
                 seen.add(url)
                 category_path = categories if len(categories) >= 2 else categories + (title,)
-                primary_category = category_path[0] if category_path else "技术解决方案"
-                secondary_category = category_path[1] if len(category_path) > 1 else "分类入口"
+                primary_category = category_path[0] if category_path else "Tech Solutions"
+                secondary_category = category_path[1] if len(category_path) > 1 else "Category Entry"
                 solutions.append({
                     "title": title,
                     "url": url,
@@ -76,7 +79,7 @@ def _parse_menu_tree(payload: dict) -> list[dict]:
 
     walk(roots)
     if not solutions:
-        raise ValueError("阿里云解决方案目录没有可访问条目")
+        raise ValueError("Alibaba Cloud solution catalog has no accessible entries")
     return solutions
 
 
@@ -85,42 +88,45 @@ def _parse_detail_payload(payload: dict) -> dict:
     return {
         "title": _clean(data.get("docTitle") or data.get("title") or ""),
         "source_description": _clean(data.get("desc", "")),
+        "detail_text": _clean(BeautifulSoup(data.get("content") or "", "html.parser").get_text(" "))[:20000],
         "last_modified": data.get("lastModifiedTime"),
         "version": data.get("version"),
     }
 
 
-def _fallback_summary(title: str, description: str) -> str:
-    description = _clean(description)
-    for text in re.split(r"[，。；]", description):
-        text = text.strip()
-        if 20 <= len(text) <= 30:
-            return text
-    if len(description) >= 20:
-        return description[:30].rstrip("，,；;：:。 ")
-    return (_clean(title) + "，提供云上业务架构设计、部署与落地实践")[:30]
+def _fallback_summary(title: str, description: str, vendor: str = "Alibaba Cloud", detail: str = "") -> str:
+    description = _clean(description or detail)
+    value = description[:100].rstrip(",;: ") or f"{_clean(title)} cloud deployment and application solution"
+    return f"Solution value: {value}; Open-source projects: not confirmed in official materials; {vendor} resources: not confirmed in official materials"
 
 
 def _summarize(items: list[dict]) -> dict[str, str]:
-    fallback = {item["url"]: _fallback_summary(item["title"], item["source_description"]) for item in items}
+    fallback = {item["url"]: _fallback_summary(item["title"], item.get("source_description") or "", item.get("vendor", "Alibaba Cloud"),
+                                                (item.get("detail_data") or {}).get("detail_text") or item.get("detail_text") or "") for item in items}
     if not items or not settings.CHAT_API_KEY:
         return fallback
-    from services.ai_service import chat_complete, extract_json_array
 
-    for offset in range(0, len(items), 20):
-        batch = items[offset:offset + 20]
-        prompt = "请分析以下云解决方案，输出 JSON 数组。每项只含 url 和 summary；summary 必须为20至30个中文字符，说明方案是什么和解决什么问题，不写营销套话。\n" + "\n".join(
-            f"{item['url']} | {item['title']} | {item['source_description']}" for item in batch
+    def summarize_batch(offset: int) -> list[dict]:
+        batch = items[offset:offset + 8]
+        prompt = """Based only on each vendor's official solution materials, output a JSON array with url and summary. Use this format for every item:
+Solution value: explain the customer problem and value; Open-source projects: list only explicitly named projects and their role, or say "not confirmed in official materials"; <vendor> resources: list only explicitly named cloud products and their roles, or say "not confirmed in official materials".
+Do not guess products or projects. Each entry should be 80 to 220 characters.\n""" + "\n\n".join(
+            f"Vendor: {item.get('vendor', 'Alibaba Cloud')}\nURL: {item['url']}\nTitle: {item['title']}\nDescription: {item['source_description']}\nContent: {(item.get('detail_data') or {}).get('detail_text') or item.get('detail_text', '')[:2500]}" for item in batch
         )
         try:
-            rows = extract_json_array(chat_complete(user_prompt=prompt, temperature=0.2, max_tokens=1200, timeout=90))
-            for row in rows:
-                url = row.get("url")
-                summary = _clean(row.get("summary", ""))
-                if url in fallback and 20 <= len(summary) <= 30:
-                    fallback[url] = summary
+            return ai_service.extract_json_array(ai_service.chat_complete(user_prompt=prompt, temperature=0.2, max_tokens=3500, timeout=90))
         except Exception as exc:
-            print(f"[Cloud Solutions] AI 摘要批次 {offset // 20 + 1} 失败，使用页面摘要: {exc}")
+            logger.warning(f"[Cloud Solutions] AI summary batch {offset // 8 + 1} failed, using page summary: {exc}")
+            return []
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        rows = [row for batch in executor.map(summarize_batch, range(0, len(items), 8)) for row in batch]
+    for row in rows:
+        url = row.get("url")
+        summary = _clean(row.get("summary", ""))
+        vendor = next((item.get("vendor", "Alibaba Cloud") for item in items if item["url"] == url), None)
+        if vendor and 50 <= len(summary) <= 260 and "Solution value:" in summary and "Open-source projects:" in summary and f"{vendor} resources:" in summary:
+            fallback[url] = summary
     return fallback
 
 
@@ -141,16 +147,16 @@ def _change_summary(old: dict, item: dict) -> str:
         except json.JSONDecodeError:
             before = {}
     after = item.get("content_snapshot") or {}
-    labels = (("title", "方案名称"), ("category", "所属分类"), ("source_description", "方案简介"), ("detail_text", "方案正文"))
+    labels = (("title", "Solution name"), ("category", "Category"), ("source_description", "Solution description"), ("detail_text", "Solution content"))
     changes = []
     for field, label in labels:
         old_value, new_value = _clean(str(before.get(field, ""))), _clean(str(after.get(field, "")))
         if old_value != new_value:
             if field == "detail_text":
-                changes.append("方案正文已更新")
+                changes.append("Solution content updated")
             else:
-                changes.append(f"{label}：{old_value[:80] or '（无）'} → {new_value[:80] or '（无）'}")
-    return "；".join(changes) or "方案页面内容已更新"
+                changes.append(f"{label}: {old_value[:80] or '(none)'} → {new_value[:80] or '(none)'}")
+    return "; ".join(changes) or "Solution page content updated"
 
 
 def _classify_change(item: dict, cutoff: str) -> tuple[bool, str]:
@@ -191,7 +197,7 @@ def scrape_aliyun_solutions() -> list[dict]:
         solutions = list(executor.map(_enrich_solution, solutions))
     failures = sum(bool(item.get("detail_failed")) for item in solutions)
     if failures:
-        print(f"[Aliyun Solutions] {failures} 个详情读取失败，保留目录数据")
+        logger.warning(f"[Aliyun Solutions] {failures} detail reads failed, retaining catalog data")
     return solutions
 
 
@@ -200,7 +206,7 @@ def refresh_aliyun_solutions() -> dict:
     today = datetime.now().strftime("%Y-%m-%d")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT url, title, category, source_description, content_hash, summary, is_baseline, content_snapshot FROM aliyun_solutions WHERE vendor='阿里云'")
+        cursor.execute("SELECT url, title, category, source_description, content_hash, summary, is_baseline, content_snapshot FROM aliyun_solutions WHERE vendor='Alibaba Cloud'")
         existing = {row["url"]: dict(row) for row in cursor.fetchall()}
         initial_baseline = not existing
         for item in items:
@@ -213,18 +219,20 @@ def refresh_aliyun_solutions() -> dict:
                 snapshot = old.get("content_snapshot") or {}
                 if isinstance(snapshot, str):
                     snapshot = json.loads(snapshot)
-                item["vendor"] = "阿里云"
+                item["vendor"] = "Alibaba Cloud"
                 item["content_snapshot"] = snapshot
                 item["content_hash"] = old["content_hash"]
                 continue
-            item["vendor"] = "阿里云"
+            item["vendor"] = "Alibaba Cloud"
             item["content_snapshot"] = {
                 "title": item["title"], "category": item["category"],
                 "source_description": item["source_description"],
-                "detail_text": _clean(json.dumps(item.get("detail_data") or {}, ensure_ascii=False)),
+                "detail_text": item.get("detail_data", {}).get("detail_text", ""),
             }
             item["content_hash"] = _content_hash(item)
-        changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]]
+        changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]
+                   or "Solution value:" not in (existing[item["url"]].get("summary") or "")
+                   or "Alibaba Cloud resources:" not in (existing[item["url"]].get("summary") or "")]
         summaries = _summarize(changed)
 
         new_count = changed_count = 0
@@ -258,6 +266,9 @@ def refresh_aliyun_solutions() -> dict:
                     (item["title"], item["category"], item["source_description"], summaries[item["url"]], item["vendor"],
                      item["content_hash"], today, today, json.dumps(item["content_snapshot"], ensure_ascii=False), _change_summary(old, item), item["menu_order"], item["url"]),
                 )
+            elif item["url"] in summaries:
+                cursor.execute("UPDATE aliyun_solutions SET summary=%s, last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s",
+                               (summaries[item["url"]], today, item["url"]))
             else:
                 cursor.execute(
                     """UPDATE aliyun_solutions
@@ -271,7 +282,7 @@ def refresh_aliyun_solutions() -> dict:
         cursor.execute(
             """UPDATE aliyun_solutions
                SET is_active=FALSE, removed_at=NOW(), updated_at=NOW()
-               WHERE is_active=TRUE AND vendor='阿里云' AND url <> ALL(%s)""",
+               WHERE is_active=TRUE AND vendor='Alibaba Cloud' AND url <> ALL(%s)""",
             (current_urls,),
         )
         removed_count = cursor.rowcount
@@ -281,7 +292,7 @@ def refresh_aliyun_solutions() -> dict:
 def refresh_solution_catalogs() -> dict:
     """Refresh each official catalogue independently so one outage keeps the other current."""
     from services.huawei_solution_service import refresh_huawei_solutions
-    vendors = {"阿里云": refresh_aliyun_solutions, "华为云": refresh_huawei_solutions}
+    vendors = {"Alibaba Cloud": refresh_aliyun_solutions, "Huawei Cloud": refresh_huawei_solutions}
     results = {}
     for vendor, refresh in vendors.items():
         try:
@@ -306,7 +317,7 @@ def get_aliyun_solutions() -> dict:
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, title, url, category, source_description, summary, vendor, change_summary,
+            SELECT id, title, url, category, source_description, summary, vendor, content_snapshot, change_summary,
                    first_seen_date, last_seen_date, last_changed_date,
                    is_baseline, menu_order, updated_at
             FROM aliyun_solutions
@@ -317,17 +328,24 @@ def get_aliyun_solutions() -> dict:
         items = [dict(row) for row in cursor.fetchall()]
     cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
     for item in items:
+        snapshot = item.pop("content_snapshot") or {}
+        if isinstance(snapshot, str):
+            snapshot = json.loads(snapshot)
+        item["analysis_mode"] = "source" if item["summary"] == _fallback_summary(
+            item["title"], item.get("source_description") or "", item["vendor"], snapshot.get("detail_text") or ""
+        ) else "ai"
         primary, _, secondary = item["category"].partition(" / ")
         item["primary_category"] = primary
-        item["secondary_category"] = secondary or "分类入口"
+        item["secondary_category"] = secondary or "Category Entry"
         item["is_recent"], item["change_type"] = _classify_change(item, cutoff)
+        item["intelligence"] = format_solution(item)
     items.sort(key=lambda item: (
         0 if item["is_recent"] and item["change_type"] == "new" else
         1 if item["is_recent"] else 2,
-        -item["menu_order"] if item["vendor"] == "华为云" else item["menu_order"], item["title"],
+        -item["menu_order"] if item["vendor"] == "Huawei Cloud" else item["menu_order"], item["title"],
     ))
     today = datetime.now().strftime("%Y-%m-%d")
-    vendors = ("阿里云", "华为云")
+    vendors = ("Alibaba Cloud", "Huawei Cloud")
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute(
@@ -351,8 +369,34 @@ def get_aliyun_solutions() -> dict:
         "daily_insight": {"date": today, "new": sum(row["new"] for row in daily_insights.values()), "updated": sum(row["updated"] for row in daily_insights.values()), "removed": sum(row["removed"] for row in daily_insights.values())},
         "daily_insights": daily_insights,
         "last_checked": max((item["last_seen_date"] for item in items), default=None),
-        "sources": {"阿里云": INDEX_URL, "华为云": "https://www.huaweicloud.com/solution/reference-architecture.html"},
+        "sources": {"Alibaba Cloud": INDEX_URL, "Huawei Cloud": "https://www.huaweicloud.com/solution/reference-architecture.html"},
     }
+
+
+def backfill_solution_values() -> dict:
+    """Format legacy rows from their stored official source without recrawling the catalogue."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT id, url, title, vendor, source_description, content_snapshot, summary
+                          FROM aliyun_solutions WHERE is_active=TRUE
+                            AND (summary IS NULL OR summary NOT LIKE 'Solution value:%')""")
+        rows = [dict(row) for row in cursor.fetchall()]
+    items = []
+    for row in rows:
+        snapshot = row.get("content_snapshot") or {}
+        if isinstance(snapshot, str):
+            snapshot = json.loads(snapshot)
+        items.append({**row, "detail_text": snapshot.get("detail_text") or ""})
+    summaries = _summarize(items)
+    updated = 0
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for item in items:
+            cursor.execute("""UPDATE aliyun_solutions SET summary=%s, updated_at=NOW()
+                              WHERE id=%s AND summary IS NOT DISTINCT FROM %s""",
+                           (summaries[item["url"]], item["id"], item["summary"]))
+            updated += cursor.rowcount
+    return {"requested": len(items), "updated": updated}
 
 
 get_solution_catalog = get_aliyun_solutions

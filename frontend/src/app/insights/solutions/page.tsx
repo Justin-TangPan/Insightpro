@@ -9,8 +9,13 @@ import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { AgentAction } from "@/components/agent-action";
+import { useAuth } from "@/components/auth-provider";
+import { usePreferences } from "@/lib/preferences";
+import type { Intelligence } from "@/lib/intelligence";
 
 interface SolutionItem {
+  intelligence?: Intelligence;
+  analysis_mode?: "ai" | "source";
   id: number;
   title: string;
   url: string;
@@ -42,9 +47,14 @@ interface SolutionResponse {
 }
 
 const PAGE_SIZE = 12;
-const HUAWEI_CATEGORY_ORDER = ["AI", "数据分析与管理", "应用现代化", "安全与合规", "网络", "运维监控", "云迁移"];
+const HUAWEI_CATEGORY_ORDER = ["AI", "Data Analytics & Management", "App Modernization", "Security & Compliance", "Networking", "Ops & Monitoring", "Cloud Migration"];
+const categoryChinese: Record<string, string> = { "Solution Practices": "解决方案实践", "Data Analytics & Management": "数据分析与管理", "App Modernization": "应用现代化", "Security & Compliance": "安全与合规", Networking: "网络", "Ops & Monitoring": "运维监控", "Cloud Migration": "云迁移" };
+const categoryLabel = (name: string, en: boolean) => en ? name : (categoryChinese[name] || name);
+const vendorLabel = (name: string, en: boolean) => en ? name : ({ "Huawei Cloud": "华为云", "Alibaba Cloud": "阿里云" }[name] || name);
 
 export default function SolutionInsightsPage() {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   const [data, setData] = useState<SolutionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,14 +69,14 @@ export default function SolutionInsightsPage() {
     setError("");
     try {
       const response = await fetch(`${API}/api/solutions/catalog`);
-      if (!response.ok) throw new Error(`加载失败：${response.status}`);
+      if (!response.ok) throw new Error(en ? `Load failed: ${response.status}` : `加载失败：${response.status}`);
       setData(await response.json());
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "解决方案数据加载失败");
+      setError(reason instanceof Error ? reason.message : (en ? "Could not load solutions" : "解决方案数据加载失败"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [en]);
 
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
 
@@ -75,10 +85,10 @@ export default function SolutionInsightsPage() {
     setError("");
     try {
       const response = await authenticatedFetch(`${API}/api/solutions/catalog/refresh`, { method: "POST" });
-      if (!response.ok) throw new Error(response.status === 401 ? "请先登录后手动检查更新" : `检查失败：${response.status}`);
+      if (!response.ok) throw new Error(response.status === 401 ? (en ? "Sign in to check for updates" : "请先登录后手动检查更新") : (en ? `Check failed: ${response.status}` : `检查失败：${response.status}`));
       await load();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "检查更新失败");
+      setError(reason instanceof Error ? reason.message : (en ? "Update check failed" : "检查更新失败"));
     } finally {
       setRefreshing(false);
     }
@@ -92,8 +102,8 @@ export default function SolutionInsightsPage() {
   const directory = useMemo(() => {
     const primaryMap = new Map<string, Map<string, SolutionItem[]>>();
     for (const item of vendorItems) {
-      const primary = item.vendor === "华为云" ? "解决方案实践" : item.primary_category;
-      const secondary = item.vendor === "华为云" ? item.primary_category : item.secondary_category;
+      const primary = item.vendor === "Huawei Cloud" ? "Solution Practices" : item.primary_category;
+      const secondary = item.vendor === "Huawei Cloud" ? item.primary_category : item.secondary_category;
       if (!primaryMap.has(primary)) primaryMap.set(primary, new Map());
       const secondaryMap = primaryMap.get(primary)!;
       if (!secondaryMap.has(secondary)) secondaryMap.set(secondary, []);
@@ -107,7 +117,7 @@ export default function SolutionInsightsPage() {
         name: secondaryName,
         items,
         order: Math.min(...items.map((item) => item.menu_order)),
-      })).sort((a, b) => activeVendor === "华为云"
+      })).sort((a, b) => activeVendor === "Huawei Cloud"
         ? HUAWEI_CATEGORY_ORDER.indexOf(a.name) - HUAWEI_CATEGORY_ORDER.indexOf(b.name)
         : a.order - b.order),
     })).sort((a, b) => a.order - b.order);
@@ -148,25 +158,25 @@ export default function SolutionInsightsPage() {
     <div className="page-stack">
       <SectionHeader
         badge="Solution Intelligence / Cloud"
-        title="解决方案洞察"
-        subtitle="汇集阿里云、华为云官方解决方案目录，每日与上一版内容逐项比较。"
+        title={en ? "Solutions" : "解决方案"}
+        subtitle={en ? "Browse Alibaba Cloud and Huawei Cloud solution catalogs and daily changes." : "汇集阿里云、华为云官方解决方案目录，每日与上一版内容逐项比较。"}
         action={
           <div className="flex flex-col items-end gap-3">
-            <div className="flex items-center gap-2 text-xs text-ink-muted"><Clock3 className="h-3.5 w-3.5" />每天 09:00 自动对比 · 最近检查 {data?.last_checked || "—"}</div>
+            <div className="flex items-center gap-2 text-xs text-ink-muted"><Clock3 className="h-3.5 w-3.5" />{en ? "Daily comparison at 09:00 · Last checked" : "每天 09:00 自动对比 · 最近检查"} {data?.last_checked || "—"}</div>
             <button type="button" onClick={refresh} disabled={refreshing} className="ui-button-primary">
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? "正在对比" : "立即对比更新"}
+              {refreshing ? (en ? "Comparing..." : "正在对比") : (en ? "Check for updates" : "立即对比更新")}
             </button>
           </div>
         }
       />
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="今日目录变化">
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={en ? "Today's catalog changes" : "今日目录变化"}>
         {[
-          { label: "官方方案", value: vendorItems.length, unit: "项" },
-          { label: "今日新增", value: dailyInsight?.new ?? 0, unit: "项", warning: true },
-          { label: "今日更新", value: dailyInsight?.updated ?? 0, unit: "项" },
-          { label: "今日下线", value: dailyInsight?.removed ?? 0, unit: "项" },
+          { label: en ? "Official solutions" : "官方方案", value: vendorItems.length, unit: en ? "items" : "项" },
+          { label: en ? "New today" : "今日新增", value: dailyInsight?.new ?? 0, unit: en ? "items" : "项", warning: true },
+          { label: en ? "Updated today" : "今日更新", value: dailyInsight?.updated ?? 0, unit: en ? "items" : "项" },
+          { label: en ? "Removed today" : "今日下线", value: dailyInsight?.removed ?? 0, unit: en ? "items" : "项" },
         ].map((stat) => (
           <div key={stat.label} className="ui-card flex min-h-36 flex-col justify-end">
             <p className="swiss-kicker text-ink-muted">{stat.label}</p>
@@ -175,21 +185,21 @@ export default function SolutionInsightsPage() {
         ))}
       </section>
 
-      <nav className="flex gap-2" aria-label="云厂商目录">
-        {vendors.map((vendor) => <button key={vendor} type="button" onClick={() => selectVendor(vendor)} aria-current={vendor === activeVendor ? "page" : undefined} className={`ui-button-secondary ${vendor === activeVendor ? "bg-primary text-white hover:bg-primary-dark" : ""}`}>{vendor}</button>)}
+      <nav className="flex gap-2" aria-label={en ? "Cloud vendor catalogs" : "云厂商目录"}>
+        {vendors.map((vendor) => <button key={vendor} type="button" onClick={() => selectVendor(vendor)} aria-current={vendor === activeVendor ? "page" : undefined} className={`ui-button-secondary ${vendor === activeVendor ? "bg-primary text-white hover:bg-primary-dark" : ""}`}>{vendorLabel(vendor, en)}</button>)}
       </nav>
 
       <div className="rounded-xl bg-surface-subtle px-5 py-4 text-sm leading-6 text-ink-secondary">
-        当前查看 {activeVendor || "—"}。存量方案已设为普通基线；后续更新会列出名称、分类、简介或正文的具体变化。
+        {en ? `Viewing ${activeVendor || "—"}. Existing solutions form a baseline; future updates show changes to names, categories, summaries and content.` : `当前查看 ${vendorLabel(activeVendor, false) || "—"}。存量方案已设为普通基线；后续更新会列出名称、分类、简介或正文的具体变化。`}
       </div>
 
-      {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}。系统仍会在每天 09:00 自动检查。</div>}
+      {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}{en ? ". Automatic checks continue daily at 09:00." : "。系统仍会在每天 09:00 自动检查。"}</div>}
 
       {!loading && newItems.length > 0 && (
         <section className="rounded-2xl bg-warning-soft p-3 sm:p-5">
           <div className="flex items-end justify-between gap-4 px-2 pb-4">
-            <div><p className="swiss-kicker text-warning">Verified today</p><h2 className="mt-1 type-h2 text-ink">今日确认新增</h2></div>
-            <span className="ui-tag ui-tag-warning">{newItems.length} 项</span>
+            <div><p className="swiss-kicker text-warning">Verified today</p><h2 className="mt-1 type-h2 text-ink">{en ? "New today" : "今日确认新增"}</h2></div>
+            <span className="ui-tag ui-tag-warning">{newItems.length} {en ? "items" : "项"}</span>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">{newItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
         </section>
@@ -197,7 +207,7 @@ export default function SolutionInsightsPage() {
 
       <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 bg-surface-subtle px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Official directory</p><h2 className="mt-1 type-h2 text-ink">云厂商技术解决方案目录</h2></div>
+          <div><p className="swiss-kicker text-primary">Official directory</p><h2 className="mt-1 type-h2 text-ink">{en ? "Cloud solution catalog" : "云厂商技术解决方案目录"}</h2></div>
           <div className="flex gap-3">{Object.entries(data?.sources || {}).map(([vendor, url]) => <a key={vendor} href={url} target="_blank" rel="noreferrer" className="ui-link flex items-center gap-1 text-xs">{vendor}<ArrowUpRight className="h-3.5 w-3.5" /></a>)}</div>
         </div>
 
@@ -206,32 +216,32 @@ export default function SolutionInsightsPage() {
         ) : activePrimary && activeSecondary ? (
           <>
             <div className="grid gap-3 bg-surface-subtle p-4 lg:hidden">
-              <label className="block"><span className="swiss-kicker text-ink-muted">一级领域</span><select value={activePrimary.name} onChange={(event) => selectPrimary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{directory.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.count}）</option>)}</select></label>
-              <label className="block"><span className="swiss-kicker text-ink-muted">二级领域</span><select value={activeSecondary.name} onChange={(event) => selectSecondary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{activePrimary.secondary.map((group) => <option key={group.name} value={group.name}>{group.name}（{group.items.length}）</option>)}</select></label>
+              <label className="block"><span className="swiss-kicker text-ink-muted"> {en ? "Primary domain" : "一级领域"}</span><select value={activePrimary.name} onChange={(event) => selectPrimary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{directory.map((group) => <option key={group.name} value={group.name}>{categoryLabel(group.name, en)} ({group.count})</option>)}</select></label>
+              <label className="block"><span className="swiss-kicker text-ink-muted"> {en ? "Secondary domain" : "二级领域"}</span><select value={activeSecondary.name} onChange={(event) => selectSecondary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{activePrimary.secondary.map((group) => <option key={group.name} value={group.name}>{categoryLabel(group.name, en)} ({group.items.length})</option>)}</select></label>
             </div>
 
             <div className="grid lg:grid-cols-[190px_230px_minmax(0,1fr)]">
-              <aside className="hidden bg-surface-subtle p-3 lg:block" aria-label="一级领域">
-                <p className="px-3 pb-3 swiss-kicker text-ink-muted">一级领域 · {directory.length}</p>
+              <aside className="hidden bg-surface-subtle p-3 lg:block" aria-label={en ? "Primary domain" : "一级领域"}>
+                <p className="px-3 pb-3 swiss-kicker text-ink-muted"> {en ? "Primary domains" : "一级领域"} · {directory.length}</p>
                 <nav className="space-y-1">{directory.map((group) => {
                   const active = group.name === activePrimary.name;
-                  return <button key={group.name} type="button" onClick={() => selectPrimary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}><span className="text-sm font-bold">{group.name}</span><span className="text-xs tabular-nums">{group.count}</span></button>;
+                  return <button key={group.name} type="button" onClick={() => selectPrimary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}><span className="text-sm font-bold">{categoryLabel(group.name, en)}</span><span className="text-xs tabular-nums">{group.count}</span></button>;
                 })}</nav>
               </aside>
 
-              <aside className="hidden bg-paper p-3 lg:block" aria-label="二级领域">
-                <p className="px-3 pb-3 swiss-kicker text-primary">二级领域 · {activePrimary.secondary.length}</p>
+              <aside className="hidden bg-paper p-3 lg:block" aria-label={en ? "Secondary domain" : "二级领域"}>
+                <p className="px-3 pb-3 swiss-kicker text-primary"> {en ? "Secondary domains" : "二级领域"} · {activePrimary.secondary.length}</p>
                 <nav className="space-y-1">{activePrimary.secondary.map((group) => {
                   const active = group.name === activeSecondary.name;
-                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-white text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{group.name}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
+                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-white text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{categoryLabel(group.name, en)}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
                 })}</nav>
               </aside>
 
               <div className="min-w-0">
                 <header id="solution-page" className="scroll-mt-20 bg-primary-dark px-6 py-7 text-white">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60">{activePrimary.name} / Secondary domain</p>
-                  <div className="mt-2 flex items-end justify-between gap-4"><h3 className="type-h2">{activeSecondary.name}</h3><span className="serif-stat text-4xl text-white/35">{activeSecondary.items.length}</span></div>
-                  <p className="mt-2 text-sm text-white/65">顺序与官方目录保持一致 · 第 {activePage}/{totalPages} 页 · 每页 {PAGE_SIZE} 项</p>
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60"> {categoryLabel(activePrimary.name, en)} / {en ? "Secondary domain" : "二级领域"}</p>
+                  <div className="mt-2 flex items-end justify-between gap-4"><h3 className="type-h2"> {categoryLabel(activeSecondary.name, en)}</h3><span className="serif-stat text-4xl text-white/35">{activeSecondary.items.length}</span></div>
+                  <p className="mt-2 text-sm text-white/65"> {en ? `Official catalog order · Page ${activePage}/${totalPages} · ${PAGE_SIZE} items per page` : `顺序与官方目录保持一致 · 第 ${activePage}/${totalPages} 页 · 每页 ${PAGE_SIZE} 项`}</p>
                 </header>
                 <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">{pageItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
                 <Pagination page={activePage} totalPages={totalPages} totalItems={activeSecondary.items.length} start={pageStart} onChange={changePage} />
@@ -239,7 +249,7 @@ export default function SolutionInsightsPage() {
             </div>
           </>
         ) : (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center"><Layers3 className="h-8 w-8 text-ink-muted" /><p className="font-semibold text-ink">尚未采集到解决方案</p><p className="text-sm text-ink-muted">登录后点击“立即对比更新”，或等待每天 09:00 自动采集。</p></div>
+          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center"><Layers3 className="h-8 w-8 text-ink-muted" /><p className="font-semibold text-ink"> {en ? "No solutions collected yet" : "尚未采集到解决方案"}</p><p className="text-sm text-ink-muted"> {en ? "Sign in to check for updates, or wait for the daily 09:00 crawl." : "登录后点击立即对比更新，或等待每天 09:00 自动采集。"}</p></div>
         )}
       </section>
     </div>
@@ -247,38 +257,47 @@ export default function SolutionInsightsPage() {
 }
 
 function Pagination({ page, totalPages, totalItems, start, onChange }: { page: number; totalPages: number; totalItems: number; start: number; onChange: (page: number) => void }) {
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   if (totalPages <= 1) return null;
   return (
-    <nav aria-label="解决方案分页" className="flex flex-col gap-3 bg-surface-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-xs text-ink-muted">显示 {start + 1}–{Math.min(start + PAGE_SIZE, totalItems)} 项，共 {totalItems} 项</p>
+    <nav aria-label={en ? "Solution pagination" : "解决方案分页"} className="flex flex-col gap-3 bg-surface-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-xs text-ink-muted">{en ? `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, totalItems)} of ${totalItems} items` : `显示 ${start + 1}–${Math.min(start + PAGE_SIZE, totalItems)} 项，共 ${totalItems} 项`}</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" disabled={page === 1} onClick={() => onChange(page - 1)} className="ui-button-secondary px-3 py-2 text-xs">上一页</button>
+        <button type="button" disabled={page === 1} onClick={() => onChange(page - 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Previous" : "上一页"}</button>
         {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
-          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={`第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-white text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
+          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={en ? `Page ${number}` : `第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-white text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
         ))}
-        <button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)} className="ui-button-secondary px-3 py-2 text-xs">下一页</button>
+        <button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Next" : "下一页"}</button>
       </div>
     </nav>
   );
 }
 
 function SolutionCard({ item }: { item: SolutionItem }) {
+  const { user } = useAuth();
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
   return (
     <article className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]">
       <div className="flex min-h-7 items-start justify-between gap-5">
-        <p className="swiss-kicker text-ink-muted">{item.vendor} / {item.vendor === "华为云" ? item.primary_category : `${item.primary_category} / ${item.secondary_category}`}</p>
-        {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? "近期收录" : "内容更新"}</span>}
+        <p className="swiss-kicker text-ink-muted">{vendorLabel(item.vendor, en)} / {item.vendor === "Huawei Cloud" ? categoryLabel(item.primary_category, en) : `${categoryLabel(item.primary_category, en)} / ${categoryLabel(item.secondary_category, en)}`}</p>
+        {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? (en ? "Recently added" : "近期收录") : (en ? "Updated" : "内容更新")}</span>}
       </div>
       <h3 className="mt-3 type-h3 text-ink">{item.title}</h3>
-      <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary">{item.summary}</p>
-      {item.source_description && <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-muted">{item.source_description}</p>}
+      <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary"><span className="block text-xs text-primary">{en ? "Solution value" : "方案价值"} · {item.analysis_mode === "source" ? (en ? "from official source" : "依据官方来源") : (en ? "AI analysis" : "AI 分析")}</span>{item.intelligence?.brief || item.source_description || item.title}</p>
+      {(item.intelligence?.open_source_projects || item.intelligence?.cloud_resources) && <dl className="mt-3 space-y-2 text-sm leading-6 text-ink-secondary">
+        {item.intelligence.open_source_projects && <div><dt className="font-semibold">{en ? "Open-source projects" : "开源项目"}</dt><dd>{item.intelligence.open_source_projects}</dd></div>}
+        {item.intelligence.cloud_resources && <div><dt className="font-semibold">{en ? "Cloud resources" : "云资源"}</dt><dd>{item.intelligence.cloud_resources}</dd></div>}
+      </dl>}
+      {item.source_description && item.source_description !== item.intelligence?.brief && <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-muted">{en ? "Source brief: " : "来源简述："}{item.source_description}</p>}
       {item.is_recent && item.change_type === "updated" && item.change_summary && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">{item.change_summary}</p>}
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
-        <span className="text-[11px] text-ink-muted">{item.is_baseline ? "普通方案" : `最近变化 ${item.last_changed_date}`}</span>
+        <span className="text-[11px] text-ink-muted">{item.is_baseline ? (en ? "Baseline" : "普通方案") : (en ? `Changed ${item.last_changed_date}` : `最近变化 ${item.last_changed_date}`)}</span>
         <div className="flex items-center gap-3">
-          <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">AI 分析</AgentAction>
-          <Link href={{ pathname: "/workbench/solutions/new", query: { source_url: item.url, title: item.title, description: item.source_description || item.summary } }} className="ui-button-secondary px-3 py-2 text-xs">收纳方案实践</Link>
-          <a href={item.url} target="_blank" rel="noreferrer" aria-label={`查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">查看方案<ArrowUpRight className="h-3.5 w-3.5" /></a>
+          {!item.intelligence?.analysis && <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">{en ? "AI analysis" : "AI 分析"}</AgentAction>}
+          {user && <Link href={{ pathname: "/workbench/solutions/new", query: { source_url: item.url, title: item.title, description: item.source_description || item.summary } }} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Save as practice" : "收纳方案实践"}</Link>}
+          <a href={item.url} target="_blank" rel="noreferrer" aria-label={en ? `View ${item.vendor} solution: ${item.title}` : `查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">{en ? "View solution" : "查看方案"}<ArrowUpRight className="h-3.5 w-3.5" /></a>
         </div>
       </div>
     </article>
