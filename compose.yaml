@@ -1,7 +1,7 @@
 services:
   backend:
     container_name: insight-backend
-    image: insight-web-backend:1.0.0-rc.16
+    image: insight-web-backend:1.0.0-rc.17
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -10,7 +10,7 @@ services:
     environment:
       TZ: Asia/Shanghai
       STARTUP_CATCHUP_ENABLED: "true"
-      APP_VERSION: "1.0.0-rc.16"
+      APP_VERSION: "1.0.0-rc.17"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -34,7 +34,7 @@ services:
 
   frontend:
     container_name: insight-frontend
-    image: insight-web-frontend:1.0.0-rc.16
+    image: insight-web-frontend:1.0.0-rc.17
     build:
       context: ./frontend
       dockerfile: Dockerfile

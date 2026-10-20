@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from bs4 import BeautifulSoup
@@ -55,11 +56,14 @@ def get_community_insights(force: bool = False) -> dict:
         items = _cache[1]
     else:
         items = []
-        for fetch in (_zhihu, _baidu, _tencent, _csdn):
+        def safe_fetch(fetch):
             try:
-                items.extend(fetch())
+                return fetch()
             except Exception:
-                continue
+                return []
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            for fetch_items in pool.map(safe_fetch, (_zhihu, _baidu, _tencent, _csdn)):
+                items.extend(fetch_items)
         _cache = (time.time(), items)
     sources = ["知乎", "百度热搜", "腾讯云社区", "CSDN"]
     return {"items": items, "count": len(items), "sources": [{"name": source, "count": sum(item["source"] == source for item in items)} for source in sources]}

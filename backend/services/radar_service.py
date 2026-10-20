@@ -5,6 +5,7 @@ from functools import lru_cache
 import logging
 import re
 import time
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
 
@@ -191,3 +192,206 @@ def build_radar_snapshot(today: date | None = None) -> dict:
     return {"as_of": today.isoformat(), "today_count": today_count, "recent_count": sum(b["current"] for b in buckets.values()),
             "evaluated_count": sum(bool(row.get("evaluation")) for row in events), "categories": list(buckets.values()),
             "top_signals": top_signals, "apps": apps[:4]}
+
+
+VENDORS = ("OpenAI", "Anthropic", "Google", "Microsoft", "AWS", "阿里云", "腾讯云", "火山引擎", "华为云", "Meta", "行业动态")
+VENDOR_ALIASES = {
+    "openai": "OpenAI", "anthropic": "Anthropic", "claude": "Anthropic", "google": "Google", "gemini": "Google",
+    "microsoft": "Microsoft", "azure": "Microsoft", "aws": "AWS", "amazon": "AWS", "阿里云": "阿里云", "alibaba": "阿里云",
+    "aliyun": "阿里云", "腾讯云": "腾讯云", "tencent": "腾讯云", "火山引擎": "火山引擎", "volcengine": "火山引擎",
+    "豆包": "火山引擎", "华为云": "华为云", "huawei": "华为云", "meta": "Meta", "facebook": "Meta",
+}
+TYPE_RULES = (
+    ("商业动作", ("收购", "融资", "投资", "合作", "战略", "acqui", "funding", "partner", "investment")),
+    ("解决方案", ("解决方案", "solution", "行业方案")),
+    ("GitHub 技术", ("github", "开源", "open source", "repository", "repo")),
+    ("社区动态", ("社区", "开发者", "知乎", "csdn", "热搜")),
+    ("模型", ("模型", "大模型", "llm", "gpt-", "claude ", "gemini", "qwen", "deepseek")),
+    ("AI 应用", ("ai 应用", "应用", "app", "copilot", "workbuddy", "chatgpt", "claude code", "dots")),
+    ("产品发布", ("发布", "推出", "上线", "launch", "introduc", "announc", "release", "更新")),
+)
+
+
+def _normal_url(value: str) -> str:
+    try:
+        parsed = urlsplit(value.strip())
+        if parsed.scheme and parsed.netloc:
+            return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), "", ""))
+    except ValueError:
+        pass
+    return ""
+
+
+def _event_vendor(vendor: str, title: str, url: str) -> str:
+    text = f"{vendor} {title} {url}".casefold()
+    for alias, canonical in VENDOR_ALIASES.items():
+        matched = alias in text if re.search(r"[^\x00-\x7f]", alias) else bool(re.search(rf"\b{re.escape(alias)}\b", text))
+        if matched:
+            return canonical
+    host = urlsplit(url).hostname or ""
+    if host.endswith("openai.com"): return "OpenAI"
+    if host.endswith("anthropic.com"): return "Anthropic"
+    if host.endswith("fb.com"): return "Meta"
+    if host.endswith("google.com"): return "Google"
+    if host.endswith("microsoft.com") or host.endswith("azure.com"): return "Microsoft"
+    if host.endswith("amazon.com") or host.endswith("aws.amazon.com"): return "AWS"
+    if host.endswith("aliyun.com") or host.endswith("alibabacloud.com"): return "阿里云"
+    if host.endswith("tencent.com") or host.endswith("tencentcloud.com"): return "腾讯云"
+    if host.endswith("volcengine.com") or host.endswith("doubao.com"): return "火山引擎"
+    if host.endswith("huawei.com") or host.endswith("huaweicloud.com"): return "华为云"
+    return "行业动态"
+
+
+def _event_type(board: str, category: str, title: str, summary: str) -> str:
+    if board == "github": return "GitHub 技术"
+    if board == "community": return "社区动态"
+    if board == "apps": return "AI 应用"
+    if board == "solutions": return "解决方案"
+    text = f"{category} {title} {summary}".casefold()
+    return next((label for label, words in TYPE_RULES if any(word in text for word in words)), "商业动作" if board == "competitors" else "产品发布")
+
+
+def _one_sentence(value: str, fallback: str) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text or text.startswith("{summary") or text.startswith("{\"summary"):
+        return fallback
+    match = re.search(r"[。！？!?](?:\s|$)", text)
+    return (text[:match.end()].strip() if match else text[:115].rstrip("，,；;。 ") + ("。" if len(text) > 115 else ""))
+
+
+def build_intelligence_radar(now: datetime | None = None) -> dict:
+    """Build a seven-day, cross-board event feed and merge duplicate source links."""
+    now = now or datetime.now(ZoneInfo("Asia/Shanghai"))
+    today = now.date()
+    since = (today - timedelta(days=6)).isoformat()
+    until = today.isoformat()
+    raw: list[dict] = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT n.vendor, n.title, n.summary, n.link AS url,
+                                 COALESCE(n.published_date::text, n.scrape_date::text) AS happened_at,
+                                 'competitors' AS board, COALESCE(n.category, '') AS category, a.analysis AS why_detail
+                          FROM competitor_news n LEFT JOIN intelligence_analysis a
+                            ON a.kind='competitor_update' AND a.source_key=n.link || '::' || n.title
+                          WHERE COALESCE(n.published_date::text, n.scrape_date::text) BETWEEN %s AND %s
+                          UNION ALL
+                          SELECT vendor, title, summary, url, crawl_date AS happened_at,
+                                 'competitors' AS board, COALESCE(category, '') AS category, NULL AS why_detail
+                          FROM cloud_vendor_news WHERE crawl_date BETWEEN %s AND %s""", (since, until, since, until))
+        raw.extend(dict(row) for row in cursor.fetchall())
+        cursor.execute("""SELECT vendor, name AS title, COALESCE(summary, source_text, '') AS summary, url,
+                                 COALESCE(published_at, source_fetched_at::date::text) AS happened_at,
+                                 'apps' AS board, COALESCE(category, '') AS category, opportunity AS why_detail
+                          FROM vendor_ai_applications
+                          WHERE LEFT(COALESCE(published_at, source_fetched_at::date::text), 10) BETWEEN %s AND %s
+                            AND kind!='product'""", (since, until))
+        raw.extend(dict(row) for row in cursor.fetchall())
+        cursor.execute("""SELECT vendor, title, COALESCE(change_summary, source_description, '') AS summary, url,
+                                 last_changed_date AS happened_at, 'solutions' AS board, COALESCE(category, '') AS category
+                          FROM aliyun_solutions WHERE last_changed_date BETWEEN %s AND %s AND is_active AND NOT is_baseline""", (since, until))
+        raw.extend(dict(row) for row in cursor.fetchall())
+        cursor.execute("""SELECT '' AS vendor, g.repo_name AS title, COALESCE(e.summary_zh, e.summary, g.description, '') AS summary,
+                                 g.repo_url AS url, g.scrape_date AS happened_at, 'github' AS board,
+                                 COALESCE(g.category, '') AS category, e.reasoning AS why_detail
+                          FROM github_trending g LEFT JOIN trending_business_eval e
+                            ON e.scrape_date=g.scrape_date AND e.repo_name=g.repo_name
+                          WHERE g.scrape_date BETWEEN %s AND %s AND g.category='daily'""", (since, until))
+        raw.extend(dict(row) for row in cursor.fetchall())
+
+    # Community APIs expose current ranked lists without publication timestamps; mark their first observation today.
+    try:
+        from services.community_insight_service import get_community_insights
+        for item in get_community_insights().get("items", []):
+            if item.get("title") and item.get("url"):
+                raw.append({**item, "vendor": "", "happened_at": today.isoformat(), "board": "community", "category": "社区热点"})
+    except Exception as exc:
+        logger.warning("Community radar feed unavailable: %s", exc)
+
+    merged: dict[str, dict] = {}
+    title_index: dict[tuple[str, str], str] = {}
+    url_index: dict[str, str] = {}
+    source_counts: dict[str, set[str]] = {}
+    for row in raw:
+        title = re.sub(r"\s+", " ", str(row.get("title") or "")).strip()
+        if not title:
+            continue
+        day = str(row.get("happened_at") or "")[:10]
+        try:
+            event_day = date.fromisoformat(day)
+        except ValueError:
+            continue
+        if event_day > today or (today - event_day).days > 6:
+            continue
+        board = str(row.get("board") or "")
+        url = str(row.get("url") or "").strip()
+        vendor = _event_vendor(str(row.get("vendor") or ""), title, url)
+        kind = _event_type(board, str(row.get("category") or ""), title, str(row.get("summary") or ""))
+        source = str(row.get("source") or "").strip()
+        if not source:
+            source = {"apps": "AI 应用发布库", "solutions": f"{vendor}方案目录", "competitors": str(row.get("vendor") or vendor), "github": "GitHub"}.get(board, "")
+        if board == "solutions" and not source:
+            source = vendor
+        source = {"Alibaba Cloud": "阿里云官方", "Tencent Cloud": "腾讯云官方", "Volcengine": "火山引擎官方", "Huawei Cloud": "华为云官方", "Microsoft Azure": "Microsoft 官方"}.get(source, source)
+        canonical = _normal_url(url)
+        title_key = re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", title.casefold())
+        identity = (vendor, title_key)
+        key = (url_index.get(canonical, "") if canonical else "") or title_index.get(identity, "")
+        key = key or (f"url:{canonical}" if canonical else f"title:{vendor}:{title_key}")
+        fallback_why = {"商业动作": "这项动作可能改变厂商竞争关系或市场资源配置。", "解决方案": "这项方案变化可能影响客户的技术选型与交付路径。", "GitHub 技术": "这项技术进入趋势榜，值得观察其采用与生态扩展。", "社区动态": "社区关注度变化可作为开发者需求的早期信号。", "模型": "模型能力变化可能影响应用效果与推理成本。", "AI 应用": "新应用或功能可能改变用户入口与工作流程。", "产品发布": "新产品或功能发布，值得跟踪后续可用性与采用情况。"}[kind]
+        source_url = canonical or url
+        source_name = source or ("GitHub" if board == "github" else "社区")
+        if key not in merged:
+            short = title
+            if board == "apps" and not re.search(r"发布|推出|上线|更新|launch|release", short, re.I): short += " 发布"
+            elif board == "github": short += " 上榜"
+            elif board == "solutions": short += " 更新"
+            short = short[:10].rstrip() + ("…" if len(short) > 10 else "")
+            merged[key] = {"id": key, "title": title, "short_title": short, "vendor": vendor,
+                           "happened_at": day, "type": kind, "summary": _one_sentence(row.get("summary", ""), "来源暂未提供摘要。"),
+                           "why": _one_sentence(row.get("why_detail", ""), fallback_why), "importance": 3, "board": board,
+                           "sources": [], "related": []}
+        title_index[identity] = key
+        if canonical:
+            url_index[canonical] = key
+        event = merged[key]
+        if all(existing["name"] != source_name for existing in event["sources"]):
+            event["sources"].append({"name": source_name, "url": source_url})
+        if event_day > date.fromisoformat(event["happened_at"]):
+            event["happened_at"] = day
+            event["summary"] = _one_sentence(row.get("summary", ""), event["summary"])
+        if board in ("apps", "solutions", "competitors"):
+            event["board"] = board
+            event["vendor"] = vendor
+            event["type"] = kind
+            event["summary"] = _one_sentence(row.get("summary", ""), event["summary"])
+        source_counts.setdefault(board, set()).add(key)
+
+    events = list(merged.values())
+    for event in events:
+        text = f"{event['title']} {event['summary']}".casefold()
+        event["importance"] = 5 if any(word in text for word in ("发布", "上线", "融资", "收购", "发布会", "launch", "release")) else 4 if event["type"] in ("模型", "解决方案", "商业动作") else 3
+        event["is_multi_source"] = len(event["sources"]) > 1
+    events.sort(key=lambda item: (item["importance"], item["happened_at"]), reverse=True)
+    for event in events:
+        event["related"] = [{"id": candidate["id"], "title": candidate["title"]}
+                            for candidate in events if candidate["id"] != event["id"] and candidate["vendor"] == event["vendor"]][:3]
+
+    boards = []
+    board_names = {"github": ("GitHub", "/insights/hotspots", "个项目进入趋势榜"), "apps": ("AI 应用", "/insights/app-launches", "条应用发布或更新"),
+                   "solutions": ("解决方案", "/insights/solutions", "项方案目录变化"), "community": ("社区", "/insights/community", "条社区热点"),
+                   "competitors": ("厂商动态", "/insights/competitors", "条厂商动态")}
+    for key, (name, href, phrase) in board_names.items():
+        count = len(source_counts.get(key, set()))
+        newest = next((event for event in events if event["board"] == key), None)
+        unit = {"github": "个项目", "apps": "条应用", "solutions": "项方案", "community": "条社区热点", "competitors": "条厂商动态"}[key]
+        boards.append({"key": key, "name": name, "href": href, "count": count,
+                       "change": f"{newest['short_title']}" if newest else "近 7 天暂无新增",
+                       "unit": unit})
+    today_events = [event for event in events if event["happened_at"] == today.isoformat()]
+    highlights = (today_events or events)[:5]
+    return {"as_of": now.isoformat(timespec="minutes"), "today_count": len(today_events),
+            "priority_count": sum(event["importance"] >= 4 for event in events),
+            "vendor_count": len({event["vendor"] for event in events if event["vendor"] != "行业动态"}),
+            "source_count": len({source["name"] for event in events for source in event["sources"]}),
+            "vendors": list(VENDORS), "events": events[:48], "highlights": highlights,
+            "highlights_scope": "today" if today_events else "week", "boards": boards}

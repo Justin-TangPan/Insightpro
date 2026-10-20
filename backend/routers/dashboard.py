@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from crawlers import get_homepage_stats, get_homepage_modules
 from db import get_db
 from services.ai_service import chat_complete
-from services.radar_service import build_radar_snapshot
+from services.radar_service import build_radar_snapshot, build_intelligence_radar
 
 router = APIRouter()
 
@@ -15,6 +15,11 @@ router = APIRouter()
 @router.get("/radar/snapshot")
 async def radar_snapshot():
     return await asyncio.to_thread(build_radar_snapshot)
+
+
+@router.get("/radar/intelligence")
+async def intelligence_radar():
+    return await asyncio.to_thread(build_intelligence_radar)
 
 
 @router.get("/dashboard/stats")
