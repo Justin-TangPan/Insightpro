@@ -1,6 +1,6 @@
 """Competitor insights routes"""
 import asyncio, logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from routers.auth import require_auth
 from datetime import datetime
 from db import get_db
@@ -62,15 +62,15 @@ async def get_competitors():
 
 
 @router.get("/competitors/summary")
-async def competitors_summary():
+async def competitors_summary(limit_per_vendor: int = Query(8, ge=1, le=100)):
     """Get the latest news summary for each cloud vendor, grouped by vendor"""
     from main_legacy import get_competitor_summary
-    summary = get_competitor_summary(limit_per_vendor=8)
+    summary = get_competitor_summary(limit_per_vendor=limit_per_vendor)
     summary.pop("Huawei Cloud", None)
     if not summary:
         try:
             await asyncio.to_thread(refresh_competitor_news)
-            summary = get_competitor_summary(limit_per_vendor=8)
+            summary = get_competitor_summary(limit_per_vendor=limit_per_vendor)
         except Exception as e:
             logger.warning("competitor summary refresh fallback: %s", e)
     total = sum(len(items) for items in summary.values())
@@ -87,3 +87,9 @@ async def competitors_refresh(_=Depends(require_auth)):
     except Exception as e:
         logger.exception("competitor refresh failed")
         raise HTTPException(status_code=500, detail="Refresh failed, please try again later")
+
+
+@router.get("/competitors/history")
+async def competitors_history():
+    from services.insight_dashboard_service import history
+    return await asyncio.to_thread(history, "competitors")

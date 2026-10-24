@@ -31,8 +31,7 @@ def get_competitor_summary(limit_per_vendor: int = 3) -> dict:
         c.execute("""SELECT * FROM (
             SELECT *, ROW_NUMBER() OVER (PARTITION BY vendor ORDER BY COALESCE(published_date, scrape_date::date) DESC, id DESC) AS rn
             FROM competitor_news news
-            WHERE vendor IN ('Alibaba Cloud', 'Tencent Cloud', 'Volcengine', 'AWS', 'Microsoft Azure')
-              AND scrape_date=(SELECT MAX(latest.scrape_date) FROM competitor_news latest WHERE latest.vendor=news.vendor)
+            WHERE scrape_date=(SELECT MAX(latest.scrape_date) FROM competitor_news latest WHERE latest.vendor=news.vendor)
         ) ranked WHERE rn <= %s ORDER BY vendor, rn""", (limit_per_vendor,))
         rows = [dict(r) for r in c.fetchall()]
         c.execute("SELECT id, source_key, analysis FROM intelligence_analysis WHERE kind='competitor_update' AND source_key=ANY(%s)",

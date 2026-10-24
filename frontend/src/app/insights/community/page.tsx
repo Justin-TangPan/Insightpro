@@ -1,69 +1,72 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowUpRight, MessagesSquare, RefreshCw } from "lucide-react";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
-import { SectionHeader } from "@/components/section-header";
-import { DailyBoardInsight } from "@/components/daily-board-insight";
+import { useAuth } from "@/components/auth-provider";
+import { usePreferences } from "@/lib/preferences";
+import { communityItems, daysAgo, distribution, keywords, withinLastDays } from "@/lib/insight-dashboard";
+import type { BoardInsight, CommunityEvent, CommunityLegacy, History } from "@/lib/insight-dashboard";
+import { InsightEmptyState, InsightErrorState, InsightFilterBar, InsightHero, InsightKeywordPanel, InsightList, InsightLoadingState, InsightPageHeader, InsightSection, InsightSourceCard, InsightTopicDistribution, InsightTrendChart } from "@/components/insight-dashboard";
+import type { FilterState } from "@/components/insight-dashboard";
 
-type Insight = { source: string; title: string; summary: string; url: string; topic_category?: string; relevance?: string; published_at?: string | null; observed_at?: string };
-type Event = { id: number; title: string; summary?: string | null; last_seen_at: string; source_names: string[]; source_count: number; scores: Record<string, number> };
-type LegacyResponse = { items: Insight[]; count: number; sources: { name: string; count: number }[] };
+type LegacyResponse = { items: CommunityLegacy[]; count: number };
+const initialFilters: FilterState = { query: "", owner: "", category: "", topic: "", days: 0, sort: "latest", onlyPriority: false, view: "list" };
+const get = async <T,>(path: string): Promise<T> => { const response = await fetch(`${API}${path}`, { cache: "no-store" }); if (!response.ok) throw new Error(path); return response.json(); };
 
 export default function CommunityInsightsPage() {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [legacy, setLegacy] = useState<LegacyResponse>({ items: [], count: 0, sources: [] });
-  const [source, setSource] = useState("全部");
+  const { user } = useAuth();
+  const { preferences } = usePreferences();
+  const en = preferences.language === "en";
+  const [events, setEvents] = useState<CommunityEvent[]>([]);
+  const [legacy, setLegacy] = useState<CommunityLegacy[]>([]);
+  const [board, setBoard] = useState<BoardInsight | null>(null);
+  const [history, setHistory] = useState<History | null>(null);
+  const [trendDays, setTrendDays] = useState<7 | 30 | 90>(7);
+  const [filters, setFilters] = useState<FilterState>(initialFilters);
+  const [limit, setLimit] = useState(24);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(false);
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(`${API}/api/v2/events?business_scope=community_insights&limit=100`);
-      if (!response.ok) throw new Error("V2 events unavailable");
-      const result = await response.json();
-      const items: Event[] = result.items || [];
-      setEvents(items);
-      if (items.length) { setLegacy({ items: [], count: 0, sources: [] }); return; }
-    } catch { setEvents([]); }
-    const response = await fetch(`${API}/api/community/insights`);
-    if (!response.ok) throw new Error("社区热点加载失败");
-    setLegacy(await response.json());
-  }, []);
-  useEffect(() => { void Promise.resolve().then(load).catch(() => setError(true)).finally(() => setLoading(false)); }, [load]);
-  const sources = useMemo(() => events.length
-    ? Array.from(new Set(events.flatMap(item => item.source_names || []))).map(name => ({ name, count: events.filter(item => item.source_names?.includes(name)).length }))
-    : legacy.sources, [events, legacy.sources]);
-  const items = useMemo(() => events.length
-    ? events.filter(item => source === "全部" || item.source_names?.includes(source))
-    : legacy.items.filter(item => source === "全部" || item.source === source), [events, legacy.items, source]);
-  const refresh = async () => {
-    setRefreshing(true);
-    try {
-      const response = await authenticatedFetch(`${API}/api/community/insights/refresh`, { method: "POST" });
-      if (!response.ok) throw new Error("刷新失败");
-      await response.json();
-      await load();
-      setError(false);
-    } catch { setError(true); } finally { setRefreshing(false); }
-  };
+  const [error, setError] = useState("");
 
-  return <div className="page-stack intel-subpage">
-    <SectionHeader compact icon={<MessagesSquare className="h-5 w-5" />} title="AI 社区热点" action={<button type="button" onClick={refresh} disabled={refreshing} className="ui-button-secondary"><RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />{refreshing ? "刷新中" : "刷新热点"}</button>} />
-    <DailyBoardInsight board="community" />
-    {error && <div role="alert" className="ui-card flex items-center justify-between gap-3 text-sm text-warning"><span>社区热点加载失败。</span><button type="button" className="ui-button-secondary" onClick={() => { setError(false); setLoading(true); void load().catch(() => setError(true)).finally(() => setLoading(false)); }}>重试</button></div>}
-    <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="社区来源">{sources.map(item => <button key={item.name} type="button" onClick={() => setSource(item.name)} aria-pressed={source === item.name} className={`ui-card min-h-28 text-left ${source === item.name ? "border-primary bg-primary-soft/40" : ""}`}><p className="text-sm font-semibold text-ink">{item.name}</p><p className="mt-3 font-mono text-2xl font-semibold text-primary">{item.count}</p></button>)}</section>
-    <div className="flex items-center justify-between"><h2 className="type-h3 text-ink">{source === "全部" ? "全部 AI 热点" : source}</h2>{source !== "全部" && <button type="button" onClick={() => setSource("全部")} className="ui-link">查看全部</button>}</div>
-    <section className="ui-card divide-y divide-grid">{loading ? <div className="h-72 animate-shimmer rounded-xl" /> : items.length ? items.map((item, index) => {
-      const isEvent = "id" in item;
-      const title = item.title;
-      const summary = item.summary;
-      const labels = isEvent ? item.source_names : [item.source];
-      const date = isEvent ? item.last_seen_at?.slice(0, 10) : item.published_at?.slice(0, 10) || item.observed_at?.slice(0, 10);
-      const content = <><span className="font-mono text-xs text-ink-muted">{String(index + 1).padStart(2, "0")}</span><div><div className="flex flex-wrap items-center gap-2">{labels?.map(name => <span key={name} className="ui-tag">{name}</span>)}<h3 className="font-semibold text-ink group-hover:text-primary">{title}</h3></div>{summary && <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-secondary">{summary}</p>}<p className="mt-2 text-xs text-ink-muted">{date ? `${isEvent ? "最近发现" : "热榜采集于"} ${date}` : "当前热榜话题"}{isEvent && item.source_count > 1 ? ` · ${item.source_count} 个来源` : ""}</p></div><ArrowUpRight className="mt-1 h-4 w-4 text-ink-muted group-hover:text-primary" /></>;
-      return isEvent ? <Link key={item.id} href={`/events/${item.id}`} className="group grid gap-3 py-5 first:pt-0 last:pb-0 sm:grid-cols-[52px_1fr_auto]">{content}</Link> : <a key={`${item.source}-${item.url}-${index}`} href={item.url} target="_blank" rel="noopener noreferrer" className="group grid gap-3 py-5 first:pt-0 last:pb-0 sm:grid-cols-[52px_1fr_auto]">{content}</a>;
-    }) : <div className="py-16 text-center"><MessagesSquare className="mx-auto h-7 w-7 text-ink-muted" /><p className="mt-3 text-sm text-ink-secondary">当前来源暂未获取到 AI 相关热点</p></div>}</section>
-  </div>;
+  const load = useCallback(async () => {
+    const legacyResult = await get<LegacyResponse>("/api/community/insights").catch(() => null);
+    const [eventResult, boardResult, historyResult] = await Promise.allSettled([
+      get<{ items: CommunityEvent[] }>("/api/v2/events?business_scope=community_insights&limit=100"),
+      get<BoardInsight>("/api/boards/community/daily-insight"),
+      get<History>("/api/community/insights/history"),
+    ]);
+    if (eventResult.status === "rejected" && !legacyResult) throw new Error("社区热点加载失败");
+    setEvents(eventResult.status === "fulfilled" ? eventResult.value.items || [] : []);
+    setLegacy(legacyResult?.items || []);
+    setBoard(boardResult.status === "fulfilled" ? boardResult.value : null);
+    setHistory(historyResult.status === "fulfilled" ? historyResult.value : null);
+    setError("");
+  }, []);
+  useEffect(() => { let active = true; void Promise.resolve().then(load).catch(reason => { if (active) setError(reason.message); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [load]);
+  const all = useMemo(() => communityItems(events, legacy), [events, legacy]);
+  const owners = useMemo(() => [...new Set(all.flatMap(item => item.owners || [item.owner]))].sort(), [all]);
+  const categories = useMemo(() => [...new Set(all.map(item => item.category))].sort(), [all]);
+  const scoped = all.filter(item => (!filters.owner || item.owners?.includes(filters.owner)) && (!filters.days || daysAgo(item.date, filters.days)) && (!filters.query || `${item.title} ${item.summary} ${item.owner} ${item.topic}`.toLowerCase().includes(filters.query.toLowerCase())));
+  const topics = distribution(scoped);
+  const visible = scoped.filter(item => (!filters.category || item.category === filters.category) && (!filters.onlyPriority || item.priority)).sort((a, b) => filters.sort === "heat" ? (b.heat || 0) - (a.heat || 0) || b.date.localeCompare(a.date) : filters.sort === "priority" ? Number(b.priority) - Number(a.priority) || b.date.localeCompare(a.date) : b.date.localeCompare(a.date));
+  const heat = all.reduce((sum, item) => sum + (item.heat || 0), 0);
+  const heatCount = all.filter(item => item.heat !== undefined).length;
+  const newCount = events.length ? events.filter(item => withinLastDays(item.first_seen_at, 1)).length : legacy.filter(item => withinLastDays(item.observed_at, 1)).length;
+  const latest = events.map(item => item.last_seen_at || "").concat(legacy.map(item => item.observed_at || "")).sort().at(-1);
+  const sourceCounts = owners.map(name => ({ name, count: all.filter(item => item.owners?.includes(name)).length, points: history?.groups.find(group => group.name === name)?.points }));
+  async function refresh() { setRefreshing(true); try { const response = await authenticatedFetch(`${API}/api/community/insights/refresh`, { method: "POST" }); if (!response.ok) throw new Error("刷新失败，请检查登录状态"); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "刷新失败"); } finally { setRefreshing(false); } }
+  async function retry() { setLoading(true); try { await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "加载失败"); } finally { setLoading(false); } }
+  const setFilter = (value: FilterState) => { setFilters(value); setLimit(24); };
+  const selectOwner = (name: string) => setFilter({ ...filters, owner: filters.owner === name ? "" : name });
+  const selectTopic = (name: string) => setFilter({ ...filters, category: filters.category === name ? "" : name });
+  return <main className="insight-dashboard">
+    <InsightPageHeader title={en ? "AI Community Hotspots" : "AI 社区热点"} description={en ? "Track community discussions and extract today’s AI signals." : "聚合社区内容，提炼今日关键洞察，识别 AI 行业趋势与开发者关注焦点。"} count={all.length} updated={latest ? new Date(latest).toLocaleString(en ? "en-US" : "zh-CN", { timeZone: "Asia/Shanghai" }) : ""} refreshing={refreshing} refresh={() => void refresh()} canRefresh={!!user} />
+    {error && <InsightErrorState text={error} retry={() => void retry()} />}
+    {loading ? <InsightLoadingState /> : <>
+      <div className="dash-top"><InsightHero title="今日核心结论" board={board} note="热榜为采集快照；未提供发布时间的话题以发现时间标记。" metrics={[{ label: "已披露热度", value: heatCount ? heat.toLocaleString() : "—", note: `${heatCount} 条有热度数据` }, { label: "来源社区数", value: owners.length }, { label: "新增讨论", value: newCount, note: "首次发现于近 24 小时" }, { label: "重点主题", value: all.filter(item => item.priority).length, note: "依据现有相关度" }]} /><InsightTrendChart title="社区热度趋势" history={history} days={trendDays} setDays={setTrendDays} /></div>
+      <InsightSection title="社区来源概览" meta={`${owners.length} 个有情报的来源`}><div className="dash-sources">{sourceCounts.map(item => <InsightSourceCard key={item.name} name={item.name} count={item.count} points={item.points} active={filters.owner === item.name} onClick={() => selectOwner(item.name)} />)}</div>{!owners.length && <InsightEmptyState text="当前没有可展示的社区来源。" />}</InsightSection>
+      <div className="dash-content"><div className="dash-main"><InsightSection title="全部 AI 热点" meta={`${visible.length} 条匹配情报`}><InsightFilterBar value={filters} setValue={setFilter} owners={owners} categories={categories} ownerLabel="来源" hasHeat={heatCount > 0} priorityLabel="高价值" /><InsightList items={visible} view={filters.view} showHeat limit={limit} more={() => setLimit(limit + 24)} /></InsightSection></div><aside className="dash-side-stack"><InsightTopicDistribution title="热点主题分布" values={topics} active={filters.category} select={selectTopic} /><InsightKeywordPanel title="今日高频关键词" values={keywords(scoped)} select={word => setFilter({ ...filters, query: word })} /></aside></div>
+    </>}
+  </main>;
 }

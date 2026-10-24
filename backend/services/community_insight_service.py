@@ -136,5 +136,5 @@ def get_community_insights(force: bool = False) -> dict:
         items = list(unique.values())
         store_community_raw(items)
         _cache = (time.time(), items, signature)
-    sources = ["知乎", "百度热搜", "腾讯云社区", "CSDN"]
-    return {"items": items, "count": len(items), "sources": [{"name": source, "count": sum(item["source"] == source for item in items)} for source in sources]}
+    source_names = sorted({item["source"] for item in items})
+    return {"items": items, "count": len(items), "sources": [{"name": name, "count": sum(item["source"] == name for item in items)} for name in source_names]}
