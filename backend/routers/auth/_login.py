@@ -2,7 +2,6 @@
 from __future__ import annotations
 import asyncio
 import logging
-import re
 
 from fastapi import APIRouter, HTTPException, Depends
 from routers.auth import (
@@ -72,6 +71,8 @@ async def auth_users(_=Depends(require_admin)):
 
 @router.post("/auth/users/invite")
 async def invite_user(req: InviteRequest, _=Depends(require_admin)):
+    if req.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrator accounts are allowed")
     email = req.email.strip().lower()
     if "@" not in email or len(email) > 254:
         raise HTTPException(status_code=422, detail="Please enter a valid email")
@@ -93,26 +94,13 @@ async def invite_user(req: InviteRequest, _=Depends(require_admin)):
 
 @router.post("/auth/users/test", status_code=201)
 async def create_test_user(req: TestUserCreate, admin=Depends(require_admin)):
-    username = req.username.strip().lower()
-    if not re.fullmatch(r"[a-z][a-z0-9_-]{2,31}", username):
-        raise HTTPException(status_code=422, detail="Test username must be 3-32 lowercase letters, digits, underscores or hyphens, starting with a letter")
-    try:
-        account = (await asyncio.to_thread(supabase.auth.admin.create_user, {
-            "email": f"{username}@test.insightpro.invalid",
-            "password": req.password,
-            "email_confirm": True,
-            "user_metadata": {"name": req.name.strip(), "test_account": True, "login_name": username},
-            "app_metadata": {"role": req.role, "status": "active"},
-        })).user
-        agent_audit_service.log(str(admin.id), "test_user_create", str(account.id), username)
-        return {"user": _member_payload(account), "message": f"Test account created, you can log in with '{username}' and the initial password"}
-    except Exception:
-        logger.exception("create_test_user: create failed")
-        raise HTTPException(status_code=400, detail="Test account creation failed; please check if the username is already taken")
+    raise HTTPException(status_code=403, detail="Test accounts are disabled")
 
 
 @router.patch("/auth/users/{user_id}")
 async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(require_admin)):
+    if req.role == "user" or req.disabled is False and req.role != "admin":
+        raise HTTPException(status_code=403, detail="Only administrator accounts may be active")
     if str(admin.id) == str(user_id):
         raise HTTPException(status_code=400, detail="Cannot modify your own admin role or status")
     try:

@@ -15,7 +15,7 @@ def test_public_registration_is_closed():
 
 def test_only_active_internal_members_can_use_authenticated_routes(monkeypatch):
     credentials = SimpleNamespace(credentials="token")
-    for metadata, allowed in [({}, False), ({"role": "user"}, True), ({"role": "admin"}, True), ({"role": "user", "status": "disabled"}, False)]:
+    for metadata, allowed in [({}, False), ({"role": "user"}, False), ({"role": "admin"}, True), ({"role": "user", "status": "disabled"}, False)]:
         account = SimpleNamespace(id="member-1", app_metadata=metadata)
         monkeypatch.setattr(auth.supabase.auth, "get_user", lambda _token: SimpleNamespace(user=account))
         if allowed:
@@ -116,16 +116,11 @@ def test_admin_invitation_assigns_member_role(monkeypatch):
     assert result["user"]["role"] == "admin"
 
 
-def test_admin_can_create_email_free_test_account(monkeypatch):
-    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000003", app_metadata={"role": "user", "status": "active"}, user_metadata={"name": "Demo"}, email="demo01@test.insightpro.invalid", created_at="2026-01-01", last_sign_in_at=None)
-    captured = {}
-    monkeypatch.setattr(auth.supabase.auth.admin, "create_user", lambda data: captured.update(data) or SimpleNamespace(user=account))
-    monkeypatch.setattr(auth.agent_audit_service, "log", lambda *_: None)
+def test_test_account_creation_is_closed():
     admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
-    result = asyncio.run(auth.create_test_user(auth.TestUserCreate(username="demo01", password="safe-pass", name="Demo"), admin))
-    assert captured["email"] == "demo01@test.insightpro.invalid"
-    assert captured["email_confirm"] is True
-    assert result["message"].startswith("Test account created")
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(auth.create_test_user(auth.TestUserCreate(username="demo01", password="safe-pass", name="Demo"), admin))
+    assert error.value.status_code == 403
 
 
 def test_admin_can_view_agent_space_states(monkeypatch):

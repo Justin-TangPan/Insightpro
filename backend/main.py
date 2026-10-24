@@ -15,15 +15,18 @@ from settings import settings
 from deep_searcher_integration import init_deep_searcher
 from crawlers import init_crawler_tables
 
+logger = logging.getLogger(__name__)
+
 from routers import (
     auth, hotspots, solutions, competitors, reports, chat, crawling,
-    analytics, search, dashboard, email, workbench, agent, community, tasks,
+    analytics, search, dashboard, email, workbench, agent, community, tasks, intelligence_v2,
 )
 
 
 def schedule_jobs(scheduler: BackgroundScheduler):
     """注册所有定时任务"""
-    from services.task_service import TASKS, run_task, task_trigger
+    from services.task_service import TASKS, load_source_schedules, run_task, task_trigger
+    load_source_schedules()
     for task in TASKS:
         scheduler.add_job(
             run_task,
@@ -41,30 +44,36 @@ def schedule_jobs(scheduler: BackgroundScheduler):
 async def lifespan(app: FastAPI):
     from services.startup_service import ensure_runtime_schema
 
-    ensure_runtime_schema()
-    from services import runtime_config_service
+    ensure_runtime_schema(absorb_requirements=settings.REQUIREMENT_ABSORPTION_ON_STARTUP)
+    from services.task_service import recover_orphaned_runs
+    recover_orphaned_runs()
+    from services import embedding_config_service, runtime_config_service
     runtime_config_service.load()
-    scheduler = BackgroundScheduler(timezone=tz("Asia/Shanghai"))
-    schedule_jobs(scheduler)
-    scheduler.start()
-    logger = logging.getLogger(__name__)
-    logger.info("定时任务调度器已启动")
+    embedding_config_service.load()
+    scheduler = None
+    if settings.SCHEDULER_ENABLED:
+        scheduler = BackgroundScheduler(timezone=tz("Asia/Shanghai"))
+        schedule_jobs(scheduler)
+        scheduler.start()
+        logger.info("定时任务调度器已启动")
+    app.state.scheduler = scheduler
     try:
         init_deep_searcher()
         logger.info("Context search initialized")
     except Exception as e:
         logger.warning("Context search init failed: %s", e)
     init_crawler_tables()
-    if settings.STARTUP_CATCHUP_ENABLED:
+    if settings.STARTUP_CATCHUP_ENABLED and settings.SCHEDULER_ENABLED:
         from services.startup_service import run_startup_catchup
         threading.Thread(
             target=run_startup_catchup,
             name="insight-startup-catchup",
             daemon=True,
         ).start()
-        logging.getLogger(__name__).info("startup catch-up thread started")
+        logger.info("startup catch-up thread started")
     yield
-    scheduler.shutdown()
+    if scheduler:
+        scheduler.shutdown()
 
 
 app = FastAPI(title="InsightPro API", version=settings.APP_VERSION, lifespan=lifespan)
@@ -93,6 +102,7 @@ app.include_router(email.router, prefix="/api", tags=["Email"])
 app.include_router(workbench.router, prefix="/api", tags=["Workbench"])
 app.include_router(agent.router, prefix="/api", tags=["Insight-Agent"])
 app.include_router(tasks.router, prefix="/api", tags=["Tasks"])
+app.include_router(intelligence_v2.router, prefix="/api/v2", tags=["Intelligence V2"])
 
 
 @app.get("/")

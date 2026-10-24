@@ -1,5 +1,5 @@
 from crawlers import _is_quality_item
-from routers.hotspots import _heuristic_score_project
+from services.hotspot_service import _heuristic_score_project
 from services import startup_service
 
 
@@ -50,6 +50,30 @@ def test_context_formatter_keeps_source_and_limit():
     result = context_to_str([{"collection": "solutions", "text": "技术方案" * 10}], max_chars=12)
     assert result.startswith("--- solution")
     assert result.endswith("[内容已截断]")
+
+
+def test_collection_report_includes_expanded_datasets_and_scheduler_state(monkeypatch):
+    from services import system_health_service
+    from services import task_service
+
+    queries = []
+    class Cursor:
+        def execute(self, sql): queries.append(sql)
+        def fetchone(self): return {"total": 12, "latest_at": "2026-10-22"}
+        def fetchall(self): return [{"vendor": "Huawei Cloud", "total": 4, "latest_at": "2026-10-22"}]
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(system_health_service, "get_db", Connection)
+    monkeypatch.setattr(task_service, "list_tasks", lambda: [{"key": "ai_applications_daily", "schedule": "09:30"}])
+
+    report = system_health_service.get_collection_report()
+
+    keys = {dataset["key"] for dataset in report["datasets"]}
+    assert {"baidu_hotsearch", "competitor_news", "vendor_ai_applications", "huawei_solutions"} <= keys
+    assert report["tasks"][0]["key"] == "ai_applications_daily"
+    assert any("vendor_ai_applications" in query for query in queries)
 
 
 def test_aliyun_solution_parser_and_summary_contract():
@@ -153,14 +177,190 @@ def test_startup_job_only_runs_when_dataset_is_missing(monkeypatch):
 def test_solution_catalog_catchup_requires_both_vendors(monkeypatch):
     calls = []
     monkeypatch.setattr(startup_service, "solution_catalogs_fresh_today", lambda: False)
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda _key: False)
+    monkeypatch.setattr(startup_service, "_task_attempted_today", lambda _key: False)
+    monkeypatch.setattr("services.task_service.run_task", lambda _key, _trigger, function=None: function())
     assert startup_service._run_solution_catalogs_if_stale(lambda: calls.append("refresh"))
     monkeypatch.setattr(startup_service, "solution_catalogs_fresh_today", lambda: True)
     assert not startup_service._run_solution_catalogs_if_stale(lambda: calls.append("again"))
     assert calls == ["refresh"]
 
 
+def test_startup_runs_daily_insight_after_business_refreshes(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+
+    calls = []
+    catchup_args = []
+
+    class Cursor:
+        def execute(self, sql, params=()):
+            self.row = {"acquired": True}
+        def fetchone(self): return self.row
+
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    monkeypatch.setattr("services.task_service.required_source_tasks", lambda: ("github_daily", "solution_catalogs_daily", "daily_crawl", "competitor_daily", "ai_applications_daily", "discovery_sentinel_daily"))
+    monkeypatch.setattr(startup_service, "_run_if_missing", lambda dataset, name, function=None, task_key=None: (catchup_args.append((dataset, task_key)), calls.append(task_key or dataset)))
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda key: False)
+    monkeypatch.setattr(startup_service, "_task_attempted_today", lambda key: False)
+    monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger, function=None: calls.append(key))
+
+    startup_service.run_startup_catchup()
+
+    assert calls[-5:] == ["discovery_sentinel_daily", "baidu_hotsearch_daily", "trending_business_eval_daily", "project_briefs_zh_daily", "board_insights_daily"]
+    assert ("technical_evaluation", "trending_business_eval_daily") in catchup_args
+    assert "daily_crawl" in calls
+
+
+def test_startup_skips_board_insights_when_latest_run_succeeded(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+    calls = []
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"acquired": True}
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    monkeypatch.setattr("services.task_service.required_source_tasks", lambda: ("github_daily", "solution_catalogs_daily", "daily_crawl", "competitor_daily", "ai_applications_daily", "discovery_sentinel_daily"))
+    monkeypatch.setattr(startup_service, "_run_if_missing", lambda *args, **kwargs: None)
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda key: key == "board_insights_daily")
+    monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger: calls.append(key))
+    startup_service.run_startup_catchup()
+    assert "board_insights_daily" not in calls
+
+
+def test_startup_skips_project_briefs_when_latest_run_succeeded(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+    calls = []
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"acquired": True}
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    monkeypatch.setattr("services.task_service.required_source_tasks", lambda: ())
+    monkeypatch.setattr(startup_service, "_run_if_missing", lambda *args, **kwargs: None)
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda key: key in {"project_briefs_zh_daily", "board_insights_daily"})
+    monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger: calls.append(key))
+    startup_service.run_startup_catchup()
+    assert "project_briefs_zh_daily" not in calls
+
+
+def test_startup_skips_project_briefs_after_a_failed_attempt_today(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+    calls = []
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"acquired": True}
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    monkeypatch.setattr("services.task_service.required_source_tasks", lambda: ())
+    monkeypatch.setattr(startup_service, "_run_if_missing", lambda *args, **kwargs: None)
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda key: False)
+    monkeypatch.setattr(startup_service, "_task_attempted_today", lambda key: key == "project_briefs_zh_daily")
+    monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger: calls.append(key))
+    startup_service.run_startup_catchup()
+    assert "project_briefs_zh_daily" not in calls
+
+
+def test_startup_skips_board_insights_after_a_failed_attempt_today(monkeypatch):
+    from types import SimpleNamespace
+    import sys
+    calls = []
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"acquired": True}
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    monkeypatch.setattr("services.task_service.required_source_tasks", lambda: ())
+    monkeypatch.setattr(startup_service, "_run_if_missing", lambda *args, **kwargs: None)
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda _key: False)
+    monkeypatch.setattr(startup_service, "_task_attempted_today", lambda _key: True)
+    monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger: calls.append(key))
+    startup_service.run_startup_catchup()
+    assert "board_insights_daily" not in calls
+
+
+def test_startup_does_not_retry_failed_task_today(monkeypatch):
+    calls = []
+    monkeypatch.setattr(startup_service, "_task_succeeded_today", lambda _key: False)
+    monkeypatch.setattr(startup_service, "_task_attempted_today", lambda _key: True)
+    monkeypatch.setattr("services.task_service.run_task", lambda key, trigger: calls.append((key, trigger)))
+
+    assert startup_service._run_task_if_missing_today("daily_crawl") is False
+    assert calls == []
+
+
+def test_baidu_catchup_uses_task_gate_and_skips_fresh_dataset(monkeypatch):
+    from crawlers import baidu_crawler
+    calls = []
+    monkeypatch.setattr(startup_service, "has_rows_today", lambda _dataset: True)
+    monkeypatch.setattr(baidu_crawler, "_fetch_baidu_hotsearch_sync", lambda: calls.append("fetch"))
+
+    assert startup_service.refresh_baidu_hotsearch_if_missing() == {"status": "success", "total": 0}
+    assert calls == []
+
+
+def test_baidu_catchup_reports_fallback_as_partial(monkeypatch):
+    from crawlers import baidu_crawler
+    monkeypatch.setattr(startup_service, "has_rows_today", lambda _dataset: False)
+    monkeypatch.setattr(baidu_crawler, "_fetch_baidu_hotsearch_sync", lambda: [{"title": "Hot search load failed"}])
+
+    result = startup_service.refresh_baidu_hotsearch_if_missing()
+    assert result["status"] == "partial_success"
+
+
+def test_task_success_uses_latest_run_not_any_success(monkeypatch):
+    seen = []
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return self
+        def execute(self, sql, params): seen.append(sql)
+        def fetchone(self): return {"present": False}
+    monkeypatch.setattr(startup_service, "get_db", Connection)
+    assert startup_service._task_succeeded_today("daily_crawl") is False
+    assert "ORDER BY started_at DESC, id DESC LIMIT 1" in seen[0]
+
+
 def test_catalog_refresh_keeps_healthy_vendor_when_the_other_fails(monkeypatch):
     monkeypatch.setattr(aliyun_solution_service, "refresh_aliyun_solutions", lambda: {"status": "success", "total": 2, "new": 1, "updated": 0, "removed": 0})
+    from services import source_registry_service
+    monkeypatch.setattr(source_registry_service, "source_enabled", lambda _: True)
+    monkeypatch.setattr(source_registry_service, "record_source_health", lambda *args: None)
+    class EmptyCursor:
+        def execute(self, *args, **kwargs): pass
+        def fetchall(self): return []
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *args): pass
+        def cursor(self): return EmptyCursor()
+    monkeypatch.setattr(aliyun_solution_service, "get_db", lambda: Connection())
+    from services import intelligence_data_service
+    monkeypatch.setattr(intelligence_data_service, "store_catalog_change", lambda *args: None)
     import sys
     from types import SimpleNamespace
     monkeypatch.setitem(sys.modules, "services.huawei_solution_service", SimpleNamespace(refresh_huawei_solutions=lambda: (_ for _ in ()).throw(RuntimeError("source down"))))

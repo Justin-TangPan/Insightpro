@@ -12,6 +12,11 @@ export interface TrendingItem {
   forks: string;
   today_stars: string;
   category: string;
+  entity_key?: string;
+  event_id?: number;
+  topics?: string[];
+  contributors_count?: number | null;
+  pushed_at?: string | null;
 }
 
 export interface TrendingResponse {
@@ -68,10 +73,10 @@ export const evalDimensions = [
 ] as const;
 
 export const levelStyles: Record<string, string> = {
-  "强烈推荐": "bg-primary-soft text-primary border-primary/20",
-  "值得做": "bg-warning-soft text-warning border-warning/20",
+  "强烈推荐": "bg-success-soft text-success border-success/20",
+  "值得做": "bg-primary-soft text-primary border-primary/20",
   "勉强": "bg-warning-soft text-warning border-warning/20",
-  "不建议": "bg-warning-soft text-warning border-warning/20",
+  "不建议": "bg-danger-soft text-danger border-danger/20",
 };
 
 export function levelClass(level: string) {
@@ -85,6 +90,7 @@ export const periods = [
   { key: "daily", label: "今日", en: "Today", icon: Zap },
   { key: "weekly", label: "本周", en: "This week", icon: Activity },
   { key: "monthly", label: "本月", en: "This month", icon: TrendingUp },
+  { key: "all", label: "全部", en: "All", icon: Activity },
 ];
 
 export const langColors: Record<string, string> = {

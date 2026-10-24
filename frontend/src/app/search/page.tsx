@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useCallback, useEffect, useState } from "react";
 import {
-  Blocks, ChevronLeft, ChevronRight, ClipboardList, ExternalLink,
-  Layers3, Loader2, Radio, Search, ShieldCheck,
+  Blocks, ChevronLeft, ChevronRight, ClipboardList, ExternalLink, MessagesSquare,
+  Layers3, Loader2, Radio, Search, ShieldCheck, Sparkles,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
@@ -14,7 +14,7 @@ import { optionalAuthenticatedFetch } from "@/lib/authenticated-fetch";
 import { usePreferences } from "@/lib/preferences";
 import { useAuth } from "@/components/auth-provider";
 
-type SearchKind = "all" | "technical" | "solution" | "competitor" | "requirement" | "managed_solution";
+type SearchKind = "all" | "technical" | "solution" | "competitor" | "ai_application" | "community" | "requirement" | "managed_solution";
 
 interface SearchResult {
   type: Exclude<SearchKind, "all">;
@@ -22,6 +22,8 @@ interface SearchResult {
   url: string;
   source: string;
   snippet: string;
+  date?: string | null;
+  date_basis?: "published" | "observed" | "changed" | "updated";
 }
 
 interface SearchResponse {
@@ -37,6 +39,8 @@ const typeConfig: Record<Exclude<SearchKind, "all">, { label: string; en: string
   technical: { label: "技术项目", en: "Tech projects", icon: Radio },
   solution: { label: "方案洞察", en: "Cloud solutions", icon: Layers3 },
   competitor: { label: "友商动态", en: "Competitor updates", icon: ShieldCheck },
+  ai_application: { label: "AI 应用", en: "AI applications", icon: Sparkles },
+  community: { label: "社区洞察", en: "Community signals", icon: MessagesSquare },
   requirement: { label: "方案背景", en: "Solution context", icon: ClipboardList },
   managed_solution: { label: "方案实践", en: "Solution practices", icon: Blocks },
 };
@@ -55,14 +59,18 @@ function SearchContent() {
   const kindParam = searchParams.get("kind") || "all";
   const initialKind = (filters.some((filter) => filter.value === kindParam && (user || !["requirement", "managed_solution"].includes(filter.value))) ? kindParam : "all") as SearchKind;
   const initialPage = Math.max(1, Number(searchParams.get("page")) || 1);
+  const initialDateFrom = searchParams.get("date_from") || "";
+  const initialDateTo = searchParams.get("date_to") || "";
   const [query, setQuery] = useState(initialQuery);
+  const [dateFrom, setDateFrom] = useState(initialDateFrom);
+  const [dateTo, setDateTo] = useState(initialDateTo);
   const [activeKind, setActiveKind] = useState<SearchKind>(initialKind);
   const [data, setData] = useState<SearchResponse>({ results: [], total: 0, query: "", page: 1, pages: 0, facets: {} });
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState("");
 
-  const runSearch = useCallback(async (searchQuery: string, page: number, kind: SearchKind) => {
+  const runSearch = useCallback(async (searchQuery: string, page: number, kind: SearchKind, from: string, to: string) => {
     const normalized = searchQuery.trim();
     if (!normalized) return;
     setLoading(true);
@@ -70,10 +78,12 @@ function SearchContent() {
     setError("");
     try {
       const params = new URLSearchParams({ q: normalized, kind, page: String(page) });
+      if (from) params.set("date_from", from);
+      if (to) params.set("date_to", to);
+      window.history.replaceState(null, "", `/search?${params}`);
       const response = await optionalAuthenticatedFetch(`${API}/api/search?${params}`);
       if (!response.ok) throw new Error(en ? `Search failed: ${response.status}` : `搜索失败：${response.status}`);
       setData(await response.json());
-      window.history.replaceState(null, "", `/search?${params}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : (en ? "Search is temporarily unavailable" : "搜索服务暂时不可用"));
       setData({ results: [], total: 0, query: normalized, page: 1, pages: 0, facets: {} });
@@ -83,24 +93,24 @@ function SearchContent() {
   }, [en]);
 
   useEffect(() => {
-    if (initialQuery) void Promise.resolve().then(() => runSearch(initialQuery, initialPage, initialKind));
-  }, [initialKind, initialPage, initialQuery, runSearch]);
+    if (initialQuery) void Promise.resolve().then(() => runSearch(initialQuery, initialPage, initialKind, initialDateFrom, initialDateTo));
+  }, [initialDateFrom, initialDateTo, initialKind, initialPage, initialQuery, runSearch]);
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    void runSearch(query, 1, activeKind);
+    void runSearch(query, 1, activeKind, dateFrom, dateTo);
   };
 
   const changeKind = (kind: SearchKind) => {
     setActiveKind(kind);
-    if ((data.query || query).trim()) void runSearch(data.query || query, 1, kind);
+    if ((data.query || query).trim()) void runSearch(data.query || query, 1, kind, dateFrom, dateTo);
   };
 
   const allCount = Object.values(data.facets).reduce((total, count) => total + (count || 0), 0);
 
   return (
     <div className="page-stack">
-      <SectionHeader badge="Search Engine" title={en ? "Global Search" : "全局搜索"} subtitle={user ? (en ? "Search projects, cloud solutions, competitor updates and your workbench by relevance." : "按相关性检索技术项目、方案洞察、友商动态和你的工作区。") : (en ? "Search technical projects, cloud solutions and industry signals." : "检索技术项目、云厂商方案和产业动态。")} />
+      <SectionHeader badge="Search Engine" title={en ? "Global Search" : "全局搜索"} subtitle={user ? (en ? "Search projects, cloud solutions, AI applications, competitor updates and your workbench." : "检索技术项目、云方案、AI 应用、友商动态和你的工作区。") : (en ? "Search technical projects, cloud solutions and AI applications." : "检索技术项目、云方案和 AI 应用。")} />
 
       <form onSubmit={submit} role="search" className="rounded-2xl bg-primary-dark p-4 sm:p-6">
         <label htmlFor="global-search" className="swiss-kicker text-white/60"> {en ? "Enter a name, capability, use case or technology" : "输入名称、能力、场景或技术关键词"}</label>
@@ -113,7 +123,7 @@ function SearchContent() {
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" /> }{en ? "Search" : "搜索"}
           </button>
         </div>
-        {!searched && <div className="mt-4 flex flex-wrap items-center gap-2"><span className="text-xs text-white/50"> {en ? "Quick search" : "快速搜索"}</span>{(en ? ["AI Agent", "Data migration", "Observability", "Security"] : ["AI Agent", "数据迁移", "可观测性", "安全合规"]).map((term) => <button key={term} type="button" onClick={() => { setQuery(term); setActiveKind("all"); void runSearch(term, 1, "all"); }} className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/75 transition-colors hover:bg-white/20 hover:text-white">{term}</button>)}</div>}
+        {!searched && <div className="mt-4 flex flex-wrap items-center gap-2"><span className="text-xs text-white/50"> {en ? "Quick search" : "快速搜索"}</span>{(en ? ["AI Agent", "Data migration", "Observability", "Security"] : ["AI Agent", "数据迁移", "可观测性", "安全合规"]).map((term) => <button key={term} type="button" onClick={() => { setQuery(term); setActiveKind("all"); void runSearch(term, 1, "all", dateFrom, dateTo); }} className="rounded-full bg-white/10 px-3 py-1.5 text-xs text-white/75 transition-colors hover:bg-white/20 hover:text-white">{term}</button>)}</div>}
       </form>
 
       {searched && (
@@ -127,6 +137,12 @@ function SearchContent() {
           <p className="text-xs text-ink-muted"> {en ? `${data.total} results · sorted by relevance` : `找到 ${data.total} 条结果 · 按相关性排序`}</p>
         </div>
       )}
+
+      {searched && <div className="flex flex-wrap items-end gap-3 rounded-xl bg-surface-subtle p-3">
+        <label className="grid gap-1 text-xs text-ink-muted">{en ? "From" : "开始日期"}<input type="date" value={dateFrom} max={dateTo || undefined} onChange={event => { setDateFrom(event.target.value); if (data.query) void runSearch(data.query, 1, activeKind, event.target.value, dateTo); }} className="ui-input min-h-10 px-3 text-sm text-ink" /></label>
+        <label className="grid gap-1 text-xs text-ink-muted">{en ? "To" : "结束日期"}<input type="date" value={dateTo} min={dateFrom || undefined} onChange={event => { setDateTo(event.target.value); if (data.query) void runSearch(data.query, 1, activeKind, dateFrom, event.target.value); }} className="ui-input min-h-10 px-3 text-sm text-ink" /></label>
+        {(dateFrom || dateTo) && <button type="button" disabled={loading} onClick={() => { setDateFrom(""); setDateTo(""); if (data.query) void runSearch(data.query, 1, activeKind, "", ""); }} className="min-h-10 px-2 text-sm text-ink-muted hover:text-primary">{en ? "Clear" : "清除日期"}</button>}
+      </div>}
 
       {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}{en ? ", please try again later." : "，请稍后重试。"}</div>}
 
@@ -147,7 +163,7 @@ function SearchContent() {
                   <div className="flex items-start justify-between gap-3"><span className="ui-tag"> {en ? config.en : config.label}</span>{external && <ExternalLink className="h-3.5 w-3.5 text-ink-muted transition-colors group-hover:text-primary" />}</div>
                   <h2 className="mt-3 type-h3 text-ink"><Highlight text={result.title} query={data.query} /></h2>
                   {result.snippet && <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted"><Highlight text={result.snippet} query={data.query} /></p>}
-                  <p className="mt-3 truncate text-xs font-medium text-ink-muted">{result.source}</p>
+                  <p className="mt-3 truncate text-xs font-medium text-ink-muted">{result.source}{result.date ? ` · ${({ published: en ? "Published" : "发布", observed: en ? "Collected" : "采集", changed: en ? "Changed" : "变化", updated: en ? "Updated" : "更新" }[result.date_basis || "observed"])} ${result.date}` : ""}</p>
                 </div>
               </Link>
             );
@@ -157,9 +173,9 @@ function SearchContent() {
 
       {!loading && data.pages > 1 && (
         <nav aria-label={en ? "Search pagination" : "搜索结果分页"} className="flex items-center justify-center gap-3">
-          <button type="button" disabled={data.page === 1} onClick={() => void runSearch(data.query, data.page - 1, activeKind)} className="ui-button-secondary"><ChevronLeft className="h-4 w-4" /> {en ? "Previous" : "上一页"}</button>
+          <button type="button" disabled={data.page === 1} onClick={() => void runSearch(data.query, data.page - 1, activeKind, dateFrom, dateTo)} className="ui-button-secondary"><ChevronLeft className="h-4 w-4" /> {en ? "Previous" : "上一页"}</button>
           <span className="font-mono text-xs font-semibold text-ink-muted">{data.page} / {data.pages}</span>
-          <button type="button" disabled={data.page === data.pages} onClick={() => void runSearch(data.query, data.page + 1, activeKind)} className="ui-button-secondary">{en ? "Next" : "下一页"}<ChevronRight className="h-4 w-4" /></button>
+          <button type="button" disabled={data.page === data.pages} onClick={() => void runSearch(data.query, data.page + 1, activeKind, dateFrom, dateTo)} className="ui-button-secondary">{en ? "Next" : "下一页"}<ChevronRight className="h-4 w-4" /></button>
         </nav>
       )}
     </div>

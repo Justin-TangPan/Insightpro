@@ -4,6 +4,7 @@ Extracted from routers/hotspots.py to fix the service→router layer violation
 (startup_service was importing from routers.hotspots).
 """
 import asyncio
+import json
 import logging
 from datetime import datetime
 
@@ -152,26 +153,71 @@ def _heuristic_score_project(item: dict) -> dict:
     }
 
 
+def _repository_evidence(repo: dict) -> dict:
+    release = repo.get("latest_release") or {}
+    evidence = {
+        "description": repo.get("description"), "stars": repo.get("stars"), "forks": repo.get("forks"),
+        "stars_delta": ((repo.get("scores") or {}).get("hot_score") or {}).get("stars_delta"),
+        "today_stars": repo.get("today_stars"), "pushed_at": repo.get("pushed_at"),
+        "contributors_count": repo.get("contributors_count"), "license": repo.get("license"),
+        "topics": repo.get("topics"), "latest_release_tag": release.get("tag_name"),
+        "latest_release_date": release.get("published_at"), "latest_release_major": release.get("major_release"),
+        "latest_release_notes": release.get("body"),
+    }
+    return {key: value for key, value in evidence.items() if value not in (None, "", [])}
+
+
+def _technical_assessment(value: object, repo: dict) -> dict:
+    evidence = _repository_evidence(repo)
+    allowed = {
+        "engineering_maturity": {"pushed_at", "contributors_count", "latest_release_tag", "latest_release_date", "latest_release_notes", "latest_release_major"},
+        "innovation": {"description", "topics", "latest_release_notes"},
+        "deployability": {"description", "license", "latest_release_tag", "latest_release_notes"},
+    }
+    supplied = value if isinstance(value, dict) else {}
+    result = {}
+    for dimension in ("engineering_maturity", "innovation", "deployability"):
+        item = supplied.get(dimension) if isinstance(supplied.get(dimension), dict) else {}
+        keys = item.get("evidence_keys") if isinstance(item.get("evidence_keys"), list) else []
+        keys = list(dict.fromkeys(key for key in keys if isinstance(key, str) and key in allowed[dimension] and evidence.get(key) is not None))[:8]
+        score = item.get("score")
+        valid = isinstance(score, (int, float)) and not isinstance(score, bool) and 0 <= score <= 10
+        if not keys or not valid:
+            score, keys = None, []
+        reasoning = item.get("reasoning") if isinstance(item.get("reasoning"), str) else ""
+        result[dimension] = {"score": score,
+                             "reasoning": reasoning[:500] if score is not None else "可验证证据不足，暂不评分。",
+                             "evidence_keys": keys}
+    return result
+
+
 async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]:
     from services.ai_service import chat_complete
     from services.evaluation_service import BUSINESS_EVAL_SYSTEM_PROMPT, _parse_eval_json
+    from services.prompt_service import published_prompt
 
     selected = items[:limit]
     if not selected:
         return []
 
     parsed = []
+    try:
+        active_prompt = await asyncio.to_thread(published_prompt, "repository_business_eval")
+    except Exception as error:
+        logger.warning("Repository evaluation prompt unavailable; using built-in compatibility prompt: %s", error)
+        active_prompt = None
+    system_prompt = active_prompt["system_prompt"] if active_prompt else BUSINESS_EVAL_SYSTEM_PROMPT
     for offset in range(0, len(selected), 5):
         batch = selected[offset:offset + 5]
-        project_lines = [
-            f"{i + 1}. {r['repo_name']} | Stars={r.get('stars') or 'N/A'} | {r.get('description') or ''}"
-            for i, r in enumerate(batch, offset)
-        ]
-        user_prompt = "对以下 GitHub Trending 项目进行解决方案价值评估。严格只输出 JSON 数组；每项必须包含 repo_name、summary、d1、d2、d3、d4、total、level、recommendation、reasoning，所有文字字段使用简体中文。\n\n" + "\n".join(project_lines)
+        project_lines = [json.dumps({"repo_name": repo["repo_name"], "evidence": _repository_evidence(repo)},
+                                    ensure_ascii=False) for repo in batch]
+        user_prompt = (active_prompt.get("user_prompt_template") or "") if active_prompt else ""
+        user_prompt = user_prompt.replace("{projects}", "\n".join(project_lines)) if "{projects}" in user_prompt else (
+            "仅依据以下 JSON 证据，评估项目业务价值与技术成熟度。技术维度必须返回 engineering_maturity、innovation、deployability，每项含 score、reasoning、evidence_keys；证据不足时 score=null。只输出 JSON 数组，文字使用简体中文。\n\n" + "\n".join(project_lines))
         try:
             raw = await asyncio.to_thread(
                 chat_complete,
-                system_prompt=BUSINESS_EVAL_SYSTEM_PROMPT,
+                system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 temperature=0.2,
                 max_tokens=8192,
@@ -208,8 +254,11 @@ async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]
             "level": _canonical_level(item),
             "recommendation": item.get("recommendation") or "",
             "reasoning": item.get("reasoning") or "",
+            "technical_assessment": _technical_assessment(item.get("technical_assessment"), match),
             "eval_time": datetime.now().strftime("%H:%M:%S"),
             "evaluation_mode": "ai",
+            "prompt_name": active_prompt["prompt_name"] if active_prompt else None,
+            "prompt_version": active_prompt["version"] if active_prompt else None,
         })
     enriched.extend(_heuristic_score_project(item) for item in selected if item.get("repo_name") not in seen)
     return enriched

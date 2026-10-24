@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/ui-test-report/
+/ui-test-results/
 
 # next.js
 /.next/

@@ -73,3 +73,29 @@ def get_readiness_report() -> dict:
             "failed_checks": ["database"],
             "error": str(exc)[:300],
         }
+
+
+def get_collection_report() -> dict:
+    """Summarize the datasets and scheduled collection jobs shown to admins."""
+    from services.task_service import list_tasks
+
+    queries = {
+        "github_trending": ("github_trending", "scrape_date"),
+        "baidu_hotsearch": ("baidu_hotsearch", "scrape_date"),
+        "competitor_news": ("competitor_news", "scrape_date"),
+        "aliyun_solutions": ("aliyun_solutions", "last_seen_date"),
+        "vendor_ai_applications": ("vendor_ai_applications", "source_fetched_at"),
+    }
+    datasets = []
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for key, (table, date_column) in queries.items():
+            cursor.execute(f"SELECT COUNT(*) AS total, MAX({date_column}) AS latest_at FROM {table}")
+            row = cursor.fetchone()
+            datasets.append({"key": key, "total": int(row["total"] or 0), "latest_at": row["latest_at"]})
+        cursor.execute("SELECT vendor, COUNT(*) AS total, MAX(last_seen_date) AS latest_at FROM aliyun_solutions WHERE is_active=TRUE GROUP BY vendor")
+        catalogs = {row["vendor"]: row for row in cursor.fetchall()}
+        for vendor, key in (("Alibaba Cloud", "aliyun_solutions"), ("Huawei Cloud", "huawei_solutions")):
+            row = catalogs.get(vendor)
+            datasets.append({"key": key, "total": int(row["total"] or 0) if row else 0, "latest_at": row["latest_at"] if row else None})
+    return {"datasets": datasets, "tasks": list_tasks()}

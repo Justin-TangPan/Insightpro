@@ -3,8 +3,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from routers.auth import require_admin
 from services.task_service import TASK_BY_KEY, list_tasks, recent_runs, run_task
+from services.system_health_service import get_collection_report
 
 router = APIRouter()
+
+
+@router.get("/admin/collection")
+async def collection_status(_=Depends(require_admin)):
+    from asyncio import to_thread
+    return await to_thread(get_collection_report)
 
 
 @router.get("/admin/tasks")

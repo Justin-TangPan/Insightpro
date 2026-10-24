@@ -25,7 +25,7 @@ def _required_env(name: str) -> str:
 
 
 class Settings:
-    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0-rc.17")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0-rc.42")
     # ── AI ──
     CHAT_API_URL: str = os.getenv("CHAT_API_URL", "")
     CHAT_API_KEY: str = os.getenv("CHAT_API_KEY", "")
@@ -61,6 +61,8 @@ class Settings:
     BASE_URL: str = os.getenv("BASE_URL", "http://localhost:3000")
     PUBLIC_IP: str = os.getenv("PUBLIC_IP", "localhost")
     STARTUP_CATCHUP_ENABLED: bool = os.getenv("STARTUP_CATCHUP_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+    SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+    REQUIREMENT_ABSORPTION_ON_STARTUP: bool = os.getenv("REQUIREMENT_ABSORPTION_ON_STARTUP", "true").lower() in {"1", "true", "yes", "on"}
     CORS_ORIGINS: list[str] = [
         origin.strip()
         for origin in _required_env("CORS_ORIGINS").split(",")

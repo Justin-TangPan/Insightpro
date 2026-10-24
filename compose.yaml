@@ -1,7 +1,7 @@
 services:
   backend:
     container_name: insight-backend
-    image: insight-web-backend:1.0.0-rc.17
+    image: insight-web-backend:1.0.0-rc.42
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -10,7 +10,9 @@ services:
     environment:
       TZ: Asia/Shanghai
       STARTUP_CATCHUP_ENABLED: "true"
-      APP_VERSION: "1.0.0-rc.17"
+      SCHEDULER_ENABLED: "true"
+      REQUIREMENT_ABSORPTION_ON_STARTUP: "true"
+      APP_VERSION: "1.0.0-rc.42"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -34,17 +36,17 @@ services:
 
   frontend:
     container_name: insight-frontend
-    image: insight-web-frontend:1.0.0-rc.17
+    image: insight-web-frontend:1.0.0-rc.42
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        API_PROXY_TARGET: http://backend:8000
+        API_PROXY_TARGET: http://insight-backend:8000
         NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
         NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
     environment:
       TZ: Asia/Shanghai
-      API_PROXY_TARGET: http://backend:8000
+      API_PROXY_TARGET: http://insight-backend:8000
     ports:
       - "0.0.0.0:3000:3000"
     depends_on:

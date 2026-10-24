@@ -11,7 +11,7 @@ export type Preferences = {
   motion: boolean;
 };
 
-export const defaultPreferences: Preferences = { theme: "dark", language: "zh", density: "comfortable", motion: true };
+export const defaultPreferences: Preferences = { theme: "light", language: "zh", density: "comfortable", motion: true };
 
 export function applyPreferences(value: Preferences) {
   const root = document.documentElement;
@@ -27,7 +27,7 @@ export function usePreferences() {
     const load = () => {
     try {
       const raw = JSON.parse(localStorage.getItem("insight_preferences") || "{}");
-      const stored = { ...defaultPreferences, ...raw, theme: raw.theme === "light" ? "light" : "dark", language: raw.language === "en" ? "en" : "zh", theme_version: 4 };
+      const stored = { ...defaultPreferences, ...raw, theme: raw.theme === "dark" ? "dark" : "light", language: raw.language === "en" ? "en" : "zh", theme_version: 4 };
       localStorage.setItem("insight_preferences", JSON.stringify(stored));
       setPreferences(stored);
       applyPreferences(stored);

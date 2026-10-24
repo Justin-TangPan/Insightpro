@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
-import { BookOpenText, Bot, Database, ExternalLink, FileText, LockKeyhole, RefreshCw, Search, Server, Users } from "lucide-react";
+import { ArrowUp, BookOpenText, Bot, Database, ExternalLink, FileText, LockKeyhole, RefreshCw, Search, Server, Users } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { usePreferences } from "@/lib/preferences";
@@ -10,6 +10,7 @@ import { usePreferences } from "@/lib/preferences";
 type Source = { source_type: string; visibility: "team" | "private"; chunks: number; documents: number };
 type KnowledgeItem = { source_type: string; source_id: string; title: string; content?: string; source_url?: string; visibility?: "team" | "private"; score?: number; updated_at?: string };
 type Overview = { documents: number; chunks: number; sources: Source[]; recent: KnowledgeItem[]; embedding_model: string; reranker_model: string };
+type Reply = { role: "user" | "assistant"; content: string; sources?: Pick<KnowledgeItem, "title" | "source_url" | "source_type" | "source_id">[] };
 
 const sourceMeta: Record<string, { label: string; en: string; icon: typeof Database; color: string }> = {
   github_project: { label: "开源项目", en: "Open-source project", icon: Server, color: "bg-primary" },
@@ -33,6 +34,9 @@ export default function KnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState("");
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+  const [chat, setChat] = useState<Reply[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -63,6 +67,25 @@ export default function KnowledgePage() {
     await runSearch(value);
   }
 
+  async function askKnowledge(event: FormEvent) {
+    event.preventDefault();
+    const value = question.trim();
+    if (!value || asking) return;
+    const history = chat.map(({ role, content }) => ({ role, content })).slice(-6);
+    setChat(previous => [...previous, { role: "user", content: value }]);
+    setQuestion(""); setAsking(true); setError("");
+    try {
+      const response = await authenticatedFetch("/api/agent/knowledge/ask", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: value, history }),
+      });
+      if (!response.ok) throw new Error(en ? "The knowledge assistant is unavailable. Try again." : "信息库助手暂时不可用，请重试。");
+      const data = await response.json();
+      setChat(previous => [...previous, { role: "assistant", content: data.answer, sources: data.sources }]);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "信息库助手暂时不可用"); }
+    finally { setAsking(false); }
+  }
+
   if (!authLoading && !user) return <div className="ui-card mx-auto mt-20 max-w-lg py-12 text-center"><BookOpenText className="mx-auto h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink"> {en ? "Sign in to view the knowledge base" : "登录后查看知识库"}</h1><p className="mt-2 text-sm text-ink-muted"> {en ? "Team knowledge and personal answers follow their access permissions." : "团队知识和个人回答会按权限分别展示。"}</p><Link href="/auth/login?next=/knowledge" className="ui-button-primary mt-5"> {en ? "Sign in" : "前往登录"}</Link></div>;
 
   const sources = overview?.sources || [];
@@ -70,17 +93,26 @@ export default function KnowledgePage() {
   const displayed = results ?? overview?.recent ?? [];
 
   return <div className="page-stack">
-    <section className="overflow-hidden rounded-2xl border border-grid/80 bg-primary-dark text-white shadow-[var(--shadow-elevated)]">
+    <section className="overflow-hidden rounded-2xl border border-grid bg-white shadow-[var(--shadow-elevated)]">
       <div className="grid gap-8 px-6 py-8 lg:grid-cols-[1fr_auto] lg:items-end lg:px-9">
-        <div><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-white/55">Knowledge Map</p><h1 className="mt-3 text-3xl font-semibold tracking-[-.035em] sm:text-4xl"> {en ? "Search what the platform knows" : "平台知道什么，一搜便知"}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/70"> {en ? "Find project analysis, cloud solutions, approved artifacts, and your answers. Team materials are shared; your answers stay private." : "汇聚项目分析、云方案、已审核成果和你的回答。团队资料共同可见，个人回答仅你可见。"}</p></div>
-        <div className="flex gap-6 font-mono"><div><p className="text-3xl font-semibold tabular-nums">{overview?.documents ?? "—"}</p><p className="mt-1 text-[11px] text-white/55"> {en ? "Documents" : "知识对象"}</p></div><div><p className="text-3xl font-semibold tabular-nums">{overview?.chunks ?? "—"}</p><p className="mt-1 text-[11px] text-white/55"> {en ? "Search chunks" : "检索片段"}</p></div></div>
+        <div><p className="font-mono text-[11px] font-semibold uppercase tracking-[.16em] text-ink-muted">Knowledge Map</p><h1 className="mt-3 text-3xl font-semibold tracking-[-.035em] text-ink sm:text-4xl"> {en ? "Ask your information library" : "向信息库提问"}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-ink-secondary"> {en ? "Ask about indexed projects, solutions, and approved work. Answers cite the material they use." : "围绕已收录的项目、云方案和成果提问，回答附上可核对的资料来源。"}</p></div>
+        <div className="flex gap-6 font-mono text-ink"><div><p className="text-3xl font-semibold tabular-nums">{overview?.documents ?? "—"}</p><p className="mt-1 text-[11px] text-ink-muted"> {en ? "Documents" : "知识对象"}</p></div><div><p className="text-3xl font-semibold tabular-nums">{overview?.chunks ?? "—"}</p><p className="mt-1 text-[11px] text-ink-muted"> {en ? "Search chunks" : "检索片段"}</p></div></div>
       </div>
-      <div className="border-t border-white/15 px-6 py-5 lg:px-9">
-        <div className="flex h-3 w-full overflow-hidden rounded-full bg-white/10" aria-label={en ? "Knowledge source share" : "知识来源占比"}>
+      <div className="border-t border-grid px-6 py-5 lg:px-9">
+        <div className="flex h-3 w-full overflow-hidden rounded-full bg-surface-subtle" aria-label={en ? "Knowledge source share" : "知识来源占比"}>
           {sources.map(source => <div key={`${source.source_type}-${source.visibility}`} className={`${metaFor(source.source_type, en).color} min-w-1`} style={{ width: `${source.documents / totalDocuments * 100}%` }} title={`${metaFor(source.source_type, en).label} ${source.documents}`} />)}
         </div>
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">{sources.map(source => { const meta = metaFor(source.source_type, en); return <span key={`${source.source_type}-${source.visibility}`} className="flex items-center gap-2 text-xs text-white/70"><span className={`h-2 w-2 rounded-full ${meta.color}`} /><span>{meta.label}</span><strong className="font-mono text-white">{source.documents}</strong>{source.visibility === "private" && <LockKeyhole className="h-3 w-3" aria-label={en ? "Only visible to me" : "仅自己可见"} />}</span>; })}</div>
+        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">{sources.map(source => { const meta = metaFor(source.source_type, en); return <span key={`${source.source_type}-${source.visibility}`} className="flex items-center gap-2 text-xs text-ink-secondary"><span className={`h-2 w-2 rounded-full ${meta.color}`} /><span>{meta.label}</span><strong className="font-mono text-ink">{source.documents}</strong>{source.visibility === "private" && <LockKeyhole className="h-3 w-3" aria-label={en ? "Only visible to me" : "仅自己可见"} />}</span>; })}</div>
       </div>
+    </section>
+
+    <section className="ui-card" aria-label={en ? "Information library assistant" : "信息库助手"}>
+      <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-surface-subtle text-primary"><Bot className="h-5 w-5" /></span><div><h2 className="type-h3 text-ink">{en ? "Library assistant" : "信息库助手"}</h2><p className="text-xs text-ink-muted">{en ? "Answers use material you can access" : "仅使用你有权限查看的资料"}</p></div></div>
+      <div className="mt-5 max-h-[540px] space-y-5 overflow-y-auto" aria-live="polite">
+        {chat.length ? chat.map((message, index) => <div key={index} className={message.role === "user" ? "ml-auto max-w-[85%] rounded-2xl bg-surface-subtle px-5 py-4 text-sm text-ink" : "max-w-3xl border-l-2 border-grid pl-5 text-sm leading-7 text-ink-secondary"}><p className="whitespace-pre-wrap">{message.content}</p>{message.sources?.length ? <div className="mt-4 border-t border-grid pt-3"><p className="mb-2 text-xs font-semibold text-ink">{en ? "Sources" : "引用资料"}</p><div className="flex flex-wrap gap-2">{message.sources.map((source, sourceIndex) => source.source_url?.startsWith("http") ? <a key={`${source.source_type}-${source.source_id}-${sourceIndex}`} href={source.source_url} target="_blank" rel="noopener noreferrer" className="ui-tag hover:underline">[{sourceIndex + 1}] {source.title}<ExternalLink className="h-3 w-3" /></a> : <span key={`${source.source_type}-${source.source_id}-${sourceIndex}`} className="ui-tag">[{sourceIndex + 1}] {source.title}</span>)}</div></div> : null}</div>) : <div className="flex flex-wrap gap-2">{[en ? "Which projects support private deployment?" : "哪些项目适合私有化部署？", en ? "What cloud solutions are relevant to agents?" : "有哪些与 Agent 相关的云方案？"].map(prompt => <button key={prompt} type="button" onClick={() => setQuestion(prompt)} className="ui-button-secondary min-h-11 text-sm">{prompt}</button>)}</div>}
+        {asking && <p className="flex items-center gap-2 text-sm text-ink-muted"><RefreshCw className="h-4 w-4 animate-spin" />{en ? "Reading the library…" : "正在检索并整理资料…"}</p>}
+      </div>
+      <form onSubmit={askKnowledge} className="mt-5 flex gap-2 border-t border-grid pt-5"><label className="sr-only" htmlFor="knowledge-question">{en ? "Ask the library" : "向信息库提问"}</label><input id="knowledge-question" value={question} onChange={event => setQuestion(event.target.value)} maxLength={500} className="ui-input min-h-12 flex-1 text-base" placeholder={en ? "Ask a question about the library" : "输入你想从信息库了解的问题"} /><button type="submit" disabled={asking || question.trim().length < 2} className="ui-button-primary min-h-12 px-4 disabled:opacity-50" aria-label={en ? "Send question" : "发送问题"}><ArrowUp className="h-5 w-5" /></button></form>
     </section>
 
     <form onSubmit={searchKnowledge} className="ui-card">

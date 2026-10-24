@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [supabase] = useState(createClient)
-  const member = (account: User | null) => account && ["user", "admin"].includes(account.app_metadata?.role) && account.app_metadata?.status !== "disabled" ? account : null
+  const member = (account: User | null) => account?.app_metadata?.role === "admin" && account.app_metadata?.status !== "disabled" ? account : null
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {

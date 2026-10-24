@@ -4,7 +4,10 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 from db import get_db
+from crawlers.github_crawler import store_github_items
+from services.source_registry_service import source_enabled
 from routers.auth import require_auth, require_admin
 
 logger = logging.getLogger(__name__)
@@ -14,11 +17,15 @@ router = APIRouter()
 
 @router.get("/agent-launches")
 async def agent_launches():
-    from services.agent_launch_service import MONITORED, snapshot
+    from services.agent_launch_service import MONITORED, FEED_HEALTH, snapshot
+    from services.ai_app_sources import PRODUCTS, FEEDS, GITHUB_REPOSITORIES
     from services.intelligence_format import application
     items, refreshing = snapshot()
     return {"items": [{**item, "intelligence": application(item)} for item in items],
-            "vendors": MONITORED, "refreshing": refreshing}
+            "vendors": MONITORED, "products": [{"vendor": v, "name": n, "url": u} for v, n, u in PRODUCTS],
+            "sources": [{"vendor": v, "product": p, "url": u, "status": FEED_HEALTH.get(u, "pending")} for v, p, u, _ in FEEDS]
+                      + [{"vendor": v, "product": p, "url": f"https://github.com/{repo}", "status": FEED_HEALTH.get(f"https://github.com/{repo}", "pending")} for v, p, repo in GITHUB_REPOSITORIES],
+            "refreshing": refreshing}
 
 
 @router.get("/agent-launches/progress")
@@ -27,11 +34,18 @@ async def agent_launches_progress(_=Depends(require_admin)):
     return await asyncio.to_thread(analysis_progress)
 
 
+@router.get("/boards/{board}/daily-insight")
+async def board_daily_insight(board: str):
+    from services.daily_board_insight_service import BOARDS, insight
+    if board not in BOARDS:
+        raise HTTPException(status_code=404, detail="Unknown board")
+    return await asyncio.to_thread(insight, board)
+
+
 # Import functions from original main.py (to be fully migrated to service later)
 from main_legacy import (
     scrape_github_trending,
     refresh_and_store,
-    evaluate_trending_business,
     _fetch_baidu_hotsearch_sync,
 )
 
@@ -39,11 +53,10 @@ from main_legacy import (
 from services.hotspot_service import (
     _empty_eval_summary,
     _summarize_eval,
-    _heuristic_score_project,
-    _store_live_evaluations,
     _localize_evaluations,
     _canonical_evaluations,
 )
+from services.evaluation_service import evaluate_trending_business, list_repository_business_evaluations
 
 
 @router.get("/github-trending")
@@ -53,22 +66,12 @@ async def get_github_trending(
 ):
     """Get GitHub Trending projects (prefer live, fallback to database)"""
     try:
-        items = await asyncio.to_thread(scrape_github_trending, since=since)
+        items = await asyncio.to_thread(scrape_github_trending, since=since) if await asyncio.to_thread(source_enabled, "github_trending") else []
         if items:
-            now = datetime.now()
+            now = datetime.now(ZoneInfo("Asia/Shanghai"))
             try:
                 with get_db() as conn:
-                    c = conn.cursor()
-                    for item in items:
-                        c.execute("""
-                            INSERT INTO github_trending
-                            (scrape_date, scrape_time, repo_name, repo_url, description, language, stars, forks, today_stars, category)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (scrape_date, category, repo_name) DO NOTHING
-                        """, (now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S"),
-                              item["repo_name"], item["repo_url"], item["description"],
-                              item["language"], item["stars"], item["forks"],
-                              item["today_stars"], item["category"]))
+                    store_github_items(conn.cursor(), items, now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S"))
             except Exception as e:
                 logger.warning("GitHub live data write to database failed, returning live results", exc_info=True)
             return {"items": items, "source": "live", "count": len(items), "date": now.strftime("%Y-%m-%d")}
@@ -141,8 +144,8 @@ async def get_github_trending_history(
 async def manual_refresh(_=Depends(require_auth)):
     """Manually trigger GitHub Trending refresh"""
     try:
-        await asyncio.to_thread(refresh_and_store)
-        return {"status": "success", "message": "GitHub Trending data refreshed"}
+        result = await asyncio.to_thread(refresh_and_store)
+        return {"message": "GitHub Trending data refreshed" if result["status"] == "success" else "GitHub source is disabled", **result}
     except Exception as e:
         items = await asyncio.to_thread(scrape_github_trending, since="daily")
         if items:
@@ -155,6 +158,14 @@ async def manual_refresh(_=Depends(require_auth)):
 async def get_business_eval(date: Optional[str] = None, locale: str = Query("zh", enum=["zh", "en"])):
     """Get today's GitHub Trending business value evaluation results"""
     target_date = date or datetime.now().strftime("%Y-%m-%d")
+    try:
+        v2 = await asyncio.to_thread(list_repository_business_evaluations, target_date)
+        if v2["source"] == "event_store":
+            items = await asyncio.to_thread(_localize_evaluations, v2["items"], locale)
+            return {"date": v2["date"], "items": items, "count": len(items),
+                    "summary": _summarize_eval(items), "source": "event_store"}
+    except Exception:
+        logger.warning("V2 repository evaluation read failed; checking compatibility rows", exc_info=True)
     try:
         with get_db() as conn:
             c = conn.cursor()
@@ -169,27 +180,10 @@ async def get_business_eval(date: Optional[str] = None, locale: str = Query("zh"
             items = _canonical_evaluations(c, [dict(r) for r in rows])
         if items:
             return {"date": target_date, "items": await asyncio.to_thread(_localize_evaluations, items, locale), "count": len(items), "summary": _summarize_eval(items), "source": "database"}
-    except Exception as e:
-        logger.warning("Database read failed, trying live evaluation", exc_info=True)
-
-    if date and target_date != datetime.now().strftime("%Y-%m-%d"):
-        return {"date": target_date, "items": [], "count": 0, "summary": _empty_eval_summary(), "source": "empty_history"}
-
-    live_items = await asyncio.to_thread(scrape_github_trending, since="daily")
-    # The read path must remain fast and non-empty even when the AI provider is slow.
-    # Manual refresh and the startup worker can upgrade these heuristic rows later.
-    try:
-        with get_db() as conn:
-            shared = _canonical_evaluations(conn.cursor(), [dict(item) for item in live_items[:25]])
     except Exception:
-        shared = live_items[:25]
-    items = [item if item.get("analysis_id") else _heuristic_score_project(item) for item in shared]
-    if items:
-        try:
-            await asyncio.to_thread(_store_live_evaluations, target_date, [item for item in items if not item.get("analysis_id")])
-        except Exception as e:
-            logger.warning("Live evaluation write failed, returning results", exc_info=True)
-    return {"date": target_date, "items": await asyncio.to_thread(_localize_evaluations, items, locale), "count": len(items), "summary": _summarize_eval(items), "source": "live_heuristic"}
+        logger.warning("V1 evaluation compatibility read failed", exc_info=True)
+
+    return {"date": target_date, "items": [], "count": 0, "summary": _empty_eval_summary(), "source": "empty_history"}
 
 
 @router.post("/github-trending/business-eval/refresh")
@@ -197,13 +191,18 @@ async def refresh_business_eval(limit: int = Query(25, ge=1, le=25), locale: str
     """Manually trigger GitHub Trending business value evaluation"""
     try:
         from services.task_service import run_task
-        result = await asyncio.to_thread(run_task, "trending_business_eval_daily", "manual", lambda: evaluate_trending_business(limit))
+        result = await asyncio.to_thread(run_task, "trending_business_eval_daily", "manual", lambda: evaluate_trending_business(limit, force=True))
     except Exception as e:
         logger.warning("Database evaluation refresh failed", exc_info=True)
         raise HTTPException(status_code=503, detail="Unable to verify existing project analysis; retry after storage recovers") from e
     if result.get("status") in {"success", "partial_success"}:
         date_str = result.get("date") or datetime.now().strftime("%Y-%m-%d")
         try:
+            v2 = await asyncio.to_thread(list_repository_business_evaluations, date_str, limit)
+            if v2["source"] == "event_store":
+                items = await asyncio.to_thread(_localize_evaluations, v2["items"], locale)
+                return {"status": result["status"], "date": date_str, "items": items, "count": len(items),
+                        "summary": _summarize_eval(items), "source": "event_store"}
             with get_db() as conn:
                 c = conn.cursor()
                 c.execute("""

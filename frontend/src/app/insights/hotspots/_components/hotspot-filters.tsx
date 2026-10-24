@@ -1,6 +1,7 @@
 "use client";
 
 import { CalendarDays, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 import { periods } from "./hotspot-types";
 import { usePreferences } from "@/lib/preferences";
 
@@ -11,6 +12,7 @@ interface HotspotFiltersProps {
   onToggleHistory: () => void;
   refreshing: boolean;
   onRefresh: () => void;
+  children?: ReactNode;
 }
 
 export function HotspotFilters({
@@ -20,6 +22,7 @@ export function HotspotFilters({
   onToggleHistory,
   refreshing,
   onRefresh,
+  children,
 }: HotspotFiltersProps) {
   const { preferences } = usePreferences();
   const en = preferences.language === "en";
@@ -41,6 +44,7 @@ export function HotspotFilters({
           </button>
         ))}
       </div>
+      {children}
       <div className="flex gap-2">
         <button
           onClick={onToggleHistory}

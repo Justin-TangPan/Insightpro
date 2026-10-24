@@ -7,10 +7,8 @@ import { usePreferences } from "@/lib/preferences";
 import { Save, RefreshCw } from "lucide-react";
 import { ProfileCard } from "./_components/profile-card";
 import { NotificationSettingsCard } from "./_components/notification-settings-card";
-import { AppearancePreferencesCard } from "./_components/appearance-preferences-card";
-import { EmailSubscriptionManager } from "./_components/email-subscription-manager";
 import { AiRuntimeConfigCard } from "./_components/ai-runtime-config-card";
-import { DataSourcesCard } from "./_components/data-sources-card";
+import { EmbeddingConfigCard } from "./_components/embedding-config-card";
 import { UserManagementCard } from "./_components/user-management-card";
 import { AiSpaceManagerCard } from "./_components/ai-space-manager-card";
 import { PublicKnowledgeCard } from "./_components/public-knowledge-card";
@@ -21,7 +19,7 @@ type AdminSection = "runtime" | "access" | "knowledge";
 export default function SettingsPage({ adminOnly = false, adminSection = "runtime" }: { adminOnly?: boolean; adminSection?: AdminSection }) {
   const { user, loading: authLoading, updateProfile } = useAuth();
   const isAdmin = user?.app_metadata?.role === "admin";
-  const { preferences, updatePreferences } = usePreferences();
+  const { preferences } = usePreferences();
   const [profileName, setProfileName] = useState("");
   const [saved, setSaved] = useState(false);
   const [memberStatus, setMemberStatus] = useState("");
@@ -37,7 +35,7 @@ export default function SettingsPage({ adminOnly = false, adminSection = "runtim
   const handleMemberUpdated = () => setMemberUpdateCount(c => c + 1);
   const handleKnowledgeRefresh = () => setKnowledgeRefreshCount(c => c + 1);
   const adminCopy = {
-    runtime: ["运行与数据", "管理模型连接、数据源与邮件订阅", "Runtime & data", "Manage models, data sources and email subscriptions"],
+    runtime: ["LLM 设置", "管理模型连接与智能检索服务", "LLM settings", "Manage model connections and retrieval services"],
     access: ["用户与权限", "管理成员角色、AI Space 与运行环境", "Users & access", "Manage member roles, AI Spaces and runtimes"],
     knowledge: ["知识库与产物", "管理公共知识、索引与产物审核", "Knowledge & artifacts", "Manage public knowledge, indexes and artifact review"],
   }[adminSection];
@@ -52,7 +50,7 @@ export default function SettingsPage({ adminOnly = false, adminSection = "runtim
       <SectionHeader
         badge={adminOnly ? "Admin" : "Settings"}
         title={adminOnly ? adminCopy[preferences.language === "en" ? 2 : 0] : (preferences.language === "en" ? "System Settings" : "系统设置")}
-        subtitle={adminOnly ? adminCopy[preferences.language === "en" ? 3 : 1] : (preferences.language === "en" ? "Manage your account, appearance and preferences" : "管理账号、外观与使用偏好")}
+        subtitle={adminOnly ? adminCopy[preferences.language === "en" ? 3 : 1] : (preferences.language === "en" ? "Manage your account and notifications" : "管理账号与通知")}
       />
 
       {adminOnly && !isAdmin ? <div className="ui-card py-12 text-center text-sm text-ink-muted">{preferences.language === "en" ? "Administrator access required." : "需要管理员权限。"}</div> : <>
@@ -60,20 +58,21 @@ export default function SettingsPage({ adminOnly = false, adminSection = "runtim
         {!adminOnly && <>
           <ProfileCard user={user} profileName={profileName} setProfileName={setProfileName} isAdmin={isAdmin} />
           <NotificationSettingsCard />
-          <AppearancePreferencesCard preferences={preferences} updatePreferences={updatePreferences} />
         </>}
 
         {adminOnly && isAdmin && <>
           {adminSection === "runtime" && <>
+            <div className="lg:col-span-2"><h2 className="type-h3 text-ink">模型与智能检索</h2><p className="mt-1 text-sm text-ink-muted">生成式 AI 与知识检索分别配置，互不影响。</p></div>
             <AiRuntimeConfigCard />
-            <DataSourcesCard />
-            <EmailSubscriptionManager />
+            <EmbeddingConfigCard />
           </>}
           {adminSection === "access" && <>
+            <div className="lg:col-span-2"><h2 className="type-h3 text-ink">账号与运行空间</h2><p className="mt-1 text-sm text-ink-muted">先管理账号权限，再管理对应的 AI Space。</p></div>
             <UserManagementCard memberStatus={memberStatus} onStatusChange={setMemberStatus} onMemberUpdated={handleMemberUpdated} refreshVersion={memberUpdateCount} />
             <AiSpaceManagerCard onStatusChange={setMemberStatus} onMemberUpdated={handleMemberUpdated} refreshVersion={memberUpdateCount} />
           </>}
           {adminSection === "knowledge" && <>
+            <div className="lg:col-span-2"><h2 className="type-h3 text-ink">知识索引与产物审核</h2><p className="mt-1 text-sm text-ink-muted">管理可检索知识来源和 Agent 发布内容。</p></div>
             <PublicKnowledgeCard onStatusChange={setMemberStatus} refreshVersion={knowledgeRefreshCount} />
             <ArtifactReviewCard onStatusChange={setMemberStatus} onArtifactPublished={handleKnowledgeRefresh} />
           </>}

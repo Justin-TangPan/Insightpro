@@ -27,6 +27,8 @@
    ./scripts/deploy-docker.sh
    ```
 
+- 每次 Docker 镜像构建后清理悬空镜像（dangling images），使用 `docker image prune -f`；不要按版本号删除镜像。
+
 2. **验证**：
    ```bash
    ./scripts/health-check.sh full

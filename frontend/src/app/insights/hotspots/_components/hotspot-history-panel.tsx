@@ -43,7 +43,7 @@ export function HotspotHistoryPanel({
         </div>
       ) : history.length === 0 ? (
         <p className="text-sm text-ink-muted text-center py-6">
-          {en ? "No history yet; first crawl is scheduled for 08:30 tomorrow" : "暂无历史记录，明早 08:30 首次抓取"}
+          {en ? "History will appear after the first daily collection." : "首次完成每日采集后，这里会显示历史记录。"}
         </p>
       ) : (
         <div className="flex flex-wrap gap-2">

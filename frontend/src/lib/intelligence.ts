@@ -10,3 +10,14 @@ export type Intelligence = {
   open_source_projects?: string;
   cloud_resources?: string;
 };
+
+export function plainIntelligenceText(value: string): string {
+  return value
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/\*\*(.*?)\*\*|__(.*?)__/g, (_, strong: string, underscore: string) => strong || underscore)
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^\s*[-*+]\s+/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}

@@ -41,8 +41,8 @@ export function SearchBar() {
           if (value.trim().length < 2) setSuggestions([]);
         }}
         list="global-search-suggestions"
-        placeholder={en ? "Search projects and solutions..." : "搜索项目、方案…"}
-        aria-label={en ? "Search projects and solutions" : "全局搜索项目和方案"}
+        placeholder={en ? "Search projects, solutions and AI apps..." : "搜索项目、方案、AI 应用…"}
+        aria-label={en ? "Search projects, solutions and AI applications" : "全局搜索项目、方案和 AI 应用"}
         className="bg-transparent border-none text-sm focus:outline-none w-full text-ink placeholder:text-ink-muted"
         spellCheck={false}
         autoComplete="off"

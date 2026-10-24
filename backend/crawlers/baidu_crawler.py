@@ -11,9 +11,8 @@ from db import get_db
 logger = logging.getLogger(__name__)
 
 
-def _fetch_baidu_hotsearch_sync():
+def _fetch_baidu_hotsearch_sync(url: str = "https://top.baidu.com/board?tab=realtime"):
     try:
-        url = "https://top.baidu.com/board?tab=realtime"
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Accept": "text/html"}
         resp = requests.get(url, headers=headers, timeout=15)
         resp.encoding = 'utf-8'

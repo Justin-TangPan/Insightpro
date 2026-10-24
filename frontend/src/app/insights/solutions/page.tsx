@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  ArrowUpRight, Clock3, Layers3, RefreshCw, Sparkles,
+  ArrowUpRight, Layers3, RefreshCw, Sparkles,
 } from "lucide-react";
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
@@ -11,12 +11,15 @@ import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { AgentAction } from "@/components/agent-action";
 import { useAuth } from "@/components/auth-provider";
 import { usePreferences } from "@/lib/preferences";
+import { DailyBoardInsight } from "@/components/daily-board-insight";
+import { EventStream } from "@/components/event-stream";
 import type { Intelligence } from "@/lib/intelligence";
 
 interface SolutionItem {
   intelligence?: Intelligence;
   analysis_mode?: "ai" | "source";
   id: number;
+  event_id?: number | null;
   title: string;
   url: string;
   category: string;
@@ -155,14 +158,13 @@ export default function SolutionInsightsPage() {
   };
 
   return (
-    <div className="page-stack">
+    <div className="page-stack intel-subpage">
       <SectionHeader
-        badge="Solution Intelligence / Cloud"
+        compact
+        icon={<Layers3 className="h-5 w-5" />}
         title={en ? "Solutions" : "解决方案"}
-        subtitle={en ? "Browse Alibaba Cloud and Huawei Cloud solution catalogs and daily changes." : "汇集阿里云、华为云官方解决方案目录，每日与上一版内容逐项比较。"}
         action={
-          <div className="flex flex-col items-end gap-3">
-            <div className="flex items-center gap-2 text-xs text-ink-muted"><Clock3 className="h-3.5 w-3.5" />{en ? "Daily comparison at 09:00 · Last checked" : "每天 09:00 自动对比 · 最近检查"} {data?.last_checked || "—"}</div>
+          <div>
             <button type="button" onClick={refresh} disabled={refreshing} className="ui-button-primary">
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
               {refreshing ? (en ? "Comparing..." : "正在对比") : (en ? "Check for updates" : "立即对比更新")}
@@ -171,19 +173,8 @@ export default function SolutionInsightsPage() {
         }
       />
 
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label={en ? "Today's catalog changes" : "今日目录变化"}>
-        {[
-          { label: en ? "Official solutions" : "官方方案", value: vendorItems.length, unit: en ? "items" : "项" },
-          { label: en ? "New today" : "今日新增", value: dailyInsight?.new ?? 0, unit: en ? "items" : "项", warning: true },
-          { label: en ? "Updated today" : "今日更新", value: dailyInsight?.updated ?? 0, unit: en ? "items" : "项" },
-          { label: en ? "Removed today" : "今日下线", value: dailyInsight?.removed ?? 0, unit: en ? "items" : "项" },
-        ].map((stat) => (
-          <div key={stat.label} className="ui-card flex min-h-36 flex-col justify-end">
-            <p className="swiss-kicker text-ink-muted">{stat.label}</p>
-            <div className="mt-2 flex items-baseline gap-2"><span className={`serif-stat text-3xl ${stat.warning && stat.value ? "text-warning" : "text-ink"}`}>{stat.value}</span><span className="text-xs text-ink-muted">{stat.unit}</span></div>
-          </div>
-        ))}
-      </section>
+      <DailyBoardInsight board="solutions" />
+      <EventStream scope="solutions" title={en ? "Recent solution events" : "近期方案情报"} />
 
       <nav className="flex gap-2" aria-label={en ? "Cloud vendor catalogs" : "云厂商目录"}>
         {vendors.map((vendor) => <button key={vendor} type="button" onClick={() => selectVendor(vendor)} aria-current={vendor === activeVendor ? "page" : undefined} className={`ui-button-secondary ${vendor === activeVendor ? "bg-primary text-white hover:bg-primary-dark" : ""}`}>{vendorLabel(vendor, en)}</button>)}
@@ -198,21 +189,21 @@ export default function SolutionInsightsPage() {
       {!loading && newItems.length > 0 && (
         <section className="rounded-2xl bg-warning-soft p-3 sm:p-5">
           <div className="flex items-end justify-between gap-4 px-2 pb-4">
-            <div><p className="swiss-kicker text-warning">Verified today</p><h2 className="mt-1 type-h2 text-ink">{en ? "New today" : "今日确认新增"}</h2></div>
+            <div><p className="swiss-kicker text-warning">{en ? "Verified today" : "已核实"}</p><h2 className="mt-1 type-h2 text-ink">{en ? "New today" : "今日确认新增"}</h2></div>
             <span className="ui-tag ui-tag-warning">{newItems.length} {en ? "items" : "项"}</span>
           </div>
           <div className="grid gap-3 lg:grid-cols-2">{newItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
         </section>
       )}
 
-      <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-card)]">
+      <section className="overflow-hidden rounded-2xl bg-surface-elevated shadow-[var(--shadow-card)]">
         <div className="flex flex-col gap-4 bg-surface-subtle px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="swiss-kicker text-primary">Official directory</p><h2 className="mt-1 type-h2 text-ink">{en ? "Cloud solution catalog" : "云厂商技术解决方案目录"}</h2></div>
+          <div>{en && <p className="swiss-kicker text-primary">Official directory</p>}<h2 className="mt-1 type-h2 text-ink">{en ? "Cloud solution catalog" : "云厂商技术解决方案目录"}</h2></div>
           <div className="flex gap-3">{Object.entries(data?.sources || {}).map(([vendor, url]) => <a key={vendor} href={url} target="_blank" rel="noreferrer" className="ui-link flex items-center gap-1 text-xs">{vendor}<ArrowUpRight className="h-3.5 w-3.5" /></a>)}</div>
         </div>
 
         {loading ? (
-          <div className="grid gap-3 bg-paper p-3 md:grid-cols-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-52 animate-shimmer rounded-xl bg-white" />)}</div>
+          <div className="grid gap-3 bg-paper p-3 md:grid-cols-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-52 animate-shimmer rounded-xl bg-surface-elevated" />)}</div>
         ) : activePrimary && activeSecondary ? (
           <>
             <div className="grid gap-3 bg-surface-subtle p-4 lg:hidden">
@@ -225,7 +216,7 @@ export default function SolutionInsightsPage() {
                 <p className="px-3 pb-3 swiss-kicker text-ink-muted"> {en ? "Primary domains" : "一级领域"} · {directory.length}</p>
                 <nav className="space-y-1">{directory.map((group) => {
                   const active = group.name === activePrimary.name;
-                  return <button key={group.name} type="button" onClick={() => selectPrimary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-white text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-white/70 hover:text-ink"}`}><span className="text-sm font-bold">{categoryLabel(group.name, en)}</span><span className="text-xs tabular-nums">{group.count}</span></button>;
+                  return <button key={group.name} type="button" onClick={() => selectPrimary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-surface-elevated text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-surface-elevated/70 hover:text-ink"}`}><span className="text-sm font-bold">{categoryLabel(group.name, en)}</span><span className="text-xs tabular-nums">{group.count}</span></button>;
                 })}</nav>
               </aside>
 
@@ -233,7 +224,7 @@ export default function SolutionInsightsPage() {
                 <p className="px-3 pb-3 swiss-kicker text-primary"> {en ? "Secondary domains" : "二级领域"} · {activePrimary.secondary.length}</p>
                 <nav className="space-y-1">{activePrimary.secondary.map((group) => {
                   const active = group.name === activeSecondary.name;
-                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-white text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{categoryLabel(group.name, en)}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
+                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-surface-elevated text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{categoryLabel(group.name, en)}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
                 })}</nav>
               </aside>
 
@@ -266,7 +257,7 @@ function Pagination({ page, totalPages, totalItems, start, onChange }: { page: n
       <div className="flex flex-wrap items-center gap-1.5">
         <button type="button" disabled={page === 1} onClick={() => onChange(page - 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Previous" : "上一页"}</button>
         {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
-          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={en ? `Page ${number}` : `第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-white text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
+          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={en ? `Page ${number}` : `第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-surface-elevated text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
         ))}
         <button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Next" : "下一页"}</button>
       </div>
@@ -279,7 +270,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
   const { preferences } = usePreferences();
   const en = preferences.language === "en";
   return (
-    <article className="relative rounded-xl bg-white p-6 transition-all hover:shadow-[var(--shadow-card)]">
+    <article className="relative rounded-xl bg-surface-elevated p-6 transition-all hover:shadow-[var(--shadow-card)]">
       <div className="flex min-h-7 items-start justify-between gap-5">
         <p className="swiss-kicker text-ink-muted">{vendorLabel(item.vendor, en)} / {item.vendor === "Huawei Cloud" ? categoryLabel(item.primary_category, en) : `${categoryLabel(item.primary_category, en)} / ${categoryLabel(item.secondary_category, en)}`}</p>
         {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? (en ? "Recently added" : "近期收录") : (en ? "Updated" : "内容更新")}</span>}
@@ -295,6 +286,7 @@ function SolutionCard({ item }: { item: SolutionItem }) {
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
         <span className="text-[11px] text-ink-muted">{item.is_baseline ? (en ? "Baseline" : "普通方案") : (en ? `Changed ${item.last_changed_date}` : `最近变化 ${item.last_changed_date}`)}</span>
         <div className="flex items-center gap-3">
+          {item.event_id && <Link href={`/events/${item.event_id}`} className="ui-link text-xs">{en ? "Intelligence details" : "情报详情"}</Link>}
           {!item.intelligence?.analysis && <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">{en ? "AI analysis" : "AI 分析"}</AgentAction>}
           {user && <Link href={{ pathname: "/workbench/solutions/new", query: { source_url: item.url, title: item.title, description: item.source_description || item.summary } }} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Save as practice" : "收纳方案实践"}</Link>}
           <a href={item.url} target="_blank" rel="noreferrer" aria-label={en ? `View ${item.vendor} solution: ${item.title}` : `查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">{en ? "View solution" : "查看方案"}<ArrowUpRight className="h-3.5 w-3.5" /></a>

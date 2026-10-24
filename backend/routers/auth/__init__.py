@@ -102,6 +102,12 @@ class RuntimeConfigPatch(BaseModel):
     CHAT_API_KEY: Optional[str] = None
 
 
+class EmbeddingConfigPatch(BaseModel):
+    EMBEDDING_API_URL: Optional[str] = None
+    EMBEDDING_MODEL: Optional[str] = None
+    EMBEDDING_API_KEY: Optional[str] = None
+
+
 # ── Shared helper functions ──
 
 def _member_status(account) -> str:
@@ -128,7 +134,7 @@ def _is_disabled(account) -> bool:
 
 def _is_internal_member(account) -> bool:
     metadata = getattr(account, "app_metadata", None) or {}
-    return metadata.get("role") in ("user", "admin") and metadata.get("status") != "disabled"
+    return metadata.get("role") == "admin" and metadata.get("status") != "disabled"
 
 
 async def _require_active_agent_user(user):

@@ -13,7 +13,7 @@ const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const EN_WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
 
 function DeliveryTimePicker({ value, onChange, label = "投递时间" }: { value: string; onChange: (value: string) => void; label?: string }) {
-  return <div className="ml-1 flex flex-wrap items-center gap-1.5"><input type="time" aria-label={label} value={value} onChange={event => onChange(event.target.value)} step="300" className="ui-input px-2.5 py-1.5 text-xs" />{["09:00", "12:00", "18:00"].map(time => <button key={time} type="button" onClick={() => onChange(time)} aria-pressed={value === time} className={`min-h-8 rounded-md px-2 text-[10px] font-semibold ${value === time ? "bg-primary text-white" : "border border-grid bg-white text-ink-muted hover:border-primary/30"}`}>{time}</button>)}</div>;
+  return <div className="ml-1 flex flex-wrap items-center gap-1.5"><input type="time" aria-label={label} value={value} onChange={event => onChange(event.target.value)} step="300" className="ui-input px-2.5 py-1.5 text-xs" />{["10:05", "12:00", "18:00"].map(time => <button key={time} type="button" onClick={() => onChange(time)} aria-pressed={value === time} className={`min-h-8 rounded-md px-2 text-[10px] font-semibold ${value === time ? "bg-primary text-white" : "border border-grid bg-white text-ink-muted hover:border-primary/30"}`}>{time}</button>)}</div>;
 }
 
 export function EmailSubscriptionManager() {
@@ -28,7 +28,7 @@ export function EmailSubscriptionManager() {
   const [newEmail, setNewEmail] = useState("");
   const [newName, setNewName] = useState("");
   const [newWeekdays, setNewWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
-  const [newSendTime, setNewSendTime] = useState("09:05");
+  const [newSendTime, setNewSendTime] = useState("10:05");
   const [newLanguage, setNewLanguage] = useState<Subscriber["language"]>(preferences.language);
   const [emailStatus, setEmailStatus] = useState("");
   const [emailError, setEmailError] = useState(false);
@@ -36,6 +36,7 @@ export function EmailSubscriptionManager() {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
   const [previewing, setPreviewing] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<"business" | "technical">("business");
   const [subscriberQuery, setSubscriberQuery] = useState("");
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [subscriberPage, setSubscriberPage] = useState(1);
@@ -58,7 +59,7 @@ export function EmailSubscriptionManager() {
       setSubscribers((data.subscribers || []).map((subscriber: Subscriber) => ({
         ...subscriber,
         weekdays: subscriber.weekdays?.length ? subscriber.weekdays : [0, 1, 2, 3, 4, 5, 6],
-        send_time: subscriber.send_time || "09:05",
+        send_time: subscriber.send_time || "10:05",
         language: subscriber.language === "en" ? "en" : "zh",
       })));
       setSelectedIds([]);
@@ -171,7 +172,7 @@ export function EmailSubscriptionManager() {
     setPreviewing(true);
     setEmailStatus("");
     try {
-      const res = await authenticatedFetch(`${API}/api/email/preview?language=${preferences.language}`);
+      const res = await authenticatedFetch(`${API}/api/email/preview?language=${preferences.language}&template=${previewTemplate}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       setPreviewHtml(await res.text());
     } catch {
@@ -195,9 +196,13 @@ export function EmailSubscriptionManager() {
           <div className="flex items-center gap-2.5">
             <Mail className="h-4 w-4 text-ink-muted" />
             <h3 className="type-h3 text-ink">{t("邮件订阅管理", "Email subscriptions")}</h3>
-            <span className="text-[10px] font-medium text-ink-muted">{t("每位订阅者独立排期", "Schedule each subscriber separately")}</span>
+            <span className="text-xs font-medium text-ink-muted">{t("五板块情报摘要 · 每位订阅者独立排期", "Five-board intelligence brief · individual schedules")}</span>
           </div>
           <div className="flex gap-2 self-start">
+            <select aria-label={t("邮件模板", "Email template")} className="ui-input px-2 text-xs" value={previewTemplate} onChange={event => setPreviewTemplate(event.target.value as "business" | "technical")}>
+              <option value="business">{t("商业洞察", "Business brief")}</option>
+              <option value="technical">{t("技术项目", "Technical projects")}</option>
+            </select>
             <button
               onClick={handlePreview}
               disabled={previewing}
@@ -208,6 +213,10 @@ export function EmailSubscriptionManager() {
             </button>
           </div>
         </div>
+
+        <p className="mb-4 rounded-lg border border-grid bg-surface-subtle px-4 py-3 text-sm leading-6 text-ink-secondary">
+          {t("每天发送两封短邮件：商业洞察解释业务与竞争影响；技术项目洞察聚焦 Trending Repo、Stars 增长和开发者方向。分析准备后发送，最早为北京时间 10:05。", "Two concise emails arrive each day: business impact and technical project trends. Delivery starts after analysis is ready, no earlier than 10:05 China time.")}
+        </p>
 
         {/* Add subscriber */}
         <div className="mb-4 rounded-xl bg-surface-subtle p-4">
@@ -346,7 +355,7 @@ export function EmailSubscriptionManager() {
         {filteredSubscribers.length > pageSize && <div className="mt-4 flex items-center justify-between text-xs text-ink-muted"><span>{t(`第 ${subscriberPage}/${pageCount} 页`, `Page ${subscriberPage} of ${pageCount}`)}</span><div className="flex gap-2"><button type="button" disabled={subscriberPage === 1} onClick={() => setSubscriberPage(page => page - 1)} className="ui-button-secondary !min-h-8 !px-3 !py-1.5">{t("上一页", "Previous")}</button><button type="button" disabled={subscriberPage === pageCount} onClick={() => setSubscriberPage(page => page + 1)} className="ui-button-secondary !min-h-8 !px-3 !py-1.5">{t("下一页", "Next")}</button></div></div>}
       </div>
 
-      <AppDialog open={!!previewHtml} onClose={() => setPreviewHtml("")} title={t("每日洞察邮件预览", "Daily insights email preview")} description={t("以下内容与正式发送版本一致", "This is the same content subscribers will receive")} className="h-[92dvh] w-[min(80rem,calc(100vw-2rem))] max-w-none overflow-hidden">
+      <AppDialog open={!!previewHtml} onClose={() => setPreviewHtml("")} title={t("商业情报简报预览", "Intelligence brief preview")} description={t("显示当前实时内容；定时发送时会重新生成。", "Live content is shown; scheduled delivery is generated again at send time.")} className="h-[92dvh] w-[min(80rem,calc(100vw-2rem))] max-w-none overflow-hidden">
         <iframe title={t("每日洞察邮件", "Daily insights email")} srcDoc={previewHtml} sandbox="" className="h-[calc(92dvh-8rem)] w-full bg-surface-subtle" />
       </AppDialog>
     </>

@@ -2,6 +2,7 @@ from datetime import date
 from unittest.mock import patch
 
 from crawlers import VENDOR_SOURCES, _crawl_vendor_news, _domestic_focus, _parse_volcengine_updates, _update_category
+from services import competitor_news_service
 
 
 class Response:
@@ -38,3 +39,32 @@ def test_volcengine_release_rows_keep_official_dates_and_skip_old_or_future_item
     assert [item["published_date"] for item in items] == ["2026-10-16", "2026-10-13"]
     assert items[0]["title"] == "火山引擎产品 · SSL 证书到期提醒与自动更新"
     assert "Coding Agent" in items[1]["summary"]
+
+
+def test_competitor_refresh_reuses_daily_crawl_results_without_crawling_again(monkeypatch):
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"collected": True}
+
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+
+    items = [{"vendor": "Example Cloud", "title": "Update", "link": "https://example.com/update",
+              "published_date": None, "summary": "Official update"}]
+    stored_v2 = []
+    health = []
+    monkeypatch.setattr(competitor_news_service, "get_db", Connection)
+    monkeypatch.setattr(competitor_news_service, "get_competitor_news", lambda _: [dict(item) for item in items])
+    monkeypatch.setattr("services.source_registry_service.source_enabled", lambda _: True)
+    monkeypatch.setattr("services.source_registry_service.record_source_health", lambda *args: health.append(args))
+    monkeypatch.setattr("crawlers.crawl_cloud_vendors", lambda: (_ for _ in ()).throw(AssertionError("duplicate crawl")))
+    monkeypatch.setattr("services.intelligence_data_service.store_competitor_news", lambda cursor, item: stored_v2.append(item))
+    monkeypatch.setattr(competitor_news_service, "_ensure_analyses", lambda _: 0)
+
+    result = competitor_news_service.refresh_competitor_news()
+
+    assert result[0]["link"] == "https://example.com/update"
+    assert stored_v2[0]["url"] == "https://example.com/update"
+    assert health[-1] == ("competitor_news", "healthy")

@@ -2,10 +2,11 @@
 from __future__ import annotations
 from datetime import date, datetime, timedelta
 from functools import lru_cache
+import json
 import logging
 import re
 import time
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 from xml.etree import ElementTree
 
@@ -14,6 +15,8 @@ from bs4 import BeautifulSoup
 
 from db import get_db
 from services.intelligence_format import application, competitor, project
+from services import ai_service
+from services.data_semantics import canonical_url, normalized_entity_name, resolve_alias
 
 logger = logging.getLogger(__name__)
 
@@ -194,9 +197,9 @@ def build_radar_snapshot(today: date | None = None) -> dict:
             "top_signals": top_signals, "apps": apps[:4]}
 
 
-VENDORS = ("OpenAI", "Anthropic", "Google", "Microsoft", "AWS", "阿里云", "腾讯云", "火山引擎", "华为云", "Meta", "行业动态")
+VENDORS = ("OpenAI", "Anthropic", "Google", "DeepSeek", "Microsoft", "AWS", "阿里云", "腾讯云", "火山引擎", "华为云", "Meta", "行业动态")
 VENDOR_ALIASES = {
-    "openai": "OpenAI", "anthropic": "Anthropic", "claude": "Anthropic", "google": "Google", "gemini": "Google",
+    "openai": "OpenAI", "anthropic": "Anthropic", "claude": "Anthropic", "google": "Google", "gemini": "Google", "deepseek": "DeepSeek",
     "microsoft": "Microsoft", "azure": "Microsoft", "aws": "AWS", "amazon": "AWS", "阿里云": "阿里云", "alibaba": "阿里云",
     "aliyun": "阿里云", "腾讯云": "腾讯云", "tencent": "腾讯云", "火山引擎": "火山引擎", "volcengine": "火山引擎",
     "豆包": "火山引擎", "华为云": "华为云", "huawei": "华为云", "meta": "Meta", "facebook": "Meta",
@@ -213,16 +216,13 @@ TYPE_RULES = (
 
 
 def _normal_url(value: str) -> str:
-    try:
-        parsed = urlsplit(value.strip())
-        if parsed.scheme and parsed.netloc:
-            return urlunsplit((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path.rstrip("/"), "", ""))
-    except ValueError:
-        pass
-    return ""
+    return canonical_url(value, strip_query=True)
 
 
 def _event_vendor(vendor: str, title: str, url: str) -> str:
+    alias = resolve_alias(vendor, VENDOR_ALIASES)
+    if alias != vendor.strip():
+        return alias
     text = f"{vendor} {title} {url}".casefold()
     for alias, canonical in VENDOR_ALIASES.items():
         matched = alias in text if re.search(r"[^\x00-\x7f]", alias) else bool(re.search(rf"\b{re.escape(alias)}\b", text))
@@ -259,36 +259,138 @@ def _one_sentence(value: str, fallback: str) -> str:
     return (text[:match.end()].strip() if match else text[:115].rstrip("，,；;。 ") + ("。" if len(text) > 115 else ""))
 
 
+def _analysis_text(value: str | dict | None) -> str:
+    if isinstance(value, str) and value.startswith(("AI 不可用时", "When AI is unavailable")):
+        return ""
+    if isinstance(value, str):
+        try:
+            parsed = ai_service.extract_json(value)
+        except Exception:
+            parsed = None
+        if isinstance(parsed, dict):
+            value = next((parsed.get(key) for key in ("analysis", "summary", "opportunity", "capability") if parsed.get(key)), "")
+        elif isinstance(parsed, list):
+            value = next((item.get("analysis") for item in parsed if isinstance(item, dict) and item.get("analysis")), "")
+    elif isinstance(value, dict):
+        value = next((value.get(key) for key in ("analysis", "summary", "opportunity", "capability") if value.get(key)), "")
+    value = re.sub(r"^Solution value:\s*", "", str(value or ""), flags=re.I)
+    value = re.sub(r";\s*(?:Open-source projects|(?:Alibaba Cloud|Huawei Cloud) resources):.*$", "", value, flags=re.I)
+    text = _one_sentence(value, "")
+    return "" if text in ("", "[hidden]") else text
+
+
+def _ensure_radar_analyses(events: list[dict], generate: bool = True) -> None:
+    from services.prompt_service import published_prompt
+    active_prompt = published_prompt("radar_event_analysis")
+    prompt_name = active_prompt["prompt_name"] if active_prompt else None
+    prompt_version = active_prompt["version"] if active_prompt else None
+    v2_events = [event for event in events if event.get("event_id")]
+    keys = [event["id"] for event in v2_events]
+    cached = {}
+    if keys:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT source_key, analysis, prompt_version FROM intelligence_analysis WHERE kind='radar_event_v2' AND source_key=ANY(%s)", (keys,))
+            cached = {row["source_key"]: row for row in cursor.fetchall()}
+        for event in v2_events:
+            saved = cached.get(event["id"])
+            event["analysis"] = _analysis_text(saved["analysis"]) if saved and saved.get("prompt_version") == prompt_version else ""
+    missing = [event for event in events if not event.get("analysis")]
+    if not missing or not generate:
+        return
+    unresolved = missing
+    for offset in range(0, len(unresolved), 12):
+        batch = unresolved[offset:offset + 12]
+        try:
+            user_prompt = json.dumps([{"index": i, "vendor": event["vendor"], "type": event["type"],
+                                      "title": event["title"], "summary": event["summary"]}
+                                     for i, event in enumerate(batch)], ensure_ascii=False)
+            raw = ai_service.chat_complete(
+                system_prompt=active_prompt["system_prompt"] if active_prompt else "你是商业技术情报分析师。根据标题和来源摘要，每条写一句简体中文分析。只陈述输入能证实的内容。社区热榜或文章标题没有正文时，只概括讨论主题，并说明细节需看原文核实；不得把社区文章表述为厂商正式发布，不推断未提供的能力、指标、组织或标准。只输出 JSON 数组，字段 index 和 analysis。",
+                user_prompt=(active_prompt["user_prompt_template"].replace("{{evidence}}", user_prompt)
+                             if active_prompt and active_prompt.get("user_prompt_template") else user_prompt),
+                max_tokens=1000, temperature=0.1, timeout=45)
+            results = ai_service.extract_json_array(raw)
+            with get_db() as conn:
+                cursor = conn.cursor()
+                for row in results:
+                    index, analysis = row.get("index"), _analysis_text(row.get("analysis"))
+                    if type(index) is int and 0 <= index < len(batch) and analysis:
+                        event = batch[index]
+                        event["analysis"] = analysis
+                        cursor.execute("""INSERT INTO intelligence_analysis (kind,source_key,analysis,prompt_name,prompt_version)
+                            VALUES ('radar_event_v2',%s,%s,%s,%s)
+                            ON CONFLICT (kind,source_key) DO UPDATE SET analysis=EXCLUDED.analysis,
+                              prompt_name=EXCLUDED.prompt_name,prompt_version=EXCLUDED.prompt_version""",
+                                       (event["id"], analysis, prompt_name, prompt_version))
+        except Exception as exc:
+            logger.warning("Radar event AI analysis unavailable for %d items: %s", len(batch), exc)
+    for event in missing:
+        if not event.get("analysis"):
+            event["analysis"] = "AI 分析暂不可用，请查看来源摘要。"
+
+
 def build_intelligence_radar(now: datetime | None = None) -> dict:
-    """Build a seven-day, cross-board event feed and merge duplicate source links."""
+    """Build a 30-day, cross-board event feed and merge duplicate source links."""
     now = now or datetime.now(ZoneInfo("Asia/Shanghai"))
     today = now.date()
-    since = (today - timedelta(days=6)).isoformat()
+    since = (today - timedelta(days=29)).isoformat()
     until = today.isoformat()
     raw: list[dict] = []
     with get_db() as conn:
         cursor = conn.cursor()
+        cursor.execute("""SELECT e.id AS v2_event_id, e.title, e.summary,
+                                 COALESCE(raw.canonical_url, '') AS url, source.name AS source,
+                                 COALESCE(raw.content->>'vendor', entity.metadata->>'vendor', '') AS vendor,
+                                 e.event_type AS category,
+                                 CASE WHEN 'technology_ecosystem'=ANY(e.business_scopes) THEN 'github'
+                                      WHEN 'ai_applications'=ANY(e.business_scopes) THEN 'apps'
+                                      WHEN 'solutions'=ANY(e.business_scopes) THEN 'solutions'
+                                      WHEN 'community_insights'=ANY(e.business_scopes) THEN 'community'
+                                      WHEN 'competitor_dynamics'=ANY(e.business_scopes) THEN 'competitors'
+                                      ELSE 'competitors' END AS board,
+                                 COALESCE(e.published_at, e.event_at, raw.published_at, raw.observed_at)::date::text AS happened_at,
+                                 CASE WHEN e.published_at IS NOT NULL THEN 'published'
+                                      WHEN e.event_at IS NOT NULL THEN 'event'
+                                      WHEN raw.published_at IS NOT NULL THEN 'published' ELSE 'observed' END AS date_basis,
+                                 e.scores
+                          FROM intelligence_events e
+                          JOIN intelligence_event_evidence evidence ON evidence.event_id=e.id
+                          JOIN intelligence_raw_items raw ON raw.id=evidence.raw_item_id
+                          JOIN intelligence_sources source ON source.source_key=raw.source_key
+                          LEFT JOIN intelligence_entities entity ON entity.entity_key=e.entity_key
+                          WHERE e.status='active'
+                            AND COALESCE(e.published_at, e.event_at, raw.published_at, raw.observed_at)::date
+                                BETWEEN %s::date AND %s::date
+                          ORDER BY e.last_seen_at DESC, e.id DESC, raw.observed_at DESC""", (since, until))
+        raw.extend(dict(row) for row in cursor.fetchall())
         cursor.execute("""SELECT n.vendor, n.title, n.summary, n.link AS url,
                                  COALESCE(n.published_date::text, n.scrape_date::text) AS happened_at,
+                                 CASE WHEN n.published_date IS NULL THEN 'observed' ELSE 'published' END AS date_basis,
                                  'competitors' AS board, COALESCE(n.category, '') AS category, a.analysis AS why_detail
                           FROM competitor_news n LEFT JOIN intelligence_analysis a
                             ON a.kind='competitor_update' AND a.source_key=n.link || '::' || n.title
-                          WHERE COALESCE(n.published_date::text, n.scrape_date::text) BETWEEN %s AND %s
+                          WHERE LEFT(COALESCE(n.published_date::text, n.scrape_date::text), 10) BETWEEN %s AND %s
                           UNION ALL
-                          SELECT vendor, title, summary, url, crawl_date AS happened_at,
+                          SELECT vendor, title, summary, url, crawl_date AS happened_at, 'observed' AS date_basis,
                                  'competitors' AS board, COALESCE(category, '') AS category, NULL AS why_detail
                           FROM cloud_vendor_news WHERE crawl_date BETWEEN %s AND %s""", (since, until, since, until))
         raw.extend(dict(row) for row in cursor.fetchall())
         cursor.execute("""SELECT vendor, name AS title, COALESCE(summary, source_text, '') AS summary, url,
-                                 COALESCE(published_at, source_fetched_at::date::text) AS happened_at,
+                                 published_at AS happened_at, 'published' AS date_basis,
                                  'apps' AS board, COALESCE(category, '') AS category, opportunity AS why_detail
                           FROM vendor_ai_applications
-                          WHERE LEFT(COALESCE(published_at, source_fetched_at::date::text), 10) BETWEEN %s AND %s
+                          WHERE published_at IS NOT NULL AND LEFT(published_at, 10) BETWEEN %s AND %s
                             AND kind!='product'""", (since, until))
         raw.extend(dict(row) for row in cursor.fetchall())
-        cursor.execute("""SELECT vendor, title, COALESCE(change_summary, source_description, '') AS summary, url,
-                                 last_changed_date AS happened_at, 'solutions' AS board, COALESCE(category, '') AS category
-                          FROM aliyun_solutions WHERE last_changed_date BETWEEN %s AND %s AND is_active AND NOT is_baseline""", (since, until))
+        cursor.execute("""SELECT vendor, title, COALESCE(change_summary, source_description, '') AS summary,
+                                 CASE WHEN LEFT(summary, 15) = 'Solution value:' THEN summary END AS why_detail, url,
+                                 CASE WHEN NOT is_active THEN removed_at::date::text ELSE last_changed_date::text END AS happened_at,
+                                 CASE WHEN NOT is_active THEN '下线' WHEN first_seen_date=last_changed_date THEN '新增' ELSE '更新' END AS change_type,
+                                 'solutions' AS board, COALESCE(category, '') AS category
+                          FROM aliyun_solutions
+                          WHERE COALESCE(CASE WHEN NOT is_active THEN removed_at::date::text ELSE last_changed_date::text END, last_changed_date::text) BETWEEN %s AND %s
+                            AND NOT is_baseline""", (since, until))
         raw.extend(dict(row) for row in cursor.fetchall())
         cursor.execute("""SELECT '' AS vendor, g.repo_name AS title, COALESCE(e.summary_zh, e.summary, g.description, '') AS summary,
                                  g.repo_url AS url, g.scrape_date AS happened_at, 'github' AS board,
@@ -298,12 +400,14 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
                           WHERE g.scrape_date BETWEEN %s AND %s AND g.category='daily'""", (since, until))
         raw.extend(dict(row) for row in cursor.fetchall())
 
-    # Community APIs expose current ranked lists without publication timestamps; mark their first observation today.
+    # Community ranking snapshots have observation time, not a verified publication date.
     try:
         from services.community_insight_service import get_community_insights
         for item in get_community_insights().get("items", []):
             if item.get("title") and item.get("url"):
-                raw.append({**item, "vendor": "", "happened_at": today.isoformat(), "board": "community", "category": "社区热点"})
+                published_at = item.get("published_at")
+                raw.append({**item, "vendor": "", "happened_at": published_at or item.get("observed_at") or today.isoformat(),
+                            "date_basis": "published" if published_at else "observed", "board": "community", "category": "社区热点"})
     except Exception as exc:
         logger.warning("Community radar feed unavailable: %s", exc)
 
@@ -320,7 +424,7 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
             event_day = date.fromisoformat(day)
         except ValueError:
             continue
-        if event_day > today or (today - event_day).days > 6:
+        if event_day > today or (today - event_day).days > 29:
             continue
         board = str(row.get("board") or "")
         url = str(row.get("url") or "").strip()
@@ -329,14 +433,17 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
         source = str(row.get("source") or "").strip()
         if not source:
             source = {"apps": "AI 应用发布库", "solutions": f"{vendor}方案目录", "competitors": str(row.get("vendor") or vendor), "github": "GitHub"}.get(board, "")
+        if board == "apps" and urlsplit(url).hostname == "github.com" and vendor == "DeepSeek":
+            source = "DeepSeek 官方 GitHub"
         if board == "solutions" and not source:
             source = vendor
         source = {"Alibaba Cloud": "阿里云官方", "Tencent Cloud": "腾讯云官方", "Volcengine": "火山引擎官方", "Huawei Cloud": "华为云官方", "Microsoft Azure": "Microsoft 官方"}.get(source, source)
         canonical = _normal_url(url)
-        title_key = re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", title.casefold())
+        title_key = re.sub(r"[^a-z0-9\u4e00-\u9fff]", "", normalized_entity_name(title))
         identity = (vendor, title_key)
         key = (url_index.get(canonical, "") if canonical else "") or title_index.get(identity, "")
-        key = key or (f"url:{canonical}" if canonical else f"title:{vendor}:{title_key}")
+        key = key or (f"event:{row['v2_event_id']}" if row.get("v2_event_id") else
+                      f"url:{canonical}" if canonical else f"title:{vendor}:{title_key}")
         fallback_why = {"商业动作": "这项动作可能改变厂商竞争关系或市场资源配置。", "解决方案": "这项方案变化可能影响客户的技术选型与交付路径。", "GitHub 技术": "这项技术进入趋势榜，值得观察其采用与生态扩展。", "社区动态": "社区关注度变化可作为开发者需求的早期信号。", "模型": "模型能力变化可能影响应用效果与推理成本。", "AI 应用": "新应用或功能可能改变用户入口与工作流程。", "产品发布": "新产品或功能发布，值得跟踪后续可用性与采用情况。"}[kind]
         source_url = canonical or url
         source_name = source or ("GitHub" if board == "github" else "社区")
@@ -344,21 +451,33 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
             short = title
             if board == "apps" and not re.search(r"发布|推出|上线|更新|launch|release", short, re.I): short += " 发布"
             elif board == "github": short += " 上榜"
-            elif board == "solutions": short += " 更新"
-            short = short[:10].rstrip() + ("…" if len(short) > 10 else "")
+            elif board == "solutions": short += f" {row.get('change_type') or '更新'}"
+            limit = 4 if re.search(r"[\u4e00-\u9fff]", short) else 8
+            short = short[:limit].rstrip() + ("…" if len(short) > limit else "")
             merged[key] = {"id": key, "title": title, "short_title": short, "vendor": vendor,
                            "happened_at": day, "type": kind, "summary": _one_sentence(row.get("summary", ""), "来源暂未提供摘要。"),
-                           "why": _one_sentence(row.get("why_detail", ""), fallback_why), "importance": 3, "board": board,
+                           "why": _one_sentence(row.get("why_detail", ""), fallback_why),
+                           "analysis": _analysis_text(row.get("why_detail")), "importance": 3, "board": board, "boards": [board],
+                           "date_basis": row.get("date_basis", "event"),
                            "sources": [], "related": []}
+        if row.get("v2_event_id"):
+            merged[key]["event_id"] = row["v2_event_id"]
         title_index[identity] = key
         if canonical:
             url_index[canonical] = key
         event = merged[key]
+        if board not in event["boards"]:
+            event["boards"].append(board)
+        if not event.get("analysis"):
+            event["analysis"] = _analysis_text(row.get("why_detail"))
         if all(existing["name"] != source_name for existing in event["sources"]):
             event["sources"].append({"name": source_name, "url": source_url})
         if event_day > date.fromisoformat(event["happened_at"]):
             event["happened_at"] = day
+            event["date_basis"] = row.get("date_basis", "event")
             event["summary"] = _one_sentence(row.get("summary", ""), event["summary"])
+        elif row.get("date_basis") in ("published", "event") or event["date_basis"] == "observed":
+            event["date_basis"] = row.get("date_basis", "event")
         if board in ("apps", "solutions", "competitors"):
             event["board"] = board
             event["vendor"] = vendor
@@ -372,6 +491,7 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
         event["importance"] = 5 if any(word in text for word in ("发布", "上线", "融资", "收购", "发布会", "launch", "release")) else 4 if event["type"] in ("模型", "解决方案", "商业动作") else 3
         event["is_multi_source"] = len(event["sources"]) > 1
     events.sort(key=lambda item: (item["importance"], item["happened_at"]), reverse=True)
+    _ensure_radar_analyses(events, generate=False)
     for event in events:
         event["related"] = [{"id": candidate["id"], "title": candidate["title"]}
                             for candidate in events if candidate["id"] != event["id"] and candidate["vendor"] == event["vendor"]][:3]
@@ -382,16 +502,24 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
                    "competitors": ("厂商动态", "/insights/competitors", "条厂商动态")}
     for key, (name, href, phrase) in board_names.items():
         count = len(source_counts.get(key, set()))
-        newest = next((event for event in events if event["board"] == key), None)
+        newest = max((event for event in events if event["board"] == key), key=lambda event: event["happened_at"], default=None)
         unit = {"github": "个项目", "apps": "条应用", "solutions": "项方案", "community": "条社区热点", "competitors": "条厂商动态"}[key]
         boards.append({"key": key, "name": name, "href": href, "count": count,
-                       "change": f"{newest['short_title']}" if newest else "近 7 天暂无新增",
+                       "change": f"{newest['short_title']}" if newest else "近 30 天暂无新增",
                        "unit": unit})
-    today_events = [event for event in events if event["happened_at"] == today.isoformat()]
+    today_events = [event for event in events if event["happened_at"] == today.isoformat() and event["date_basis"] != "observed"]
     highlights = (today_events or events)[:5]
-    return {"as_of": now.isoformat(timespec="minutes"), "today_count": len(today_events),
+    return {"as_of": now.isoformat(timespec="minutes"), "today_count": len(today_events), "event_count": len(events),
             "priority_count": sum(event["importance"] >= 4 for event in events),
             "vendor_count": len({event["vendor"] for event in events if event["vendor"] != "行业动态"}),
             "source_count": len({source["name"] for event in events for source in event["sources"]}),
-            "vendors": list(VENDORS), "events": events[:48], "highlights": highlights,
-            "highlights_scope": "today" if today_events else "week", "boards": boards}
+            "vendors": [vendor for vendor in VENDORS if any(event["vendor"] == vendor for event in events)],
+            "events": events, "highlights": highlights,
+            "highlights_scope": "today" if today_events else "recent", "boards": boards}
+
+
+def analyze_radar_events() -> dict:
+    """Refresh a bounded batch of cached event analyses outside user requests."""
+    events = build_intelligence_radar()["events"][:24]
+    _ensure_radar_analyses(events)
+    return {"processed": len(events)}

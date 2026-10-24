@@ -21,6 +21,7 @@ export interface HotspotDataState {
   source: string;
   date: string;
   loading: boolean;
+  error: boolean;
   refreshing: boolean;
   history: HistoryEntry[];
   showHistory: boolean;
@@ -44,6 +45,7 @@ export interface HotspotDataActions {
   setHistoryDate: (d: string) => void;
   setShowHistory: (show: boolean) => void;
   handleRefresh: () => Promise<void>;
+  handleReload: () => Promise<void>;
   handleEvalRefresh: () => Promise<void>;
   savePractice: (item: TrendingItem) => Promise<void>;
 }
@@ -59,6 +61,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   const [source, setSource] = useState("");
   const [date, setDate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -109,17 +112,27 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   const fetchTrending = useCallback(async (p: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`${API}/api/github-trending?since=${p}`);
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
-      const json: TrendingResponse = await res.json();
-      setData(json.items);
-      setSource(json.source);
-      setDate(json.date);
+      const periods = p === "all" ? ["daily", "weekly", "monthly"] : [p];
+      const responses = await Promise.all(periods.map(async (period) => {
+        let res = await fetch(`${API}/api/v2/repositories/trending?period=${period}`);
+        if (res.status === 404) res = await fetch(`${API}/api/github-trending?since=${period}`);
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        return res.json() as Promise<TrendingResponse>;
+      }));
+      const seen = new Set<string>();
+      setData(responses.flatMap(response => response.items).filter(item => {
+        const key = item.repo_url || item.repo_name;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }));
+      setSource(responses[0].source);
+      setDate(responses[0].date);
+      setError(false);
     } catch (err) {
       console.error("GitHub Trending 加载失败:", err);
       setData([]);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -140,13 +153,15 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
     }
   };
 
+  const handleReload = async () => fetchTrending(period);
+
   // ── Fetch history ────────────────────────────────────────
   const fetchHistory = useCallback(async () => {
     const request = ++historyRequest.current;
     setHistoryLoading(true);
     try {
       const res = await fetch(
-        `${API}/api/github-trending/history?days=14&category=${period}&locale=${locale}`,
+        `${API}/api/github-trending/history?days=14&category=${period === "all" ? "daily" : period}&locale=${locale}`,
       );
       if (!res.ok) {
         throw new Error(`API error: ${res.status}`);
@@ -161,7 +176,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   }, [period, locale]);
 
   // ── Fetch evaluation ─────────────────────────────────────
-  const fetchEvaluation = async () => {
+  const fetchEvaluation = useCallback(async () => {
     const request = ++evalRequest.current;
     setEvalLoading(true);
     try {
@@ -181,7 +196,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
     } finally {
       if (request === evalRequest.current) setEvalLoading(false);
     }
-  };
+  }, [locale]);
 
   // ── Handle eval refresh ──────────────────────────────────
   const handleEvalRefresh = async () => {
@@ -212,16 +227,14 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   }, [fetchTrending, period]);
 
   useEffect(() => {
-    if (showHistory) {
-      void Promise.resolve().then(fetchHistory);
-    }
-  }, [fetchHistory, showHistory]);
+    void Promise.resolve().then(fetchHistory);
+  }, [fetchHistory]);
 
   useEffect(() => {
-    if (period === "daily" && !historyDate) {
+    if (!historyDate) {
       void Promise.resolve().then(fetchEvaluation);
     }
-  }, [period, historyDate, locale]);
+  }, [period, historyDate, fetchEvaluation]);
 
   // ── Derived display data ─────────────────────────────────
   const displayData = historyDate
@@ -255,6 +268,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
     source,
     date,
     loading,
+    error,
     refreshing,
     history,
     showHistory,
@@ -275,6 +289,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
     setHistoryDate,
     setShowHistory,
     handleRefresh,
+    handleReload,
     handleEvalRefresh,
     savePractice,
   };

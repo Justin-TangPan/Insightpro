@@ -9,7 +9,7 @@ npm ci
 npm run dev
 ```
 
-本地地址为 <http://localhost:3000>。默认代理到 `http://127.0.0.1:8000`；容器环境通过 `API_PROXY_TARGET=http://backend:8000` 覆盖。
+本地地址为 <http://localhost:3000>。默认代理到 `http://127.0.0.1:8000`；容器环境通过 `API_PROXY_TARGET=http://insight-backend:8000` 覆盖。
 
 Supabase 登录和注册还需要在根目录 `.env` 配置：
 

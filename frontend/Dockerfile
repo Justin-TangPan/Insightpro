@@ -8,7 +8,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-ARG API_PROXY_TARGET=http://backend:8000
+ARG API_PROXY_TARGET=http://insight-backend:8000
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ENV API_PROXY_TARGET=${API_PROXY_TARGET} \
@@ -25,7 +25,7 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
-    API_PROXY_TARGET=http://backend:8000
+    API_PROXY_TARGET=http://insight-backend:8000
 
 RUN groupadd --gid 10001 insight \
     && useradd --uid 10001 --gid insight --create-home insight

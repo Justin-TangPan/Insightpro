@@ -4,7 +4,6 @@ Encapsulates email sending, subscription management, and daily digest constructi
 """
 import smtplib
 import logging
-from html import escape
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import datetime
@@ -34,7 +33,7 @@ def get_subscriber(subscriber_id: int) -> Optional[dict]:
         return dict(row) if row else None
 
 
-def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = None, send_time: str = "09:05", language: str = "zh") -> bool:
+def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = None, send_time: str = "10:05", language: str = "zh") -> bool:
     try:
         with get_db() as conn:
             c = conn.cursor()
@@ -87,49 +86,59 @@ def subscriber_is_due(subscriber: dict, now: datetime) -> bool:
 
 
 def daily_digest_ready(now: datetime) -> bool:
-    """Send after today's Radar has at least one collected signal."""
-    from services.radar_service import build_radar_snapshot
-    return build_radar_snapshot(now.astimezone(SHANGHAI_TZ).date())["today_count"] > 0
+    """Wait for today's board analyses, with a late fallback if refresh fails."""
+    from services.email_dashboard import BOARDS, current_analyses
+
+    local = now.astimezone(SHANGHAI_TZ)
+    if local.strftime("%H:%M") < "10:05":
+        return False
+    if set(current_analyses(local.date())) >= set(BOARDS):
+        return True
+    return local.strftime("%H:%M") >= "11:30"
 
 
 def build_daily_digest_html(language: str = "zh") -> str:
-    """Compact, email-safe Radar Snapshot shared with the homepage."""
-    from services.radar_service import build_radar_snapshot
+    from services.email_dashboard import build_html
+    return build_html(language)
 
-    en = language == "en"
-    snapshot = build_radar_snapshot()
-    base_url = settings.BASE_URL.rstrip("/")
-    categories = snapshot["categories"]
-    max_count = max((item["current"] for item in categories), default=0) or 1
-    rising = [item["name"] for item in categories if item["direction"] == "↑"]
-    radar_rows = "".join(
-        f'<tr><td style="padding:7px 8px 7px 0;color:#50606a;font-size:12px;width:105px">{escape(item["name"])}</td>'
-        f'<td style="padding:7px 4px;width:220px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="background:#e7ecea;height:9px"><div style="background:#78958c;width:{round(item["current"] / max_count * 100)}%;height:9px"></div></td></tr></table></td>'
-        f'<td style="padding:7px 0 7px 8px;color:#283a38;font-size:12px;white-space:nowrap;text-align:right">{item["current"]} &nbsp;{item["direction"]}</td></tr>'
-        for item in categories
-    )
-    signals = "".join(
-        f'<tr><td style="padding:13px 0;border-top:1px solid #e2e7e8"><span style="color:#4f6c62;font-size:11px">{escape(item["category"])} · {escape(str(item["source"]))}</span>'
-        f'<p style="margin:5px 0;font-size:15px;font-weight:bold;color:#1c2529">{escape(item["title"])}</p>'
-        f'<p style="margin:0;font-size:12px;line-height:1.6;color:#50606a">{escape(item["summary"][:85] + ("…" if len(item["summary"]) > 85 else "") or ("Brief pending" if en else "一句话解读待补充"))}</p>'
-        f'<a href="{escape(item["url"] or base_url, quote=True)}" style="display:inline-block;margin-top:6px;color:#607a72;font-size:12px">{"Read source" if en else "查看来源"}</a></td></tr>'
-        for item in snapshot["top_signals"][:3]
-    ) or f'<tr><td style="padding:12px 0;color:#70808a;font-size:12px">{"No vendor launch signal matched this sample" if en else "本期暂无符合筛选条件的厂商发布线索"}</td></tr>'
-    apps = "".join(
-        f'<tr><td style="padding:13px 0;border-top:1px solid #e2e7e8"><a href="{escape(app["url"], quote=True)}" style="font-size:15px;font-weight:bold;color:#607a72;text-decoration:none">{escape(app["title"])}</a>'
-        f'<span style="margin-left:8px;font-size:11px;color:#78858b">Product Hunt · {escape(app["day"])}</span>'
-        f'<p style="margin:5px 0;color:#1c2529;font-size:12px;line-height:1.6">{escape(app["tagline"] if en else app["summary"])}</p>'
-        f'<p style="margin:0;color:#70808a;font-size:11px;line-height:1.5">{escape(app["tagline"] if not en else app["why"])}</p></td></tr>'
-        for app in snapshot["apps"][:2]
-    ) or f'<tr><td style="padding:12px 0;color:#70808a;font-size:12px">{"No recent AI app matched the discovery criteria" if en else "本期暂无符合条件的新 AI 应用线索"}</td></tr>'
-    focus = snapshot["apps"][0] if snapshot["apps"] else None
-    next_step = (f'{"Check" if en else "建议验证"} {escape(focus["title"])}: {escape(focus["why"])}' if focus
-                 else ("Review the source evidence before taking action." if en else "建议先核实来源，再决定是否跟进。"))
-    title = "AI Radar · Daily Brief" if en else "AI Radar · 今日简报"
-    return f'''<!doctype html><html lang="{"en" if en else "zh-CN"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;background:#f5f6f7;color:#1c2529;font-family:Arial,'Microsoft YaHei',sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f6f7"><tr><td align="center" style="padding:20px 10px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border:1px solid #e2e7e8"><tr><td style="padding:27px 28px 22px;border-bottom:3px solid #78958c"><p style="margin:0 0 7px;color:#4f6c62;font-size:11px;font-weight:bold;letter-spacing:1px">INSIGHTPRO / {snapshot["as_of"]}</p><h1 style="margin:0;font-size:24px;line-height:1.3;color:#1c2529">{title}</h1></td></tr><tr><td style="padding:22px 28px"><p style="margin:0 0 16px;color:#596771;font-size:12px">{"Collected today" if en else "今日采集"} <b style="color:#1c2529">{snapshot["today_count"]}</b> &nbsp;·&nbsp; {"New AI apps" if en else "本周新应用"} <b style="color:#1c2529">{len(snapshot["apps"])}</b> &nbsp;·&nbsp; {"Rising directions" if en else "升温方向"} <b style="color:#1c2529">{len(rising)}</b></p>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f4f5;border:1px solid #e2e7e8"><tr><td style="padding:15px"><p style="margin:0 0 7px;font-size:14px;font-weight:bold;color:#283a38">{"Small AI Radar" if en else "AI 热点小雷达"}</p><p style="margin:0 0 10px;font-size:11px;color:#70808a">{"Source signal volume · last 7 days versus prior 7 days" if en else "已采集信号量 · 近 7 天对比前 7 天"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{radar_rows}</table></td></tr></table>
-<p style="margin:18px 0 4px;font-size:12px;color:#50606a">{"Rising:" if en else "本周升温："} {escape('、'.join(rising) if rising else ('None clearly detected' if en else '暂无明显升温方向'))}</p><h2 style="margin:24px 0 8px;font-size:17px;color:#1c2529">{"New AI app discovery" if en else "新 AI 应用发现"}</h2><p style="margin:0 0 6px;font-size:11px;color:#78858b">Product Hunt · {"External launch feed" if en else "独立发布线索"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{apps}</table><h2 style="margin:24px 0 8px;font-size:17px;color:#1c2529">{"Vendor launch signals" if en else "厂商产品发布信号"}</h2><p style="margin:0 0 6px;font-size:11px;color:#78858b">{"Existing competitor feed" if en else "现有友商动态采集"}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{signals}</table><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;background:#e7eeeb"><tr><td style="padding:15px;color:#283a38;font-size:12px;line-height:1.6"><b>{"Suggested next step" if en else "建议下一步"}</b><br>{next_step}</td></tr></table><p style="margin:20px 0 4px"><a href="{escape(base_url, quote=True)}" style="display:inline-block;padding:12px 18px;background:#607a72;color:#ffffff;font-size:13px;text-decoration:none">{"Open the full AI Radar" if en else "进入 InsightPro 查看完整 AI Radar"}</a></p><p style="margin:14px 0 0;font-size:11px;line-height:1.5;color:#78858b">{"Product Hunt launch is discovery evidence, not user growth proof. Source signals are not yet clustered events." if en else "产品发布是发现线索，不代表用户增长；来源信号尚未完成跨来源事件聚类。"}</p></td></tr></table></td></tr></table></body></html>'''
+
+def build_technical_digest_html(language: str = "zh") -> str:
+    from services.email_technical_dashboard import build_html
+    return build_html(language)
+
+
+def build_digest_html(template: str, language: str = "zh") -> str:
+    return build_technical_digest_html(language) if template == "technical" else build_daily_digest_html(language)
+
+
+def _digest_messages(language: str, day: str) -> list[tuple[str, str]]:
+    labels = (("商业洞察", "Business intelligence brief"), ("技术项目洞察", "Technical project brief"))
+    builders = (build_daily_digest_html, build_technical_digest_html)
+    return [(f"InsightPro · {labels[index][1] if language == 'en' else labels[index][0]} ({day})", builders[index](language))
+            for index in range(2)]
+
+
+def _sent_briefs(subscriber_id: int, day: str) -> set[str]:
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT delivery_type FROM email_delivery_attempts
+                          WHERE subscriber_id=%s AND delivery_date=%s AND status='sent'""",
+                       (subscriber_id, day))
+        return {row["delivery_type"] for row in cursor.fetchall()}
+
+
+def _record_brief_delivery(subscriber: dict, day: str, delivery_type: str, sent: bool) -> None:
+    with get_db() as conn:
+        conn.cursor().execute("""INSERT INTO email_delivery_attempts
+            (subscriber_id,recipient_email,delivery_date,delivery_type,status,attempts,last_error,sent_at,updated_at)
+            VALUES (%s,%s,%s,%s,%s,1,%s,CASE WHEN %s THEN NOW() END,NOW())
+            ON CONFLICT (subscriber_id,delivery_date,delivery_type) DO UPDATE SET
+              recipient_email=EXCLUDED.recipient_email,status=EXCLUDED.status,
+              attempts=email_delivery_attempts.attempts+1,last_error=EXCLUDED.last_error,
+              sent_at=CASE WHEN EXCLUDED.status='sent' THEN NOW() ELSE email_delivery_attempts.sent_at END,
+              updated_at=NOW()""",
+            (subscriber["id"], subscriber["email"], day, delivery_type,
+             "sent" if sent else "failed", None if sent else "SMTP delivery failed", sent))
 
 
 def send_email(to_addr: str, subject: str, html_content: str) -> bool:
@@ -139,8 +148,10 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
         return False
     try:
         msg = MIMEMultipart("alternative")
-        plain = BeautifulSoup(html_content, "html.parser").get_text(" ", strip=True)
-        msg.attach(MIMEText(f"{plain}\n\n{settings.BASE_URL.rstrip('/')}", "plain", "utf-8"))
+        soup = BeautifulSoup(html_content, "html.parser")
+        plain = soup.get_text(" ", strip=True)
+        links = "\n".join(f'{link.get_text(" ", strip=True)}: {link["href"]}' for link in soup.find_all("a", href=True))
+        msg.attach(MIMEText(f"{plain}\n\n{links}", "plain", "utf-8"))
         msg.attach(MIMEText(html_content, "html", "utf-8"))
         msg["Subject"] = subject
         msg["From"] = f"InsightPro <{settings.EMAIL_FROM}>"
@@ -156,6 +167,28 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
         return False
 
 
+def send_subscriber_briefs(subscriber: dict, now: Optional[datetime] = None, skip_sent: bool = False,
+                           messages: Optional[list[tuple[str, str]]] = None) -> dict:
+    now = now or datetime.now(SHANGHAI_TZ)
+    day = now.strftime("%Y-%m-%d")
+    messages = messages or _digest_messages(subscriber.get("language", "zh"), day)
+    sent_briefs = _sent_briefs(subscriber["id"], day) if skip_sent else set()
+    deliveries = 0
+    for delivery_type, (subject, html) in zip(("business", "technical"), messages):
+        if delivery_type in sent_briefs:
+            continue
+        sent = send_email(subscriber["email"], subject, html)
+        _record_brief_delivery(subscriber, day, delivery_type, sent)
+        deliveries += int(sent)
+        if sent:
+            sent_briefs.add(delivery_type)
+    success = {"business", "technical"}.issubset(sent_briefs)
+    if success:
+        with get_db() as conn:
+            conn.cursor().execute("UPDATE email_subscribers SET last_sent_at=CURRENT_TIMESTAMP WHERE id=%s", (subscriber["id"],))
+    return {"sent": int(success), "total": 1, "deliveries": deliveries}
+
+
 def send_daily_digest():
     """Send the insights daily digest to all active subscribers immediately."""
     subscribers = get_subscribers()
@@ -167,15 +200,24 @@ def send_daily_digest():
             return
 
     success = 0
+    deliveries = 0
+    html_by_language = {}
     for sub in subscribers:
         language = sub.get("language", "zh")
-        today = datetime.now().strftime("%Y-%m-%d")
-        html = build_daily_digest_html(language)
-        subject = f"InsightPro · AI Radar {'Daily Snapshot' if language == 'en' else '每日快照'} ({today})"
-        if send_email(sub["email"], subject, html):
-            success += 1
-    logger.info(f"Daily email send completed: {success}/{len(subscribers)} successful")
-    return {"sent": success, "total": len(subscribers)}
+        now = datetime.now(SHANGHAI_TZ)
+        today = now.strftime("%Y-%m-%d")
+        if language not in html_by_language:
+            html_by_language[language] = _digest_messages(language, today)
+        if sub.get("id") is None:
+            results = [send_email(sub["email"], subject, html) for subject, html in html_by_language[language]]
+            success += int(all(results))
+            deliveries += sum(results)
+        else:
+            result = send_subscriber_briefs(sub, now, skip_sent=False, messages=html_by_language[language])
+            success += result["sent"]
+            deliveries += result["deliveries"]
+    logger.info(f"Daily email send completed: {success}/{len(subscribers)} subscribers received both briefs")
+    return {"sent": success, "total": len(subscribers), "deliveries": deliveries}
 
 
 def send_scheduled_digests(now: Optional[datetime] = None):
@@ -185,22 +227,19 @@ def send_scheduled_digests(now: Optional[datetime] = None):
     if not due:
         return {"sent": 0, "total": 0}
     if not daily_digest_ready(now):
-        logger.info("Daily Radar Snapshot delayed: no signals collected today")
+        logger.info("Intelligence brief delayed: no recent radar events")
         return {"sent": 0, "total": 0}
 
     success = 0
+    deliveries = 0
+    html_by_language = {}
     for subscriber in due:
         language = subscriber.get("language", "zh")
-        html = build_daily_digest_html(language)
-        subject = f"InsightPro · AI Radar {'Daily Snapshot' if language == 'en' else '每日快照'} ({now:%Y-%m-%d})"
-        if not send_email(subscriber["email"], subject, html):
-            continue
-        with get_db() as conn:
-            c = conn.cursor()
-            c.execute(
-                "UPDATE email_subscribers SET last_sent_at = CURRENT_TIMESTAMP WHERE id = %s",
-                (subscriber["id"],),
-            )
-        success += 1
+        if language not in html_by_language:
+            html_by_language[language] = _digest_messages(language, now.strftime("%Y-%m-%d"))
+        day = now.date().isoformat()
+        result = send_subscriber_briefs(subscriber, now, skip_sent=True, messages=html_by_language[language])
+        deliveries += result["deliveries"]
+        success += result["sent"]
     logger.info(f"Subscription email send completed: {success}/{len(due)} successful")
-    return {"sent": success, "total": len(due)}
+    return {"sent": success, "total": len(due), "deliveries": deliveries}

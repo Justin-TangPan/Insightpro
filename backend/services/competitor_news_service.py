@@ -104,12 +104,40 @@ def backfill_competitor_analyses(limit: int = 500) -> dict:
 
 def refresh_competitor_news():
     today = datetime.now().strftime("%Y-%m-%d")
+    from services.source_registry_service import record_source_health, source_enabled
+    if not source_enabled("competitor_news"):
+        return []
     from crawlers import crawl_cloud_vendors, store_crawl_results
-    items = crawl_cloud_vendors()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT result ? 'competitor_news' AS collected
+                          FROM platform_task_runs
+                          WHERE task_key='daily_crawl' AND status='success'
+                            AND (started_at AT TIME ZONE 'Asia/Shanghai')::date=%s
+                          ORDER BY started_at DESC LIMIT 1""", (today,))
+        daily_crawl_collected = bool((cursor.fetchone() or {}).get("collected"))
+    if daily_crawl_collected:
+        items = get_competitor_news(today)
+        for item in items:
+            item.setdefault("url", item.get("link"))
+    else:
+        try:
+            items = crawl_cloud_vendors()
+        except Exception as exc:
+            record_source_health("competitor_news", "failed", str(exc))
+            raise
     if not items:
         logger.info("cloud vendor crawl returned no data for %s", today)
+        record_source_health("competitor_news", "empty")
         return []
-    store_crawl_results({"cloud_vendors": items})
+    if not daily_crawl_collected:
+        store_crawl_results({"cloud_vendors": items})
+    from services.intelligence_data_service import store_competitor_news
+    with get_db() as conn:
+        cursor = conn.cursor()
+        for item in items:
+            store_competitor_news(cursor, item)
+    record_source_health("competitor_news", "healthy")
     try:
         _ensure_analyses(items)
     except Exception as exc:

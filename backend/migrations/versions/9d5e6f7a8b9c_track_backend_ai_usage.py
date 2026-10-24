@@ -15,7 +15,10 @@ def upgrade():
 
 
 def downgrade():
-    if op.get_bind().execute(sa.text("SELECT EXISTS (SELECT 1 FROM ai_usage_records WHERE user_id IS NULL)")).scalar():
-        raise RuntimeError("Backend usage records have no user; restore them before downgrading")
+    op.execute("""DO $$ BEGIN
+        IF EXISTS (SELECT 1 FROM ai_usage_records WHERE user_id IS NULL) THEN
+            RAISE EXCEPTION 'Backend usage records have no user; restore them before downgrading';
+        END IF;
+    END $$""")
     op.drop_column("ai_usage_records", "usage_reported")
     op.alter_column("ai_usage_records", "user_id", existing_type=sa.UUID(), nullable=False)

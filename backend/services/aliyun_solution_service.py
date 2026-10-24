@@ -292,15 +292,35 @@ def refresh_aliyun_solutions() -> dict:
 def refresh_solution_catalogs() -> dict:
     """Refresh each official catalogue independently so one outage keeps the other current."""
     from services.huawei_solution_service import refresh_huawei_solutions
-    vendors = {"Alibaba Cloud": refresh_aliyun_solutions, "Huawei Cloud": refresh_huawei_solutions}
+    from services.source_registry_service import record_source_health, source_enabled
+    from services.intelligence_data_service import store_catalog_change
+    vendors = {
+        "Alibaba Cloud": ("aliyun_solutions", refresh_aliyun_solutions),
+        "Huawei Cloud": ("huawei_solutions", refresh_huawei_solutions),
+    }
     results = {}
-    for vendor, refresh in vendors.items():
+    for vendor, (source_key, refresh) in vendors.items():
+        if not source_enabled(source_key):
+            results[vendor] = {"status": "skipped", "reason": "source_disabled"}
+            continue
         try:
-            results[vendor] = refresh()
+            result = refresh()
+            if result["status"] == "success":
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""SELECT title,url,vendor,category,source_description,summary,change_summary,
+                        content_snapshot,is_active,is_baseline,removed_at FROM aliyun_solutions
+                        WHERE vendor=%s AND (is_active OR removed_at::date=%s)""",
+                        (vendor, result.get("checked_date")))
+                    for row in cursor.fetchall():
+                        store_catalog_change(cursor, source_key, dict(row))
+            record_source_health(source_key, "healthy")
+            results[vendor] = result
         except Exception as exc:
             logger.exception("%s solution catalogue refresh failed", vendor)
+            record_source_health(source_key, "failed", str(exc))
             results[vendor] = {"status": "failed", "error": str(exc)[:500]}
-    successful = [result for result in results.values() if result["status"] == "success"]
+    successful = [result for result in results.values() if result["status"] in ("success", "skipped")]
     return {
         "status": "success" if len(successful) == len(results) else "partial",
         "checked_date": datetime.now().strftime("%Y-%m-%d"),
@@ -319,7 +339,13 @@ def get_aliyun_solutions() -> dict:
             """
             SELECT id, title, url, category, source_description, summary, vendor, content_snapshot, change_summary,
                    first_seen_date, last_seen_date, last_changed_date,
-                   is_baseline, menu_order, updated_at
+                   is_baseline, menu_order, updated_at,
+                   (SELECT event.id FROM intelligence_events event
+                    JOIN intelligence_event_evidence evidence ON evidence.event_id=event.id
+                    JOIN intelligence_raw_items raw ON raw.id=evidence.raw_item_id
+                    WHERE raw.canonical_url=aliyun_solutions.url AND event.status='active'
+                      AND 'solutions'=ANY(event.business_scopes)
+                    ORDER BY raw.observed_at DESC,event.id DESC LIMIT 1) AS event_id
             FROM aliyun_solutions
             WHERE is_active=TRUE
             ORDER BY vendor, menu_order, title

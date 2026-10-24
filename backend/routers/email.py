@@ -9,13 +9,17 @@ from routers.auth import require_admin, require_auth
 
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel, Field, field_validator
+from typing import Literal
 from services.email_service import (
+    SHANGHAI_TZ,
     add_subscriber,
     build_daily_digest_html,
+    build_technical_digest_html,
     get_subscriber,
     get_subscribers,
     send_daily_digest,
     send_email,
+    send_subscriber_briefs,
     update_subscriber,
 )
 from db import get_db
@@ -27,8 +31,9 @@ class EmailRequest(BaseModel):
     email: str
     name: str = ""
     weekdays: list[int] = Field(default_factory=lambda: list(range(7)), min_length=1, max_length=7)
-    send_time: str = "09:05"
+    send_time: str = "10:05"
     language: str = "zh"
+    template: Literal["business", "technical", "both"] = "both"
 
     @field_validator("email")
     @classmethod
@@ -108,12 +113,16 @@ async def unsubscribe_email(email: str, _=Depends(require_admin)):
 
 @router.post("/email/test")
 async def test_email(req: EmailRequest, _=Depends(require_admin)):
-    html = build_daily_digest_html(req.language)
-    today = datetime.now().strftime("%Y-%m-%d")
-    subject = f"[Test] InsightPro · AI Radar Daily Snapshot ({today})"
+    today = datetime.now(SHANGHAI_TZ).strftime("%Y-%m-%d")
+    messages = []
+    if req.template in ("business", "both"):
+        messages.append(("商业洞察" if req.language == "zh" else "Business brief", build_daily_digest_html(req.language)))
+    if req.template in ("technical", "both"):
+        messages.append(("技术项目洞察" if req.language == "zh" else "Technical project brief", build_technical_digest_html(req.language)))
     try:
-        if send_email(req.email, subject, html):
-            return {"status": "success", "message": f"Test email sent to {req.email}"}
+        results = [send_email(req.email, f"[Test] InsightPro · {label} ({today})", html) for label, html in messages]
+        if all(results):
+            return {"status": "success", "message": f"{len(results)} test email(s) sent to {req.email}"}
         raise HTTPException(status_code=500, detail="Email send failed")
     except Exception as e:
         logger.exception("Email send error")
@@ -125,17 +134,15 @@ async def send_to_subscriber(subscriber_id: int, _=Depends(require_admin)):
     subscriber = get_subscriber(subscriber_id)
     if not subscriber:
         raise HTTPException(status_code=404, detail="Subscriber not found")
-    language = subscriber.get("language", "zh")
-    html = build_daily_digest_html(language)
-    subject = f"InsightPro · AI Radar {'Daily Snapshot' if language == 'en' else '每日快照'} ({datetime.now():%Y-%m-%d})"
-    if not send_email(subscriber["email"], subject, html):
+    result = send_subscriber_briefs(subscriber)
+    if not result["sent"]:
         raise HTTPException(status_code=500, detail="Email send failed")
-    return {"status": "success", "message": f"Email sent to {subscriber['email']}"}
+    return {"status": "success", "message": f"{result['deliveries']} emails sent to {subscriber['email']}"}
 
 
 @router.get("/email/preview", response_class=HTMLResponse)
-async def preview_email(language: str = "zh", _=Depends(require_admin)):
-    return build_daily_digest_html(language)
+async def preview_email(language: str = "zh", template: Literal["business", "technical"] = "business", _=Depends(require_admin)):
+    return build_daily_digest_html(language) if template == "business" else build_technical_digest_html(language)
 
 
 @router.post("/email/send-now")

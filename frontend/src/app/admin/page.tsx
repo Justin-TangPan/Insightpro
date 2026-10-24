@@ -1,159 +1,140 @@
 "use client";
 
 import Link from "next/link";
-import { Activity, ArrowRight, Database, FolderKanban, ShieldCheck, UsersRound } from "lucide-react";
+import { ArrowRight, BookOpenCheck, ChartNoAxesCombined, Database, Mail, Plus, ShieldCheck, UsersRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth-provider";
-import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
+import { taskStatus } from "@/lib/admin-task-status";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { usePreferences } from "@/lib/preferences";
 
-type Module = { href: string; title: string; titleEn: string; description: string; descriptionEn: string; icon: LucideIcon; meta: string; metaEn: string };
+type Health = "success" | "running" | "waiting" | "error";
+type Run = { status: string; started_at: string; finished_at: string | null };
+type Task = { key: string; name: string; schedule: string; uses_ai: boolean; next_run_at: string | null; last_run: Run | null };
+type Delivery = { status: string; delivery_date: string };
 type Metric = { label: string; value: string | number };
-type Health = "success" | "warning" | "error";
 type Overview = {
-  runtime: { health: Health; model: string; requests: number; activeRuntimes: number };
-  access: { health: Health; users: number; admins: number; active: number };
-  knowledge: { health: Health; documents: number; chunks: number; pending: number };
-  analytics: { health: Health; pv: number; uv: number; pages: number };
-  tasks: { health: Health; total: number; running: number; failed: number };
-  applications: { health: Health; total: number; done: number; failed: number; pending: number; byVendor: { vendor: string; total: number; done: number }[] };
+  updatedAt: string; available: number; totalServices: number;
+  runtime: { health: Health; model: string; requests: number | null; activeRuntimes: number | null; sources: number | null };
+  access: { health: Health; users: number | null; admins: number | null; active: number | null; spaces: number | null };
+  knowledge: { health: Health; documents: number | null; chunks: number | null; pending: number | null };
+  analytics: { health: Health; pv: number | null; uv: number | null; pages: number | null; daily: { date: string; pv: number; uv: number }[] };
+  tasks: { health: Health; items: Task[]; loaded: boolean; running: number; failed: number };
+  email: { health: Health; items: Delivery[]; loaded: boolean; running: number; failed: number };
+  applications: { total: number; done: number; failed: number; byVendor: { vendor: string; total: number; done: number }[] };
 };
 
-const modules: Module[] = [
-  { href: "/admin/runtime", title: "运行与数据", titleEn: "Runtime & data", description: "模型连接、数据源与邮件订阅", descriptionEn: "Models, data sources and email subscriptions", icon: Database, meta: "配置层", metaEn: "Configure" },
-  { href: "/admin/access", title: "用户与权限", titleEn: "Users & access", description: "成员、角色、AI Space 与 Runtime", descriptionEn: "Members, roles, AI Spaces and runtimes", icon: UsersRound, meta: "权限层", metaEn: "Access" },
-  { href: "/admin/knowledge", title: "知识库与产物", titleEn: "Knowledge & artifacts", description: "公共知识、向量索引与产物审核", descriptionEn: "Public knowledge, indexes and artifact review", icon: FolderKanban, meta: "内容层", metaEn: "Content" },
-  { href: "/admin/dashboard", title: "数据看板", titleEn: "Analytics dashboard", description: "访问趋势、用户身份与页面使用", descriptionEn: "Traffic, identities and page usage", icon: Activity, meta: "观测", metaEn: "Observe" },
-  { href: "/admin/tasks", title: "任务中心", titleEn: "Task center", description: "采集、AI 分析、同步与邮件执行", descriptionEn: "Crawling, AI, sync and email jobs", icon: ShieldCheck, meta: "运行", metaEn: "Operate" },
+const modules: { href: string; title: string; titleEn: string; description: string; descriptionEn: string; icon: LucideIcon; kind: "email" | "runtime" | "access" | "knowledge" | "analytics" }[] = [
+  { href: "/admin/emails", title: "邮件投递", titleEn: "Email delivery", description: "商业与技术简报投递状态", descriptionEn: "Business and technical brief delivery", icon: Mail, kind: "email" },
+  { href: "/admin/runtime", title: "运行与数据", titleEn: "Runtime & data", description: "模型连接、运行实例与数据源", descriptionEn: "Models, runtimes and data sources", icon: Database, kind: "runtime" },
+  { href: "/admin/access", title: "用户与权限", titleEn: "Users & access", description: "成员、角色与 AI Space", descriptionEn: "Members, roles and AI Spaces", icon: UsersRound, kind: "access" },
+  { href: "/admin/knowledge", title: "知识库与产物", titleEn: "Knowledge & artifacts", description: "公共知识、向量索引与产物审核", descriptionEn: "Knowledge, indexes and artifact review", icon: BookOpenCheck, kind: "knowledge" },
+  { href: "/admin/dashboard", title: "数据看板", titleEn: "Analytics dashboard", description: "近 7 天访问与页面使用", descriptionEn: "Visits and page usage over 7 days", icon: ChartNoAxesCombined, kind: "analytics" },
 ];
+
+const dateTime = (value?: string | null) => value ? new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+
+function StatusBadge({ health, en, task = false }: { health: Health; en: boolean; task?: boolean }) {
+  const labels = task ? { success: en ? "Success" : "成功", running: en ? "Running" : "运行中", waiting: en ? "Pending" : "等待", error: en ? "Failed" : "失败" } : { success: en ? "Healthy" : "正常", running: en ? "Running" : "运行中", waiting: en ? "Pending" : "等待", error: en ? "Issue" : "异常" };
+  return <span className={`admin-status admin-status-${health}`}><i aria-hidden="true" />{labels[health]}</span>;
+}
+
+function MiniTrend({ values, tone = "blue" }: { values: number[]; tone?: "blue" | "green" }) {
+  if (values.length < 2) return null;
+  const max = Math.max(1, ...values);
+  const points = values.map((value, index) => `${index * 100 / (values.length - 1)},${27 - value * 23 / max}`).join(" ");
+  return <svg className={`admin-trend admin-trend-${tone}`} viewBox="0 0 100 30" preserveAspectRatio="none" role="img" aria-label="近期变化趋势"><polyline points={points} fill="none" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" /></svg>;
+}
+
+function metricsFor(kind: (typeof modules)[number]["kind"], data: Overview): Metric[] {
+  const show = (value: number | null) => value ?? "—";
+  if (kind === "email") {
+    const sent = data.email.items.filter(item => item.status === "sent").length;
+    const finished = data.email.items.filter(item => item.status === "sent" || item.status === "failed").length;
+    return [{ label: "近期记录", value: data.email.loaded ? data.email.items.length : "—" }, { label: "运行中", value: data.email.loaded ? data.email.running : "—" }, { label: "失败", value: data.email.loaded ? data.email.failed : "—" }, { label: "近期成功率", value: finished ? `${Math.round(sent / finished * 100)}%` : "—" }];
+  }
+  if (kind === "runtime") return [{ label: "当前模型", value: data.runtime.model }, { label: "今日 AI", value: show(data.runtime.requests) }, { label: "Runtime", value: show(data.runtime.activeRuntimes) }, { label: "数据源", value: show(data.runtime.sources) }];
+  if (kind === "access") return [{ label: "用户", value: show(data.access.users) }, { label: "启用", value: show(data.access.active) }, { label: "管理员", value: show(data.access.admins) }, { label: "AI Space", value: show(data.access.spaces) }];
+  if (kind === "knowledge") return [{ label: "知识对象", value: show(data.knowledge.documents) }, { label: "向量片段", value: show(data.knowledge.chunks) }, { label: "待审产物", value: show(data.knowledge.pending) }];
+  return [{ label: "今日 PV", value: show(data.analytics.pv) }, { label: "今日 UV", value: show(data.analytics.uv) }, { label: "访问页面", value: show(data.analytics.pages) }];
+}
+
+function ModuleCard({ item, data, en }: { item: (typeof modules)[number]; data: Overview | null; en: boolean }) {
+  const health = data?.[item.kind].health ?? "waiting";
+  const emailDays = data?.email.items.reduce<Record<string, number>>((days, item) => {
+    if (item.status === "sent") days[item.delivery_date] = (days[item.delivery_date] || 0) + 1;
+    return days;
+  }, {}) || {};
+  const trend = item.kind === "email" ? Object.entries(emailDays).sort(([a], [b]) => a.localeCompare(b)).slice(-7).map(([, count]) => count)
+    : item.kind === "analytics" ? data?.analytics.daily.map(day => day.pv) || [] : [];
+  return <Link href={item.href} className="admin-module-card"><div className="admin-module-top"><span className="admin-module-icon"><item.icon size={21} strokeWidth={1.9} /></span><StatusBadge health={health} en={en} /></div><div className="admin-module-title"><div><h3>{en ? item.titleEn : item.title}</h3><p>{en ? item.descriptionEn : item.description}</p></div><ArrowRight size={16} aria-hidden="true" /></div><MiniTrend values={trend} tone={item.kind === "email" ? "green" : "blue"} /><dl className="admin-module-metrics">{data ? metricsFor(item.kind, data).map(metric => <div key={metric.label}><dt>{metric.label}</dt><dd title={String(metric.value)}>{metric.value}</dd></div>) : [0, 1, 2, 3].slice(0, item.kind === "knowledge" || item.kind === "analytics" ? 3 : 4).map(index => <div key={index}><dt>读取中</dt><dd>—</dd></div>)}</dl></Link>;
+}
 
 export default function AdminPage() {
   const { user, loading } = useAuth();
   const { preferences } = usePreferences();
   const en = preferences.language === "en";
   const [overview, setOverview] = useState<Overview | null>(null);
+  const [filter, setFilter] = useState("all");
 
   useEffect(() => {
     if (user?.app_metadata?.role !== "admin") return;
     let active = true;
-    const get = (path: string) => authenticatedFetch(`${API}${path}`).then(response => response.ok ? response.json() : Promise.reject());
+    const get = (path: string) => authenticatedFetch(`${API}${path}`).then(response => response.ok ? response.json() : Promise.reject(new Error(String(response.status))));
     void Promise.allSettled([
       get("/api/auth/admin/runtime-config"), get("/api/auth/agent-spaces"), get("/api/auth/users"),
       get("/api/agent/knowledge/overview"), get("/api/agent/admin/artifacts/requests"),
       get("/api/analytics?days=7"), get("/api/admin/tasks?limit=10"),
-      get("/api/agent-launches/progress"),
-    ]).then(([runtimeResult, spacesResult, usersResult, knowledgeResult, artifactsResult, analyticsResult, tasksResult, progressResult]) => {
+      get("/api/agent-launches/progress"), get("/api/admin/email-deliveries?limit=100"), get("/api/v2/admin/sources"),
+    ]).then(results => {
       if (!active) return;
-      const runtime = runtimeResult.status === "fulfilled" ? runtimeResult.value : {};
-      const spaces = spacesResult.status === "fulfilled" ? spacesResult.value : {};
-      const users = usersResult.status === "fulfilled" ? usersResult.value : {};
-      const knowledge = knowledgeResult.status === "fulfilled" ? knowledgeResult.value : {};
-      const artifacts = artifactsResult.status === "fulfilled" ? artifactsResult.value : {};
-      const analytics = analyticsResult.status === "fulfilled" ? analyticsResult.value : {};
-      const tasks = tasksResult.status === "fulfilled" ? tasksResult.value : {};
-      const progress = progressResult.status === "fulfilled" ? progressResult.value : {};
-      const accounts = users.users || [];
-      const taskItems = tasks.tasks || [];
-      const failedTasks = taskItems.filter((item: { last_run?: { status?: string } }) => item.last_run?.status === "failed").length;
-      const runningTasks = taskItems.filter((item: { last_run?: { status?: string } }) => item.last_run?.status === "running").length;
+      const values = results.map(result => result.status === "fulfilled" ? result.value : null);
+      const [runtime, spaces, users, knowledge, artifacts, analytics, tasks, progress, deliveries, sources] = values;
+      const accounts = users?.users || [];
+      const taskItems: Task[] = tasks?.tasks || [];
+      const emailItems: Delivery[] = deliveries?.items || [];
+      const running = taskItems.filter(task => taskStatus(task) === "running").length;
+      const failed = taskItems.filter(task => taskStatus(task) === "error").length;
+      const emailTask = taskItems.filter(task => task.key === "scheduled_email");
       setOverview({
-        runtime: { health: runtimeResult.status === "rejected" || spacesResult.status === "rejected" ? "error" : runtime.api_key_configured ? "success" : "warning", model: runtime.config?.CHAT_MODEL || "—", requests: runtime.usage?.today?.requests || 0, activeRuntimes: spaces.active_runtimes || 0 },
-        access: { health: usersResult.status === "fulfilled" ? "success" : "error", users: users.total || accounts.length, admins: accounts.filter((item: { role?: string }) => item.role === "admin").length, active: accounts.filter((item: { status?: string }) => item.status !== "disabled").length },
-        knowledge: { health: knowledgeResult.status === "rejected" || artifactsResult.status === "rejected" ? "error" : (artifacts.items || []).length ? "warning" : "success", documents: knowledge.documents || 0, chunks: knowledge.chunks || 0, pending: (artifacts.items || []).length },
-        analytics: { health: analyticsResult.status === "fulfilled" ? "success" : "error", pv: analytics.today?.pv || 0, uv: analytics.today?.uv || 0, pages: (analytics.pages || []).length },
-        tasks: { health: tasksResult.status === "rejected" || failedTasks ? "error" : runningTasks ? "warning" : "success", total: taskItems.length, running: runningTasks, failed: failedTasks },
-        applications: { health: progressResult.status === "rejected" ? "error" : (progress.failed || 0) > 0 ? "warning" : (progress.done || 0) > 0 && progress.done === progress.total ? "success" : "warning", total: progress.total || 0, done: progress.done || 0, failed: progress.failed || 0, pending: progress.pending || 0, byVendor: progress.by_vendor || [] },
+        updatedAt: new Date().toISOString(), available: values.filter(Boolean).length, totalServices: values.length,
+        runtime: { health: !runtime || !spaces || !sources ? "error" : runtime.api_key_configured ? "success" : "waiting", model: runtime?.config?.CHAT_MODEL || "—", requests: runtime?.usage?.today?.requests ?? null, activeRuntimes: spaces?.active_runtimes ?? null, sources: sources?.items?.filter((item: { enabled: boolean }) => item.enabled).length ?? null },
+        access: { health: users && spaces ? "success" : "error", users: users?.total ?? (users ? accounts.length : null), admins: users ? accounts.filter((item: { role?: string }) => item.role === "admin").length : null, active: users ? accounts.filter((item: { status?: string }) => item.status !== "disabled").length : null, spaces: spaces?.spaces?.length ?? null },
+        knowledge: { health: !knowledge || !artifacts ? "error" : artifacts.items?.length ? "waiting" : "success", documents: knowledge?.documents ?? null, chunks: knowledge?.chunks ?? null, pending: artifacts?.items?.length ?? null },
+        analytics: { health: analytics ? "success" : "error", pv: analytics?.today?.pv ?? null, uv: analytics?.today?.uv ?? null, pages: analytics?.pages?.length ?? null, daily: analytics?.daily || [] },
+        tasks: { health: !tasks ? "error" : failed ? "error" : running ? "running" : "success", items: taskItems, loaded: !!tasks, running, failed },
+        email: { health: !deliveries || !tasks ? "error" : emailItems.some(item => item.status === "failed") ? "error" : emailTask.some(task => taskStatus(task) === "running") ? "running" : "success", items: emailItems, loaded: !!deliveries, running: emailTask.filter(task => taskStatus(task) === "running").length, failed: emailItems.filter(item => item.status === "failed").length },
+        applications: { total: progress?.total || 0, done: progress?.done || 0, failed: progress?.failed || 0, byVendor: progress?.by_vendor || [] },
       });
     });
     return () => { active = false; };
   }, [user]);
+
   if (loading) return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Checking permissions…" : "正在验证权限…"}</div>;
   if (user?.app_metadata?.role !== "admin") return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Administrator access required." : "需要管理员权限。"}</div>;
-  const healths = overview ? [overview.runtime.health, overview.access.health, overview.knowledge.health, overview.analytics.health, overview.tasks.health] : [];
-  const overall: Health = healths.includes("error") ? "error" : healths.includes("warning") ? "warning" : "success";
-  return <div className="page-stack">
-    <SectionHeader badge="Admin" title={en ? "Platform overview" : "平台管理"} subtitle={en ? "Configure, operate and observe InsightPro from one screen." : "在一个界面中完成配置、运行与观测。"} action={overview ? <StatusBadge health={overall} en={en} /> : <div className="h-7 w-20 animate-shimmer rounded-full" />} />
-    <section aria-labelledby="control-title"><div className="mb-3 flex items-center justify-between"><h2 id="control-title" className="type-h3 text-ink">{en ? "Platform controls" : "平台控制"}</h2><span className="text-xs text-ink-muted">{en ? "Live overview" : "实时摘要"}</span></div><div className="grid gap-3 lg:grid-cols-3">{modules.slice(0, 3).map(item => <ModuleCard key={item.href} item={item} en={en} metrics={metricsFor(item.href, overview, en)} health={healthFor(item.href, overview)} loading={!overview} />)}</div></section>
-    <section aria-labelledby="operations-title"><div className="mb-3 flex items-center justify-between"><h2 id="operations-title" className="type-h3 text-ink">{en ? "Operations & visibility" : "运行与观测"}</h2><span className="text-xs text-ink-muted">{en ? "Execution to outcome" : "从任务到结果"}</span></div><div className="grid gap-3 md:grid-cols-2">{modules.slice(3).map(item => <ModuleCard key={item.href} item={item} en={en} metrics={metricsFor(item.href, overview, en)} health={healthFor(item.href, overview)} loading={!overview} />)}</div></section>
-    <section aria-labelledby="ai-apps-title" className="ui-card">
-      <div className="mb-4 flex items-center justify-between gap-3"><h2 id="ai-apps-title" className="type-h3 text-ink">{en ? "AI application analysis" : "AI 应用分析进度"}</h2><span className="text-xs text-ink-muted">{en ? "Structured analysis pipeline" : "结构化分析管线"}</span></div>
-      {overview ? <ApplicationProgress app={overview.applications} en={en} /> : <div className="h-16 animate-shimmer rounded-xl" />}
-    </section>
+
+  const healths = overview ? [overview.runtime.health, overview.access.health, overview.knowledge.health, overview.analytics.health, overview.tasks.health, overview.email.health] : [];
+  const overall: Health = !overview ? "waiting" : healths.includes("error") ? "error" : overview.tasks.running ? "running" : healths.includes("waiting") ? "waiting" : "success";
+  const nextRun = overview?.tasks.items.map(task => task.next_run_at).filter((value): value is string => !!value && new Date(value).getTime() > Date.parse(overview.updatedAt)).sort()[0];
+  const filteredTasks = (overview?.tasks.items || []).filter(task => filter === "all" || filter === "scheduled" && !!task.next_run_at || taskStatus(task) === filter).sort((a, b) => (b.last_run?.started_at || "").localeCompare(a.last_run?.started_at || "")).slice(0, 6);
+  const completed = overview?.tasks.items.filter(task => taskStatus(task) === "success").length || 0;
+
+  return <div className="admin-home">
+    <section className="admin-hero" aria-labelledby="admin-home-title"><div className="admin-hero-main"><span className="admin-eyebrow">ADMIN</span><h1 id="admin-home-title">{en ? "Platform management" : "平台管理"}</h1><p>{en ? "Configure, operate and observe InsightPro from one place." : "在一个界面中完成配置、运行与观测，保障 InsightPro 全链路稳定运行。"}</p><div className="admin-hero-meta"><StatusBadge health={overall} en={en} /><span>{en ? "Updated" : "最近更新"} {dateTime(overview?.updatedAt)}</span><span>{en ? "Next schedule" : "下次调度"} {dateTime(nextRun)}</span></div></div><div className="admin-hero-summary"><div className="admin-summary-head"><strong>{en ? "System status" : "系统状态"}</strong><StatusBadge health={overall} en={en} /></div><div className="admin-summary-metrics"><div><strong>{overview?.tasks.loaded ? overview.tasks.running : "—"}</strong><span>运行中任务</span></div><div><strong>{overview?.tasks.loaded ? overview.tasks.failed : "—"}</strong><span>失败任务</span></div><div><strong>{overview ? `${overview.available}/${overview.totalServices}` : "—"}</strong><span>数据接口可用</span></div></div></div></section>
+
+    <section className="admin-home-section" aria-labelledby="admin-control-title"><div className="admin-section-title"><h2 id="admin-control-title">{en ? "Platform controls" : "平台控制"}</h2><span>关键配置与投递状态</span></div><div className="admin-control-grid">{modules.slice(0, 3).map(item => <ModuleCard key={item.href} item={item} data={overview} en={en} />)}</div></section>
+
+    <section className="admin-home-section" aria-labelledby="admin-observe-title"><div className="admin-section-title"><h2 id="admin-observe-title">{en ? "Operations & visibility" : "运行与观测"}</h2><span>从数据到结果的全链路观测</span></div><div className="admin-observe-grid">{modules.slice(3).map(item => <ModuleCard key={item.href} item={item} data={overview} en={en} />)}</div></section>
+
+    <section className="admin-task-center" aria-labelledby="admin-tasks-title"><div className="admin-task-head"><div className="admin-task-heading"><span className="admin-module-icon"><ShieldCheck size={21} /></span><div><h2 id="admin-tasks-title">{en ? "Task center" : "任务中心"}</h2><p>采集、AI 分析、同步与邮件执行</p></div></div><Link href="/admin/tasks">查看全部 <ArrowRight size={15} /></Link></div><div className="admin-task-toolbar"><div role="group" aria-label="筛选任务状态">{[["all", "全部"], ["running", "运行中"], ["success", "成功"], ["error", "失败"], ["scheduled", "定时任务"]].map(([key, label]) => <button key={key} type="button" className={filter === key ? "is-active" : ""} aria-pressed={filter === key} onClick={() => setFilter(key)}>{label}{overview?.tasks.loaded && key === "all" ? ` (${overview.tasks.items.length})` : key === "running" ? ` (${overview?.tasks.running ?? 0})` : key === "error" ? ` (${overview?.tasks.failed ?? 0})` : key === "success" ? ` (${completed})` : ""}</button>)}</div><Link href="/admin/scheduler" className="admin-task-config"><Plus size={15} />调度配置</Link></div><div className="admin-table-wrap"><table className="admin-task-table"><thead><tr><th>任务名称</th><th>类型</th><th>调度</th><th>状态</th><th>进度</th><th>最近运行时间</th><th>操作</th></tr></thead><tbody>{filteredTasks.map(task => <tr key={task.key}><td><strong>{task.name}</strong><small>{task.key}</small></td><td>{task.uses_ai ? "AI 分析" : "平台任务"}</td><td>{task.schedule}</td><td><StatusBadge health={taskStatus(task)} en={en} task /></td><td><span className={`admin-progress admin-progress-${taskStatus(task)}`}><i /></span></td><td>{dateTime(task.last_run?.started_at)}</td><td><Link href="/admin/tasks" aria-label={`查看${task.name}详情`}>查看 <ArrowRight size={13} /></Link></td></tr>)}</tbody></table>{!filteredTasks.length && <p className="admin-table-empty">{overview?.tasks.loaded ? "当前筛选下暂无任务" : "任务数据读取中或暂不可用"}</p>}</div></section>
+
+    <details className="admin-app-progress"><summary><div><h2>{en ? "AI application analysis" : "AI 应用分析进度"}</h2><p>展开查看处理进度与厂商分布</p></div><span>{overview ? `${overview.applications.done}/${overview.applications.total}` : "—"}</span></summary>{overview && <ApplicationProgress app={overview.applications} />}</details>
   </div>;
 }
 
-function ModuleCard({ item, en, metrics, health, loading }: { item: Module; en: boolean; metrics: Metric[]; health: Health; loading: boolean }) {
-  return <Link href={item.href} className="ui-card ui-card-interactive group flex min-h-52 flex-col"><div className="flex items-start justify-between gap-4"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft text-primary"><item.icon className="h-5 w-5" /></span>{loading ? <div className="h-6 w-16 animate-shimmer rounded-full" /> : <StatusBadge health={health} en={en} />}</div><div className="mt-5 flex items-center justify-between gap-3"><h3 className="type-h3 text-ink">{en ? item.titleEn : item.title}</h3><ArrowRight className="h-4 w-4 text-ink-muted transition-transform group-hover:translate-x-1 group-hover:text-primary" /></div><p className="mt-1 text-xs text-ink-muted">{en ? item.descriptionEn : item.description}</p>{loading ? <div className="mt-auto grid grid-cols-3 gap-2 pt-5">{[0, 1, 2].map(item => <div key={item} className="h-14 animate-shimmer rounded-xl" />)}</div> : <dl className="mt-auto grid grid-cols-3 gap-2 pt-5">{metrics.map(metric => <div key={metric.label} className="rounded-xl bg-surface-subtle px-3 py-2.5"><dt className="truncate text-[10px] text-ink-muted">{metric.label}</dt><dd className="mt-1 truncate font-mono text-base font-semibold text-ink">{metric.value}</dd></div>)}</dl>}</Link>;
-}
-
-function StatusBadge({ health, en }: { health: Health; en: boolean }) {
-  const label = health === "success" ? (en ? "Healthy" : "正常") : health === "warning" ? (en ? "Attention" : "待处理") : (en ? "Error" : "异常");
-  return <span className={`ui-tag ${health === "success" ? "ui-tag-success" : health === "warning" ? "ui-tag-warning" : "ui-tag-danger"}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{label}</span>;
-}
-
-function Stat({ label, value, tone }: { label: string; value: number; tone?: "warning" }) {
-  return <div className="text-right"><p className={`font-mono text-lg font-semibold ${tone === "warning" ? "text-warning" : "text-ink"}`}>{value}</p><p className="text-[10px] text-ink-muted">{label}</p></div>;
-}
-
-function ApplicationProgress({ app, en }: { app: Overview["applications"]; en: boolean }) {
-  const pct = app.total ? Math.round((app.done / app.total) * 100) : 0;
-  return (
-    <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <div className="flex-1">
-          <div className="mb-1.5 flex justify-between text-xs text-ink-muted">
-            <span>{en ? "Completed" : "完成进度"}</span>
-            <span className="font-mono">{app.done}/{app.total}</span>
-          </div>
-          <div className="h-2 rounded-full bg-surface-subtle">
-            <div className="h-2 rounded-full bg-primary transition-[width]" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <div className="flex gap-5">
-          <Stat label={en ? "Done" : "已分析"} value={app.done} />
-          <Stat label={en ? "Failed" : "失败"} value={app.failed} tone={app.failed ? "warning" : undefined} />
-          <Stat label={en ? "Total" : "总数"} value={app.total} />
-        </div>
-      </div>
-      {app.byVendor.length > 0 && (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {app.byVendor.slice(0, 12).map((row) => {
-            const vpct = row.total ? Math.round((row.done / row.total) * 100) : 0;
-            return (
-              <div key={row.vendor} className="rounded-lg bg-surface-subtle px-3 py-2">
-                <div className="flex justify-between text-xs">
-                  <span className="truncate text-ink-secondary">{row.vendor}</span>
-                  <span className="font-mono text-ink-muted">{row.done}/{row.total}</span>
-                </div>
-                <div className="mt-1.5 h-1.5 rounded-full bg-grid">
-                  <div className="h-1.5 rounded-full bg-primary" style={{ width: `${vpct}%` }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function healthFor(href: string, data: Overview | null): Health {
-  if (!data) return "warning";
-  if (href === "/admin/runtime") return data.runtime.health;
-  if (href === "/admin/access") return data.access.health;
-  if (href === "/admin/knowledge") return data.knowledge.health;
-  if (href === "/admin/dashboard") return data.analytics.health;
-  return data.tasks.health;
-}
-
-function metricsFor(href: string, data: Overview | null, en: boolean): Metric[] {
-  if (!data) return [];
-  if (href === "/admin/runtime") return [{ label: en ? "Model" : "当前模型", value: data.runtime.model }, { label: en ? "AI requests" : "今日 AI", value: data.runtime.requests }, { label: "Runtime", value: data.runtime.activeRuntimes }];
-  if (href === "/admin/access") return [{ label: en ? "Users" : "用户", value: data.access.users }, { label: en ? "Active" : "启用", value: data.access.active }, { label: en ? "Admins" : "管理员", value: data.access.admins }];
-  if (href === "/admin/knowledge") return [{ label: en ? "Documents" : "知识对象", value: data.knowledge.documents }, { label: en ? "Chunks" : "向量片段", value: data.knowledge.chunks }, { label: en ? "Pending" : "待审产物", value: data.knowledge.pending }];
-  if (href === "/admin/dashboard") return [{ label: en ? "PV today" : "今日 PV", value: data.analytics.pv }, { label: en ? "UV today" : "今日 UV", value: data.analytics.uv }, { label: en ? "Pages" : "访问页面", value: data.analytics.pages }];
-  return [{ label: en ? "Tasks" : "任务数", value: data.tasks.total }, { label: en ? "Running" : "运行中", value: data.tasks.running }, { label: en ? "Failed" : "失败", value: data.tasks.failed }];
+function ApplicationProgress({ app }: { app: Overview["applications"] }) {
+  const pct = app.total ? Math.round(app.done / app.total * 100) : 0;
+  return <div className="admin-app-progress-body"><div className="admin-app-progress-stats"><span>已分析 {app.done}</span><span>失败 {app.failed}</span><span>总数 {app.total}</span></div><div className="admin-progress admin-progress-success"><i style={{ width: `${pct}%` }} /></div>{app.byVendor.length > 0 && <div className="admin-app-vendors">{app.byVendor.slice(0, 12).map(row => <div key={row.vendor}><span>{row.vendor}</span><strong>{row.done}/{row.total}</strong></div>)}</div>}</div>;
 }

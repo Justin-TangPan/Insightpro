@@ -12,6 +12,7 @@ from routers.auth import (
     supabase, logger,
     require_auth, require_admin,
     RuntimeConfigPatch,
+    EmbeddingConfigPatch,
     _member_payload, _require_active_agent_user,
 )
 from services import agent_audit_service, agent_runtime_service
@@ -75,6 +76,47 @@ async def update_runtime_config(payload: RuntimeConfigPatch, admin=Depends(requi
     except ValueError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     agent_audit_service.log(str(admin.id), "runtime_config_update", detail=",".join(values))
+    return {"config": config, "api_key_configured": True, **verification}
+
+
+@router.get("/auth/admin/embedding-config")
+async def embedding_config(_=Depends(require_admin)):
+    from services import embedding_config_service
+    return {"config": embedding_config_service._values(),
+            "api_key_configured": bool(settings.EMBEDDING_API_KEY),
+            "dimensions": settings.EMBEDDING_DIMENSIONS}
+
+
+@router.post("/auth/admin/embedding-config/verify")
+async def verify_embedding_config(payload: EmbeddingConfigPatch, _=Depends(require_admin)):
+    from services import embedding_config_service
+    values = payload.model_dump(exclude_none=True)
+    if not values.get("EMBEDDING_API_KEY"):
+        values.pop("EMBEDDING_API_KEY", None)
+    try:
+        return await asyncio.to_thread(embedding_config_service.verify, values)
+    except httpx.HTTPError as error:
+        logger.warning("embedding config verification failed: %s", error)
+        raise HTTPException(status_code=422, detail="Embedding API 配置验证失败") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.patch("/auth/admin/embedding-config")
+async def update_embedding_config(payload: EmbeddingConfigPatch, admin=Depends(require_admin)):
+    from services import embedding_config_service
+    values = payload.model_dump(exclude_none=True)
+    if not values.get("EMBEDDING_API_KEY"):
+        values.pop("EMBEDDING_API_KEY", None)
+    try:
+        verification = await asyncio.to_thread(embedding_config_service.verify, values)
+        config = await asyncio.to_thread(embedding_config_service.update, values)
+    except httpx.HTTPError as error:
+        logger.warning("embedding config verification failed: %s", error)
+        raise HTTPException(status_code=422, detail="Embedding API 配置验证失败，未保存") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    agent_audit_service.log(str(admin.id), "embedding_config_update", detail=",".join(values))
     return {"config": config, "api_key_configured": True, **verification}
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from db import get_db
 from services.freshness_service import has_rows_today, solution_catalogs_fresh_today
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 _LOCK_ID = 2_026_071_300
 
 
-def ensure_runtime_schema() -> None:
+def ensure_runtime_schema(absorb_requirements: bool = True) -> None:
     """Run Alembic migrations, then apply idempotent DDL that Alembic cannot manage.
 
     Alembic handles: table creation, column additions, type changes, simple indexes.
@@ -77,6 +78,9 @@ def ensure_runtime_schema() -> None:
                 analyzed_at TIMESTAMPTZ,
                 analysis_model TEXT,
                 source_fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                source_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                source_fingerprint TEXT,
+                analyzed_source_fingerprint TEXT,
                 created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 UNIQUE (vendor, url)
@@ -84,6 +88,11 @@ def ensure_runtime_schema() -> None:
         """)
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vendor_ai_app_vendor ON vendor_ai_applications(vendor)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_vendor_ai_app_status ON vendor_ai_applications(analysis_status)")
+        cursor.execute("""CREATE TABLE IF NOT EXISTS board_daily_insights (
+            board TEXT NOT NULL, insight_date TEXT NOT NULL, fingerprint TEXT NOT NULL,
+            analysis TEXT NOT NULL, generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            PRIMARY KEY (board, insight_date)
+        )""")
 
         # Agent runtime history column (added post-Alembic)
         cursor.execute("ALTER TABLE agent_sessions ADD COLUMN IF NOT EXISTS runtime_history JSONB NOT NULL DEFAULT '[]'::jsonb")
@@ -121,8 +130,20 @@ def ensure_runtime_schema() -> None:
             ((COALESCE(name,'') || ' ' || COALESCE(description,'') || ' ' || COALESCE(category,'') || ' ' || COALESCE(version,'')) gin_trgm_ops)
         """)
 
-    from repositories.workbench_repository import absorb_requirements_into_solutions
-    absorb_requirements_into_solutions()
+    if absorb_requirements:
+        from repositories.workbench_repository import absorb_requirements_into_solutions
+        absorb_requirements_into_solutions()
+
+
+def refresh_baidu_hotsearch_if_missing() -> dict:
+    if has_rows_today("baidu_hotsearch"):
+        return {"status": "success", "total": 0}
+    from crawlers.baidu_crawler import _fetch_baidu_hotsearch_sync
+
+    items = _fetch_baidu_hotsearch_sync()
+    if not items or any(item.get("title") in {"Loading data...", "Hot search load failed"} for item in items):
+        return {"status": "partial_success", "error": "Baidu hot search returned no fresh items"}
+    return {"status": "success", "total": len(items)}
 
 
 def _run_if_missing(dataset: str, job_name: str, function=None, task_key: str | None = None) -> bool:
@@ -131,8 +152,7 @@ def _run_if_missing(dataset: str, job_name: str, function=None, task_key: str | 
         return False
     logger.warning("startup catch-up run: %s (%s is stale)", job_name, dataset)
     if task_key:
-        from services.task_service import run_task
-        run_task(task_key, "startup", function)
+        _run_task_if_missing_today(task_key, function)
     else:
         function()
     return True
@@ -143,17 +163,49 @@ def _run_solution_catalogs_if_stale(function=None) -> bool:
         logger.info("startup catch-up skip: solution catalogues are already fresh")
         return False
     logger.warning("startup catch-up run: solution catalog refresh is stale")
-    if function:
-        function()
-    else:
-        from services.task_service import run_task
-        run_task("solution_catalogs_daily", "startup")
+    return _run_task_if_missing_today("solution_catalogs_daily", function)
+
+
+def _task_succeeded_today(task_key: str) -> bool:
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT status='success' AS present
+            FROM platform_task_runs
+            WHERE task_key=%s
+              AND (started_at AT TIME ZONE 'Asia/Shanghai')::date=%s
+            ORDER BY started_at DESC, id DESC LIMIT 1""", (task_key, today))
+        row = cursor.fetchone()
+        return bool(row and row["present"])
+
+
+def _task_attempted_today(task_key: str) -> bool:
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT EXISTS (
+            SELECT 1 FROM platform_task_runs
+            WHERE task_key=%s
+              AND (started_at AT TIME ZONE 'Asia/Shanghai')::date=%s
+        ) AS present""", (task_key, today))
+        return bool(cursor.fetchone()["present"])
+
+
+def _run_task_if_missing_today(task_key: str, function=None) -> bool:
+    if _task_succeeded_today(task_key):
+        return False
+    if _task_attempted_today(task_key):
+        logger.info("startup catch-up skip: %s already attempted today", task_key)
+        return False
+    from services.task_service import run_task
+    run_task(task_key, "startup", function)
     return True
 
 
 def run_startup_catchup() -> None:
     """Run today's missing jobs in dependency order, once across all API processes."""
-    from main_legacy import _fetch_baidu_hotsearch_sync, evaluate_trending_business
+    from services.evaluation_service import evaluate_trending_business
+    from services.task_service import required_source_tasks
 
     def seed_and_upgrade_technical_evaluation():
         result = evaluate_trending_business()
@@ -168,13 +220,12 @@ def run_startup_catchup() -> None:
                 logger.info("startup catch-up skipped: another process owns the lock")
                 return
             try:
-                _run_if_missing("github_trending", "github refresh", task_key="github_daily")
-                _run_solution_catalogs_if_stale()
-                _run_if_missing("baidu_hotsearch", "baidu hotsearch refresh", _fetch_baidu_hotsearch_sync, "daily_crawl")
-                _run_if_missing("competitor_news", "competitor refresh", task_key="competitor_daily")
+                for task_key in required_source_tasks():
+                    _run_task_if_missing_today(task_key)
+                _run_task_if_missing_today("baidu_hotsearch_daily")
                 _run_if_missing("technical_evaluation", "technical evaluation", seed_and_upgrade_technical_evaluation, "trending_business_eval_daily")
-                from services.task_service import run_task
-                run_task("project_briefs_zh_daily", "startup")
+                _run_task_if_missing_today("project_briefs_zh_daily")
+                _run_task_if_missing_today("board_insights_daily")
             finally:
                 cursor.execute("SELECT pg_advisory_unlock(%s)", (_LOCK_ID,))
     except Exception:
