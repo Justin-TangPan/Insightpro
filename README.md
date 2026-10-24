@@ -1,8 +1,8 @@
 # InsightPro
 
-> AI 驱动的技术解决方案洞察与决策工作台 · `v1.0.0-rc.43`
+> AI 驱动的技术解决方案洞察与决策工作台 · `v1.0.0-rc.45`
 
-[![Version](https://img.shields.io/badge/version-1.0.0--rc.43-176b46)](https://github.com/Justin-TangPan/Insightpro)
+[![Version](https://img.shields.io/badge/version-1.0.0--rc.45-176b46)](https://github.com/Justin-TangPan/Insightpro)
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](frontend/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128-009688?logo=fastapi)](backend/)
 [![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?logo=supabase&logoColor=white)](doc/database-schema.md)
@@ -20,7 +20,7 @@ InsightPro 面向解决方案架构师、技术负责人和技术决策团队：
 首页情报雷达 → GitHub / AI 应用 / 解决方案 → 方案实践 → AI 工作区
 ```
 
-当前候选版本为 `v1.0.0-rc.43`；完成国内舆情数据接入验收后再标记正式 `v1.0.0`。详情见[版本记录](log/versions.md)；InsightPro 仍是唯一账号、业务系统和写入边界。
+当前候选版本为 `v1.0.0-rc.45`；完成国内舆情数据接入验收后再标记正式 `v1.0.0`。详情见[版本记录](log/versions.md)；InsightPro 仍是唯一账号、业务系统和写入边界。
 
 ## 产品预览
 

@@ -15,6 +15,7 @@ from db import get_db
 from settings import settings
 from services import ai_service
 from services.intelligence_format import solution as format_solution
+from services.source_image import first_source_image
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +132,7 @@ Do not guess products or projects. Each entry should be 80 to 220 characters.\n"
 
 
 def _content_hash(item: dict) -> str:
-    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed", "menu_order", "vendor", "content_snapshot"}}
+    fingerprint = {key: value for key, value in item.items() if key not in {"content_hash", "detail_error", "detail_failed", "menu_order", "vendor", "content_snapshot", "image_url"}}
     return hashlib.sha256(json.dumps(fingerprint, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
@@ -179,7 +180,9 @@ def _enrich_solution(item: dict) -> dict:
             timeout=30,
         )
         response.raise_for_status()
-        detail = _parse_detail_payload(response.json())
+        payload = response.json()
+        detail = _parse_detail_payload(payload)
+        detail["image_url"] = first_source_image((payload.get("data") or {}).get("content") or "", item["url"])
         item["source_description"] = detail["source_description"]
         item["detail_data"] = detail
     except Exception as exc:
@@ -228,6 +231,7 @@ def refresh_aliyun_solutions() -> dict:
                 "title": item["title"], "category": item["category"],
                 "source_description": item["source_description"],
                 "detail_text": item.get("detail_data", {}).get("detail_text", ""),
+                "image_url": item.get("detail_data", {}).get("image_url", ""),
             }
             item["content_hash"] = _content_hash(item)
         changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]
@@ -357,6 +361,7 @@ def get_aliyun_solutions() -> dict:
         snapshot = item.pop("content_snapshot") or {}
         if isinstance(snapshot, str):
             snapshot = json.loads(snapshot)
+        item["image_url"] = snapshot.get("image_url") or ""
         item["analysis_mode"] = "source" if item["summary"] == _fallback_summary(
             item["title"], item.get("source_description") or "", item["vendor"], snapshot.get("detail_text") or ""
         ) else "ai"
@@ -387,7 +392,16 @@ def get_aliyun_solutions() -> dict:
             and item["first_seen_date"] != item["last_changed_date"] for item in vendor_items
         )
         daily_insights[vendor] = {"date": today, "new": new_today, "updated": updated_today, "removed": removed_today.get(vendor, 0)}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT id,title,url,vendor,category,source_description,summary,
+                          first_seen_date,last_seen_date,removed_at::date::text AS last_changed_date
+                          FROM aliyun_solutions WHERE NOT is_active AND removed_at >= NOW() - INTERVAL '35 days'
+                          ORDER BY removed_at DESC""")
+        removed_items = [{**dict(row), "change_summary": "方案下线", "is_baseline": False, "is_active": False}
+                         for row in cursor.fetchall()]
     return {
+        "removed_items": removed_items,
         "items": items,
         "count": len(items),
         "recent_count": sum(item["is_recent"] for item in items),
@@ -426,3 +440,22 @@ def backfill_solution_values() -> dict:
 
 
 get_solution_catalog = get_aliyun_solutions
+
+
+def get_solution_detail(solution_id: int) -> dict | None:
+    """Return the existing source snapshot for one catalog solution."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT id,title,url,vendor,category,source_description,summary,change_summary,
+                          first_seen_date,last_seen_date,last_changed_date,content_snapshot
+                          FROM aliyun_solutions WHERE id=%s AND is_active=TRUE""", (solution_id,))
+        row = cursor.fetchone()
+    if not row:
+        return None
+    item = dict(row)
+    snapshot = item.pop("content_snapshot") or {}
+    if isinstance(snapshot, str):
+        snapshot = json.loads(snapshot)
+    item["detail_text"] = snapshot.get("detail_text") or ""
+    item["image_url"] = snapshot.get("image_url") or ""
+    return item

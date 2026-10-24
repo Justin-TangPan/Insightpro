@@ -18,6 +18,7 @@ from services import ai_service
 from db import get_db
 from settings import settings
 from services.ai_app_sources import PRODUCTS, FEEDS, GITHUB_REPOSITORIES
+from services.source_image import first_source_image
 
 logger = logging.getLogger(__name__)
 HEADERS = {"User-Agent": "InsightPro/1.0"}
@@ -162,7 +163,8 @@ def _feed_items(feed: tuple[str, str, str, str]) -> list[dict]:
                 except (TypeError, ValueError):
                     pass
                 items.append({"vendor": vendor, "product": product, "title": title, "published": published,
-                              "url": url, "kind": "launch", "source_text": BeautifulSoup(node.findtext("description", ""), "html.parser").get_text(" ", strip=True), "feed_verified": True})
+                              "url": url, "kind": "launch", "source_text": BeautifulSoup(node.findtext("description", ""), "html.parser").get_text(" ", strip=True),
+                              "image_url": first_source_image(node.findtext("description", ""), url), "feed_verified": True})
                 if len(items) >= 12:
                     break
             return items
@@ -439,7 +441,7 @@ def _source(item: dict) -> dict | None:
         meta_date = soup.find("meta", attrs={"property": "article:published_time"}) or soup.find("meta", attrs={"name": "date"})
         time_node = soup.find("time")
         published = ("" if item.get("discovery_seed") else item.get("published")) or _date((meta_date or {}).get("content", "")) or _date((time_node or {}).get("datetime", "")) or _date((time_node.get_text(" ", strip=True) if time_node else "")) or ("" if item.get("discovery_seed") else _date(item.get("title", "")))
-        return {**item, "title": title, "published": published, "source_text": body, "source_verified": True}
+        return {**item, "title": title, "published": published, "source_text": body, "image_url": first_source_image(response.content.decode("utf-8", errors="ignore"), response.url), "source_verified": True}
     except requests.RequestException as exc:
         logger.warning("Agent source unavailable %s: %s", url, exc)
         if url in SEED_EXCERPTS:
@@ -613,18 +615,21 @@ def _upsert_application(cursor, item: dict, fields: dict, status: str = "done", 
           status, status, update_analysis_time, settings.CHAT_MODEL, _source_fingerprint(item), status, _source_fingerprint(item)))
 
 
-def _read_structured() -> list[dict]:
+def _read_structured(limit: int | None = 180) -> list[dict]:
     """Read persisted applications from the database, newest announcements first."""
     try:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT id, vendor, name, url, kind, published_at, summary, capability, opportunity, limitation, source_text,
+                       (SELECT raw.content->>'image_url' FROM intelligence_raw_items raw
+                        WHERE raw.canonical_url=vendor_ai_applications.url AND raw.source_key='ai_app_official'
+                        ORDER BY raw.observed_at DESC, raw.id DESC LIMIT 1) AS image_url,
                        analysis_status, analyzed_at, source_updated_at, source_fingerprint, analyzed_source_fingerprint
                 FROM vendor_ai_applications
                 ORDER BY (published_at IS NULL OR published_at = '') ASC, published_at DESC, id DESC
-                LIMIT 180
-            """)
+                LIMIT %s
+            """, (limit,))
             rows = [dict(row) for row in cursor.fetchall()]
     except Exception as exc:
         logger.warning("Structured application read failed: %s", exc)
@@ -650,6 +655,7 @@ def _read_structured() -> list[dict]:
         items.append({"vendor": row["vendor"], "title": title,
                       "published": row.get("published_at") or "", "url": row["url"],
                       "kind": row.get("kind") or "launch", "source_text": (row.get("source_text") or "")[:300],
+                      "image_url": row.get("image_url") or "",
                       "analysis": _compose_analysis(fields), "analysis_id": row["id"],
                       "analysis_status": "stale" if analysis_stale else row.get("analysis_status"),
                       "analysis_stale": analysis_stale, "analyzed_at": row.get("analyzed_at"),
@@ -780,7 +786,7 @@ def analyze_stored_pending() -> list[dict]:
         return _read_structured()
 
 
-def snapshot() -> tuple[list[dict], bool]:
+def snapshot(limit: int | None = 180) -> tuple[list[dict], bool]:
     global _refresh_future, _refresh_hour
     hour = int(datetime.now(timezone.utc).timestamp() // 3600)
     with _refresh_lock:
@@ -788,7 +794,7 @@ def snapshot() -> tuple[list[dict], bool]:
             _refresh_future = _refresh_pool.submit(latest)
             _refresh_hour = hour
         future = _refresh_future
-    rows = _read_structured()
+    rows = _read_structured(limit)
     if rows:
         return rows, not future.done()
     if future.done():

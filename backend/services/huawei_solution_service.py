@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 
 from db import get_db
 from services.aliyun_solution_service import _change_summary, _content_hash, _fallback_summary, _summarize
+from services.source_image import first_source_image
 
 
 INDEX_URL = "https://www.huaweicloud.com/solution/reference-architecture.html"
@@ -73,6 +74,7 @@ def _enrich(item: dict) -> dict:
         if description:
             item["source_description"] = description
         item["detail_text"] = " | ".join(sections)
+        item["image_url"] = first_source_image(response.text, response.url)
     except Exception as exc:
         item["detail_failed"] = True
         item["detail_error"] = str(exc)
@@ -103,8 +105,9 @@ def refresh_huawei_solutions() -> dict:
                 if isinstance(snapshot, str):
                     snapshot = json.loads(snapshot)
                 item["detail_text"] = snapshot.get("detail_text", "")
+                item["image_url"] = snapshot.get("image_url", "")
             item["vendor"] = "Huawei Cloud"
-            item["content_snapshot"] = {key: item.get(key, "") for key in ("title", "category", "source_description", "detail_text")}
+            item["content_snapshot"] = {key: item.get(key, "") for key in ("title", "category", "source_description", "detail_text", "image_url")}
             item["content_hash"] = _content_hash(item)
         changed = [item for item in items if item["url"] not in existing or existing[item["url"]]["content_hash"] != item["content_hash"]
                    or "Solution value:" not in (existing[item["url"]].get("summary") or "")
@@ -127,7 +130,7 @@ def refresh_huawei_solutions() -> dict:
                 cursor.execute("UPDATE aliyun_solutions SET summary=%s, last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s",
                                (summaries[item["url"]], today, item["url"]))
             else:
-                cursor.execute("UPDATE aliyun_solutions SET last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s", (today, item["url"]))
+                cursor.execute("UPDATE aliyun_solutions SET content_snapshot=%s::jsonb, last_seen_date=%s, is_active=TRUE, removed_at=NULL, updated_at=NOW() WHERE url=%s", (json.dumps(item["content_snapshot"], ensure_ascii=False), today, item["url"]))
         cursor.execute("UPDATE aliyun_solutions SET is_active=FALSE, removed_at=NOW(), updated_at=NOW() WHERE is_active=TRUE AND vendor='Huawei Cloud' AND url <> ALL(%s)", ([item["url"] for item in items],))
         removed_count = cursor.rowcount
     return {"status": "success", "checked_date": today, "total": len(items), "new": new_count, "updated": changed_count, "removed": removed_count}

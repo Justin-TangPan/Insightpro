@@ -146,12 +146,14 @@ def store_community_raw(items: list[dict], taxonomy_aliases: dict[str, str] | No
 
 def store_catalog_change(cursor, source_key: str, row: dict) -> None:
     content = {key: row.get(key) for key in ("vendor", "category", "source_description", "summary", "change_summary", "content_snapshot", "is_active", "is_baseline", "removed_at")}
-    digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+    fingerprint = {**content, "content_snapshot": {key: value for key, value in (content.get("content_snapshot") or {}).items() if key != "image_url"}}
+    digest = hashlib.sha256(json.dumps(fingerprint, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
     entity_key = f"solution:{hashlib.sha256(row['url'].encode()).hexdigest()}"
     external_id = f"{row['url']}:{digest}"
     cursor.execute("""INSERT INTO intelligence_raw_items
         (source_key, external_id, canonical_url, title, content, content_hash)
-        VALUES (%s,%s,%s,%s,%s::jsonb,%s) ON CONFLICT (source_key, external_id) DO NOTHING
+        VALUES (%s,%s,%s,%s,%s::jsonb,%s) ON CONFLICT (source_key, external_id) DO UPDATE SET content=EXCLUDED.content
+        WHERE intelligence_raw_items.content->'content_snapshot'->>'image_url' IS DISTINCT FROM EXCLUDED.content->'content_snapshot'->>'image_url'
         RETURNING id""", (source_key, external_id, row["url"], row["title"], json.dumps(content, ensure_ascii=False, default=str), digest))
     raw = cursor.fetchone()
     if raw:
@@ -178,7 +180,7 @@ def store_catalog_change(cursor, source_key: str, row: dict) -> None:
 
 
 def store_ai_application(cursor, item: dict) -> None:
-    content = {key: item.get(key) for key in ("vendor", "kind", "published", "source_text", "source_verified")}
+    content = {key: item.get(key) for key in ("vendor", "kind", "published", "source_text", "source_verified", "image_url")}
     digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     entity_key = f"ai-application:{hashlib.sha256(item['url'].encode()).hexdigest()}"
     external_id = f"{item['url']}:{digest}"

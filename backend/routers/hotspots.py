@@ -20,7 +20,7 @@ async def agent_launches():
     from services.agent_launch_service import MONITORED, FEED_HEALTH, snapshot
     from services.ai_app_sources import PRODUCTS, FEEDS, GITHUB_REPOSITORIES
     from services.intelligence_format import application
-    items, refreshing = snapshot()
+    items, refreshing = snapshot(limit=None)
     return {"items": [{**item, "intelligence": application(item)} for item in items],
             "vendors": MONITORED, "products": [{"vendor": v, "name": n, "url": u} for v, n, u in PRODUCTS],
             "sources": [{"vendor": v, "product": p, "url": u, "status": FEED_HEALTH.get(u, "pending")} for v, p, u, _ in FEEDS]

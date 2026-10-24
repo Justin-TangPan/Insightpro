@@ -353,7 +353,7 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
                                  CASE WHEN e.published_at IS NOT NULL THEN 'published'
                                       WHEN e.event_at IS NOT NULL THEN 'event'
                                       WHEN raw.published_at IS NOT NULL THEN 'published' ELSE 'observed' END AS date_basis,
-                                 e.scores
+                                 e.scores, raw.content->>'image_url' AS image_url
                           FROM intelligence_events e
                           JOIN intelligence_event_evidence evidence ON evidence.event_id=e.id
                           JOIN intelligence_raw_items raw ON raw.id=evidence.raw_item_id
@@ -459,7 +459,9 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
                            "why": _one_sentence(row.get("why_detail", ""), fallback_why),
                            "analysis": _analysis_text(row.get("why_detail")), "importance": 3, "board": board, "boards": [board],
                            "date_basis": row.get("date_basis", "event"),
-                           "sources": [], "related": []}
+                           "sources": [], "related": [], "image_url": row.get("image_url") or ""}
+        if row.get("image_url") and not merged[key].get("image_url"):
+            merged[key]["image_url"] = row["image_url"]
         if row.get("v2_event_id"):
             merged[key]["event_id"] = row["v2_event_id"]
         title_index[identity] = key

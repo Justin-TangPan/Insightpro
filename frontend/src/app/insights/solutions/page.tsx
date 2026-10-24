@@ -1,297 +1,134 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  ArrowUpRight, Layers3, RefreshCw, Sparkles,
-} from "lucide-react";
-import { SectionHeader } from "@/components/section-header";
+import { ArrowRight, ArrowUpRight, RefreshCw, Search } from "lucide-react";
 import { API } from "@/lib/api";
+import { eventImage } from "@/lib/vendor-image";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
-import { AgentAction } from "@/components/agent-action";
-import { useAuth } from "@/components/auth-provider";
 import { usePreferences } from "@/lib/preferences";
-import { DailyBoardInsight } from "@/components/daily-board-insight";
-import { EventStream } from "@/components/event-stream";
-import type { Intelligence } from "@/lib/intelligence";
+import { abilities, categoryNoise, cleanCategory, dateInPeriod, eventType, industry, meaningfulChange, periods, priority, products, scenario, solutionValue } from "@/lib/solution-intelligence";
+import type { Period, Solution, SolutionEvent } from "@/lib/solution-intelligence";
 
-interface SolutionItem {
-  intelligence?: Intelligence;
-  analysis_mode?: "ai" | "source";
-  id: number;
-  event_id?: number | null;
-  title: string;
-  url: string;
-  category: string;
-  primary_category: string;
-  secondary_category: string;
-  source_description: string;
-  summary: string;
-  vendor: string;
-  change_summary: string;
-  first_seen_date: string;
-  last_seen_date: string;
-  last_changed_date: string;
-  is_baseline: boolean;
-  menu_order: number;
-  is_recent: boolean;
-  change_type: "new" | "updated";
-}
-
-interface SolutionResponse {
-  items: SolutionItem[];
-  count: number;
-  recent_count: number;
-  baseline_count: number;
-  daily_insight: { date: string; new: number; updated: number; removed: number };
-  daily_insights: Record<string, { date: string; new: number; updated: number; removed: number }>;
-  last_checked: string | null;
-  sources: Record<string, string>;
-}
-
-const PAGE_SIZE = 12;
-const HUAWEI_CATEGORY_ORDER = ["AI", "Data Analytics & Management", "App Modernization", "Security & Compliance", "Networking", "Ops & Monitoring", "Cloud Migration"];
-const categoryChinese: Record<string, string> = { "Solution Practices": "解决方案实践", "Data Analytics & Management": "数据分析与管理", "App Modernization": "应用现代化", "Security & Compliance": "安全与合规", Networking: "网络", "Ops & Monitoring": "运维监控", "Cloud Migration": "云迁移" };
-const categoryLabel = (name: string, en: boolean) => en ? name : (categoryChinese[name] || name);
-const vendorLabel = (name: string, en: boolean) => en ? name : ({ "Huawei Cloud": "华为云", "Alibaba Cloud": "阿里云" }[name] || name);
+type Catalog = { items: Solution[]; removed_items?: Solution[]; count: number; last_checked: string | null; daily_insight: { new: number; updated: number; removed: number } };
+type Board = { summary?: { judgment?: string; focus?: { event_id?: number; title?: string; why?: string } }; date?: string };
+const vendorName = (value: string, en: boolean) => en ? value : ({ "Alibaba Cloud": "阿里云", "Huawei Cloud": "华为云" }[value] || value);
+const readable = (value: string, length = 115) => value.length > length ? `${value.slice(0, length).trimEnd()}…` : value;
+const dateText = (value?: string | null) => value ? value.slice(0, 10) : "—";
+const searchText = (item: Solution) => `${item.title} ${item.vendor} ${vendorName(item.vendor, false)} ${item.category} ${scenario(item)} ${abilities(item).join(" ")} ${item.source_description} ${item.summary}`.toLowerCase();
 
 export default function SolutionInsightsPage() {
   const { preferences } = usePreferences();
   const en = preferences.language === "en";
-  const [data, setData] = useState<SolutionResponse | null>(null);
+  const [catalog, setCatalog] = useState<Catalog | null>(null);
+  const [events, setEvents] = useState<SolutionEvent[]>([]);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [period, setPeriod] = useState<Period>("7days");
+  const [vendor, setVendor] = useState("");
+  const [query, setQuery] = useState("");
+  const [scene, setScene] = useState("");
+  const [eventFilter, setEventFilter] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
-  const [selectedPrimary, setSelectedPrimary] = useState("");
-  const [selectedSecondary, setSelectedSecondary] = useState("");
-  const [selectedVendor, setSelectedVendor] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
     try {
-      const response = await fetch(`${API}/api/solutions/catalog`);
-      if (!response.ok) throw new Error(en ? `Load failed: ${response.status}` : `加载失败：${response.status}`);
-      setData(await response.json());
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : (en ? "Could not load solutions" : "解决方案数据加载失败"));
-    } finally {
-      setLoading(false);
-    }
-  }, [en]);
-
+      const [catalogResult, boardResult, eventResult] = await Promise.all([
+        fetch(`${API}/api/solutions/catalog`),
+        fetch(`${API}/api/boards/solutions/daily-insight`),
+        fetch(`${API}/api/v2/events?business_scope=solutions&limit=100`),
+      ]);
+      if (!catalogResult.ok) throw new Error(`方案目录读取失败 (${catalogResult.status})`);
+      setCatalog(await catalogResult.json());
+      setBoard(boardResult.ok ? await boardResult.json() : null);
+      setEvents(eventResult.ok ? (await eventResult.json()).items : []);
+      setError("");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "解决方案数据读取失败"); }
+    finally { setLoading(false); }
+  }, []);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-
   const refresh = async () => {
     setRefreshing(true);
-    setError("");
     try {
       const response = await authenticatedFetch(`${API}/api/solutions/catalog/refresh`, { method: "POST" });
-      if (!response.ok) throw new Error(response.status === 401 ? (en ? "Sign in to check for updates" : "请先登录后手动检查更新") : (en ? `Check failed: ${response.status}` : `检查失败：${response.status}`));
+      if (!response.ok) throw new Error(response.status === 401 ? "请先登录再手动检查更新" : `检查更新失败 (${response.status})`);
       await load();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : (en ? "Update check failed" : "检查更新失败"));
-    } finally {
-      setRefreshing(false);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "检查更新失败"); }
+    finally { setRefreshing(false); }
+  };
+
+  const all = useMemo(() => catalog?.items || [], [catalog]);
+  const vendors = useMemo(() => [...new Set(all.map(item => item.vendor))], [all]);
+  const normalizedQuery = query.trim().toLowerCase();
+  const scope = useMemo(() => all.filter(item => (!vendor || item.vendor === vendor) && (!normalizedQuery || searchText(item).includes(normalizedQuery))), [all, vendor, normalizedQuery]);
+  const removed = (catalog?.removed_items || []).filter(item => (!vendor || item.vendor === vendor) && (!normalizedQuery || searchText(item).includes(normalizedQuery)) && dateInPeriod(item.last_changed_date, period));
+  const timed = useMemo(() => scope.filter(item => !item.is_baseline && !categoryNoise(item.change_summary) && dateInPeriod(item.last_changed_date, period)), [scope, period]);
+  const recent = useMemo(() => timed.sort((a, b) => priority(b) - priority(a) || b.last_changed_date.localeCompare(a.last_changed_date)), [timed]);
+  const namedEvents = useMemo(() => events.filter(item => (!vendor || item.vendor === vendor) && dateInPeriod(item.published_at || item.first_seen_at, period) && !categoryNoise(item.summary || "") && (!normalizedQuery || `${item.title} ${item.summary} ${item.vendor}`.toLowerCase().includes(normalizedQuery))), [events, vendor, period, normalizedQuery]);
+  const directory = useMemo(() => scope.filter(item => !scene || scenario(item) === scene), [scope, scene]);
+  const scenes = useMemo(() => {
+    const map = new Map<string, { count: number; updates: number; vendors: Set<string> }>();
+    for (const item of scope) {
+      const name = scenario(item);
+      const row = map.get(name) || { count: 0, updates: 0, vendors: new Set<string>() };
+      row.count++; row.vendors.add(item.vendor);
+      if (dateInPeriod(item.last_changed_date, period) && !item.is_baseline) row.updates++;
+      map.set(name, row);
     }
-  };
-
-  const vendors = useMemo(() => Array.from(new Set((data?.items || []).map((item) => item.vendor))), [data]);
-  const activeVendor = vendors.includes(selectedVendor) ? selectedVendor : vendors[0];
-  const vendorItems = (data?.items || []).filter((item) => item.vendor === activeVendor);
-  const dailyInsight = data?.daily_insights?.[activeVendor] || data?.daily_insight;
-
-  const directory = useMemo(() => {
-    const primaryMap = new Map<string, Map<string, SolutionItem[]>>();
-    for (const item of vendorItems) {
-      const primary = item.vendor === "Huawei Cloud" ? "Solution Practices" : item.primary_category;
-      const secondary = item.vendor === "Huawei Cloud" ? item.primary_category : item.secondary_category;
-      if (!primaryMap.has(primary)) primaryMap.set(primary, new Map());
-      const secondaryMap = primaryMap.get(primary)!;
-      if (!secondaryMap.has(secondary)) secondaryMap.set(secondary, []);
-      secondaryMap.get(secondary)!.push(item);
+    return [...map].sort((a, b) => b[1].updates - a[1].updates || b[1].count - a[1].count);
+  }, [scope, period]);
+  const capabilities = useMemo(() => {
+    const map = new Map<string, { count: number; updates: number }>();
+    for (const item of scope) for (const ability of abilities(item)) {
+      const row = map.get(ability) || { count: 0, updates: 0 };
+      row.count++;
+      if (dateInPeriod(item.last_changed_date, period) && !item.is_baseline) row.updates++;
+      map.set(ability, row);
     }
-    return Array.from(primaryMap, ([name, secondaryMap]) => ({
-      name,
-      count: Array.from(secondaryMap.values()).reduce((total, items) => total + items.length, 0),
-      order: Math.min(...Array.from(secondaryMap.values()).flat().map((item) => item.menu_order)),
-      secondary: Array.from(secondaryMap, ([secondaryName, items]) => ({
-        name: secondaryName,
-        items,
-        order: Math.min(...items.map((item) => item.menu_order)),
-      })).sort((a, b) => activeVendor === "Huawei Cloud"
-        ? HUAWEI_CATEGORY_ORDER.indexOf(a.name) - HUAWEI_CATEGORY_ORDER.indexOf(b.name)
-        : a.order - b.order),
-    })).sort((a, b) => a.order - b.order);
-  }, [activeVendor, vendorItems]);
+    return [...map].sort((a, b) => b[1].updates - a[1].updates || b[1].count - a[1].count).slice(0, 9);
+  }, [scope, period]);
+  const vendorRows = vendors.filter(name => !vendor || vendor === name).map(name => {
+    const items = scope.filter(item => item.vendor === name);
+    const changes = timed.filter(item => item.vendor === name);
+    const active = [...new Set(changes.map(scenario))].slice(0, 4);
+    return { name, total: items.length, updates: changes.length, added: changes.filter(item => eventType(item) === "新方案").length, active, latest: changes[0]?.last_changed_date || items[0]?.last_seen_date };
+  });
+  const focus = recent[0];
+  const topVendor = [...vendorRows].sort((a, b) => b.updates - a.updates)[0];
+  const topScene = scenes.find(([, row]) => row.updates > 0);
+  const topAbility = capabilities.find(([, row]) => row.updates > 0);
+  const judgment = !vendor && !normalizedQuery && period === "7days" && recent.some(item => item.event_id === board?.summary?.focus?.event_id) && board?.summary?.judgment ? board.summary.judgment :
+    topVendor?.updates ? `${vendorName(topVendor.name, en)}在${periods.find(item => item.key === period)?.label}有 ${topVendor.updates} 项方案发生变化，${topScene?.[0] || "多个场景"}是当前最活跃的方向。` : "当前范围内暂无可核实的方案变化。";
+  const eventTypes = ["新方案", "方案更新", "能力新增", "架构调整", "场景扩展", "产品调整", "方案下线"];
+  const updates = [...recent, ...removed].filter(item => !eventFilter || eventType(item) === eventFilter).sort((a, b) => b.last_changed_date.localeCompare(a.last_changed_date));
+  const shown = directory.slice((page - 1) * 12, page * 12);
+  const selectVendor = (value: string) => { setVendor(value); setScene(""); setPage(1); };
+  const chooseScene = (value: string) => { setScene(value); setPage(1); document.getElementById("solution-directory")?.scrollIntoView({ behavior: "smooth" }); };
 
-  const activePrimary = directory.find((group) => group.name === selectedPrimary) || directory[0];
-  const activeSecondary = activePrimary?.secondary.find((group) => group.name === selectedSecondary) || activePrimary?.secondary[0];
-  const newItems = vendorItems.filter((item) => !item.is_baseline && item.change_type === "new" && item.first_seen_date === dailyInsight?.date);
-  const totalPages = Math.max(1, Math.ceil((activeSecondary?.items.length || 0) / PAGE_SIZE));
-  const activePage = Math.min(currentPage, totalPages);
-  const pageStart = (activePage - 1) * PAGE_SIZE;
-  const pageItems = activeSecondary?.items.slice(pageStart, pageStart + PAGE_SIZE) || [];
-
-  const selectPrimary = (name: string) => {
-    setSelectedPrimary(name);
-    setSelectedSecondary("");
-    setCurrentPage(1);
-  };
-
-  const selectSecondary = (name: string) => {
-    setSelectedSecondary(name);
-    setCurrentPage(1);
-  };
-
-  const selectVendor = (vendor: string) => {
-    setSelectedVendor(vendor);
-    setSelectedPrimary("");
-    setSelectedSecondary("");
-    setCurrentPage(1);
-  };
-
-  const changePage = (page: number) => {
-    setCurrentPage(page);
-    requestAnimationFrame(() => document.getElementById("solution-page")?.scrollIntoView({ block: "start" }));
-  };
-
-  return (
-    <div className="page-stack intel-subpage">
-      <SectionHeader
-        compact
-        icon={<Layers3 className="h-5 w-5" />}
-        title={en ? "Solutions" : "解决方案"}
-        action={
-          <div>
-            <button type="button" onClick={refresh} disabled={refreshing} className="ui-button-primary">
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-              {refreshing ? (en ? "Comparing..." : "正在对比") : (en ? "Check for updates" : "立即对比更新")}
-            </button>
-          </div>
-        }
-      />
-
-      <DailyBoardInsight board="solutions" />
-      <EventStream scope="solutions" title={en ? "Recent solution events" : "近期方案情报"} />
-
-      <nav className="flex gap-2" aria-label={en ? "Cloud vendor catalogs" : "云厂商目录"}>
-        {vendors.map((vendor) => <button key={vendor} type="button" onClick={() => selectVendor(vendor)} aria-current={vendor === activeVendor ? "page" : undefined} className={`ui-button-secondary ${vendor === activeVendor ? "bg-primary text-white hover:bg-primary-dark" : ""}`}>{vendorLabel(vendor, en)}</button>)}
-      </nav>
-
-      <div className="rounded-xl bg-surface-subtle px-5 py-4 text-sm leading-6 text-ink-secondary">
-        {en ? `Viewing ${activeVendor || "—"}. Existing solutions form a baseline; future updates show changes to names, categories, summaries and content.` : `当前查看 ${vendorLabel(activeVendor, false) || "—"}。存量方案已设为普通基线；后续更新会列出名称、分类、简介或正文的具体变化。`}
-      </div>
-
-      {error && <div role="alert" className="rounded-xl bg-warning-soft px-5 py-4 text-sm text-warning">{error}{en ? ". Automatic checks continue daily at 09:00." : "。系统仍会在每天 09:00 自动检查。"}</div>}
-
-      {!loading && newItems.length > 0 && (
-        <section className="rounded-2xl bg-warning-soft p-3 sm:p-5">
-          <div className="flex items-end justify-between gap-4 px-2 pb-4">
-            <div><p className="swiss-kicker text-warning">{en ? "Verified today" : "已核实"}</p><h2 className="mt-1 type-h2 text-ink">{en ? "New today" : "今日确认新增"}</h2></div>
-            <span className="ui-tag ui-tag-warning">{newItems.length} {en ? "items" : "项"}</span>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-2">{newItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
-        </section>
-      )}
-
-      <section className="overflow-hidden rounded-2xl bg-surface-elevated shadow-[var(--shadow-card)]">
-        <div className="flex flex-col gap-4 bg-surface-subtle px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>{en && <p className="swiss-kicker text-primary">Official directory</p>}<h2 className="mt-1 type-h2 text-ink">{en ? "Cloud solution catalog" : "云厂商技术解决方案目录"}</h2></div>
-          <div className="flex gap-3">{Object.entries(data?.sources || {}).map(([vendor, url]) => <a key={vendor} href={url} target="_blank" rel="noreferrer" className="ui-link flex items-center gap-1 text-xs">{vendor}<ArrowUpRight className="h-3.5 w-3.5" /></a>)}</div>
-        </div>
-
-        {loading ? (
-          <div className="grid gap-3 bg-paper p-3 md:grid-cols-2">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-52 animate-shimmer rounded-xl bg-surface-elevated" />)}</div>
-        ) : activePrimary && activeSecondary ? (
-          <>
-            <div className="grid gap-3 bg-surface-subtle p-4 lg:hidden">
-              <label className="block"><span className="swiss-kicker text-ink-muted"> {en ? "Primary domain" : "一级领域"}</span><select value={activePrimary.name} onChange={(event) => selectPrimary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{directory.map((group) => <option key={group.name} value={group.name}>{categoryLabel(group.name, en)} ({group.count})</option>)}</select></label>
-              <label className="block"><span className="swiss-kicker text-ink-muted"> {en ? "Secondary domain" : "二级领域"}</span><select value={activeSecondary.name} onChange={(event) => selectSecondary(event.target.value)} className="ui-input mt-2 w-full px-3 py-2.5 text-sm font-semibold">{activePrimary.secondary.map((group) => <option key={group.name} value={group.name}>{categoryLabel(group.name, en)} ({group.items.length})</option>)}</select></label>
-            </div>
-
-            <div className="grid lg:grid-cols-[190px_230px_minmax(0,1fr)]">
-              <aside className="hidden bg-surface-subtle p-3 lg:block" aria-label={en ? "Primary domain" : "一级领域"}>
-                <p className="px-3 pb-3 swiss-kicker text-ink-muted"> {en ? "Primary domains" : "一级领域"} · {directory.length}</p>
-                <nav className="space-y-1">{directory.map((group) => {
-                  const active = group.name === activePrimary.name;
-                  return <button key={group.name} type="button" onClick={() => selectPrimary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-surface-elevated text-primary shadow-[var(--shadow-card)]" : "text-ink-muted hover:bg-surface-elevated/70 hover:text-ink"}`}><span className="text-sm font-bold">{categoryLabel(group.name, en)}</span><span className="text-xs tabular-nums">{group.count}</span></button>;
-                })}</nav>
-              </aside>
-
-              <aside className="hidden bg-paper p-3 lg:block" aria-label={en ? "Secondary domain" : "二级领域"}>
-                <p className="px-3 pb-3 swiss-kicker text-primary"> {en ? "Secondary domains" : "二级领域"} · {activePrimary.secondary.length}</p>
-                <nav className="space-y-1">{activePrimary.secondary.map((group) => {
-                  const active = group.name === activeSecondary.name;
-                  return <button key={group.name} type="button" onClick={() => selectSecondary(group.name)} aria-current={active ? "page" : undefined} className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors ${active ? "bg-primary-dark text-white" : "bg-surface-elevated text-ink-secondary hover:bg-primary-soft hover:text-primary"}`}><span className="text-sm font-semibold">{categoryLabel(group.name, en)}</span><span className={`text-xs tabular-nums ${active ? "text-white/60" : "text-ink-muted"}`}>{group.items.length}</span></button>;
-                })}</nav>
-              </aside>
-
-              <div className="min-w-0">
-                <header id="solution-page" className="scroll-mt-20 bg-primary-dark px-6 py-7 text-white">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.1em] text-white/60"> {categoryLabel(activePrimary.name, en)} / {en ? "Secondary domain" : "二级领域"}</p>
-                  <div className="mt-2 flex items-end justify-between gap-4"><h3 className="type-h2"> {categoryLabel(activeSecondary.name, en)}</h3><span className="serif-stat text-4xl text-white/35">{activeSecondary.items.length}</span></div>
-                  <p className="mt-2 text-sm text-white/65"> {en ? `Official catalog order · Page ${activePage}/${totalPages} · ${PAGE_SIZE} items per page` : `顺序与官方目录保持一致 · 第 ${activePage}/${totalPages} 页 · 每页 ${PAGE_SIZE} 项`}</p>
-                </header>
-                <div className="grid gap-2 bg-paper p-2 xl:grid-cols-2">{pageItems.map((item) => <SolutionCard key={item.url} item={item} />)}</div>
-                <Pagination page={activePage} totalPages={totalPages} totalItems={activeSecondary.items.length} start={pageStart} onChange={changePage} />
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex min-h-64 flex-col items-center justify-center gap-3 px-6 text-center"><Layers3 className="h-8 w-8 text-ink-muted" /><p className="font-semibold text-ink"> {en ? "No solutions collected yet" : "尚未采集到解决方案"}</p><p className="text-sm text-ink-muted"> {en ? "Sign in to check for updates, or wait for the daily 09:00 crawl." : "登录后点击立即对比更新，或等待每天 09:00 自动采集。"}</p></div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function Pagination({ page, totalPages, totalItems, start, onChange }: { page: number; totalPages: number; totalItems: number; start: number; onChange: (page: number) => void }) {
-  const { preferences } = usePreferences();
-  const en = preferences.language === "en";
-  if (totalPages <= 1) return null;
-  return (
-    <nav aria-label={en ? "Solution pagination" : "解决方案分页"} className="flex flex-col gap-3 bg-surface-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-xs text-ink-muted">{en ? `Showing ${start + 1}–${Math.min(start + PAGE_SIZE, totalItems)} of ${totalItems} items` : `显示 ${start + 1}–${Math.min(start + PAGE_SIZE, totalItems)} 项，共 ${totalItems} 项`}</p>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <button type="button" disabled={page === 1} onClick={() => onChange(page - 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Previous" : "上一页"}</button>
-        {Array.from({ length: totalPages }, (_, index) => index + 1).map((number) => (
-          <button key={number} type="button" onClick={() => onChange(number)} aria-current={number === page ? "page" : undefined} aria-label={en ? `Page ${number}` : `第 ${number} 页`} className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 font-mono text-xs font-semibold transition-colors ${number === page ? "bg-primary text-white" : "bg-surface-elevated text-ink-muted hover:bg-primary-soft hover:text-primary"}`}>{number}</button>
-        ))}
-        <button type="button" disabled={page === totalPages} onClick={() => onChange(page + 1)} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Next" : "下一页"}</button>
-      </div>
-    </nav>
-  );
-}
-
-function SolutionCard({ item }: { item: SolutionItem }) {
-  const { user } = useAuth();
-  const { preferences } = usePreferences();
-  const en = preferences.language === "en";
-  return (
-    <article className="relative rounded-xl bg-surface-elevated p-6 transition-all hover:shadow-[var(--shadow-card)]">
-      <div className="flex min-h-7 items-start justify-between gap-5">
-        <p className="swiss-kicker text-ink-muted">{vendorLabel(item.vendor, en)} / {item.vendor === "Huawei Cloud" ? categoryLabel(item.primary_category, en) : `${categoryLabel(item.primary_category, en)} / ${categoryLabel(item.secondary_category, en)}`}</p>
-        {item.is_recent && <span className="ui-tag ui-tag-warning shrink-0 gap-1 uppercase tracking-wider"><Sparkles className="h-3 w-3" />{item.change_type === "new" ? (en ? "Recently added" : "近期收录") : (en ? "Updated" : "内容更新")}</span>}
-      </div>
-      <h3 className="mt-3 type-h3 text-ink">{item.title}</h3>
-      <p className="mt-4 border-l-2 border-lemon pl-3 text-base font-semibold leading-relaxed text-ink-secondary"><span className="block text-xs text-primary">{en ? "Solution value" : "方案价值"} · {item.analysis_mode === "source" ? (en ? "from official source" : "依据官方来源") : (en ? "AI analysis" : "AI 分析")}</span>{item.intelligence?.brief || item.source_description || item.title}</p>
-      {(item.intelligence?.open_source_projects || item.intelligence?.cloud_resources) && <dl className="mt-3 space-y-2 text-sm leading-6 text-ink-secondary">
-        {item.intelligence.open_source_projects && <div><dt className="font-semibold">{en ? "Open-source projects" : "开源项目"}</dt><dd>{item.intelligence.open_source_projects}</dd></div>}
-        {item.intelligence.cloud_resources && <div><dt className="font-semibold">{en ? "Cloud resources" : "云资源"}</dt><dd>{item.intelligence.cloud_resources}</dd></div>}
-      </dl>}
-      {item.source_description && item.source_description !== item.intelligence?.brief && <p className="mt-3 line-clamp-2 text-sm leading-6 text-ink-muted">{en ? "Source brief: " : "来源简述："}{item.source_description}</p>}
-      {item.is_recent && item.change_type === "updated" && item.change_summary && <p className="mt-3 rounded-lg bg-warning-soft px-3 py-2 text-xs leading-5 text-warning">{item.change_summary}</p>}
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-grid pt-4">
-        <span className="text-[11px] text-ink-muted">{item.is_baseline ? (en ? "Baseline" : "普通方案") : (en ? `Changed ${item.last_changed_date}` : `最近变化 ${item.last_changed_date}`)}</span>
-        <div className="flex items-center gap-3">
-          {item.event_id && <Link href={`/events/${item.event_id}`} className="ui-link text-xs">{en ? "Intelligence details" : "情报详情"}</Link>}
-          {!item.intelligence?.analysis && <AgentAction contextType="cloud_solution" contextId={item.id} actionKey="analyze" className="ui-button-secondary px-3 py-2 text-xs">{en ? "AI analysis" : "AI 分析"}</AgentAction>}
-          {user && <Link href={{ pathname: "/workbench/solutions/new", query: { source_url: item.url, title: item.title, description: item.source_description || item.summary } }} className="ui-button-secondary px-3 py-2 text-xs">{en ? "Save as practice" : "收纳方案实践"}</Link>}
-          <a href={item.url} target="_blank" rel="noreferrer" aria-label={en ? `View ${item.vendor} solution: ${item.title}` : `查看${item.vendor}方案：${item.title}`} className="ui-link flex items-center gap-1.5 text-xs">{en ? "View solution" : "查看方案"}<ArrowUpRight className="h-3.5 w-3.5" /></a>
-        </div>
-      </div>
-    </article>
-  );
+  return <main className="solution-page">
+    <section className="solution-hero"><div><span className="solution-kicker">INSIGHTPRO / SOLUTION INTELLIGENCE</span><h1>{en ? "Solutions" : "解决方案"}</h1><p>{en ? "Track vendor solution changes, scenario investment and technical capabilities." : "跟踪主流云厂商与 AI 厂商解决方案变化，识别场景布局、能力演进与竞争方向。"}</p></div><div className="solution-hero-side"><label>时间范围<select value={period} onChange={event => setPeriod(event.target.value as Period)}>{periods.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}</select></label><small>最近更新 · {dateText(catalog?.last_checked)}</small><span className="solution-live"><i />{error ? "数据读取失败" : refreshing ? "更新中" : "数据已就绪"}</span></div></section>
+    <section className="solution-metrics" aria-label="核心指标">{[
+      ["已收录解决方案", scope.length, "官方方案目录"], ["周期内方案变化", timed.length + removed.length, periods.find(item => item.key === period)?.label || ""],
+      ["重点厂商", vendorRows.length, "当前筛选范围"], ["活跃场景", scenes.filter(([, row]) => row.updates > 0).length, "周期内有变化"],
+    ].map(([label, value, hint]) => <article key={label}><span>{label}</span><strong>{loading ? "—" : value}</strong><small>{hint}</small></article>)}</section>
+    <div className="solution-status-summary"><span>新增 <b>{timed.filter(item => eventType(item) === "新方案").length}</b></span><span>更新 <b>{timed.filter(item => eventType(item) !== "新方案").length}</b></span><span>下线 <b>{removed.length}</b></span><small>当前筛选周期 · 来自官方目录变更</small></div>
+    <div className="solution-toolbar"><div className="solution-periods" role="group" aria-label="时间筛选">{periods.map(item => <button key={item.key} type="button" aria-pressed={period === item.key} onClick={() => setPeriod(item.key)}>{item.label}</button>)}</div><label className="solution-search"><Search size={17}/><span className="sr-only">搜索厂商、方案、场景、能力与产品</span><input value={query} onChange={event => { setQuery(event.target.value); setPage(1); }} placeholder="搜索厂商、方案、场景、能力与产品" /></label><button type="button" className="solution-refresh" disabled={refreshing} onClick={refresh}><RefreshCw size={15} className={refreshing ? "animate-spin" : ""}/>{refreshing ? "对比中" : "刷新"}</button></div>
+    <nav className="solution-vendor-tabs" aria-label="厂商筛选"><button type="button" aria-pressed={!vendor} onClick={() => selectVendor("")}>全部厂商</button>{vendors.map(name => <button key={name} type="button" aria-pressed={vendor === name} onClick={() => selectVendor(name)}>{vendorName(name, en)}</button>)}</nav>
+    {error && <div className="solution-alert" role="alert">{error}<button onClick={load} type="button">重试</button></div>}
+    {loading ? <div className="solution-empty" role="status">正在读取解决方案情报…</div> : <>
+      <section className="solution-section"><header className="solution-head"><div><span className="solution-kicker">PERIOD ASSESSMENT</span><h2>本期解决方案判断 · {periods.find(item => item.key === period)?.label}</h2><p>依据当前筛选范围内的官方方案变化归纳</p></div></header><div className="solution-judgment"><div className="solution-overall"><span>总体判断</span><p>{judgment}</p><small>{timed.length} 条周期内方案变化 · {namedEvents.length} 条事件记录</small></div><div className="solution-judgment-cards">{[
+        ["厂商动作", topVendor?.updates ? `${vendorName(topVendor.name, en)}有 ${topVendor.updates} 项方案发生变化，覆盖 ${topVendor.active.join("、") || "多个场景"}。` : "当前周期暂无厂商变化。"],
+        ["场景变化", topScene ? `${topScene[0]}有 ${topScene[1].updates} 项方案发生变化，覆盖 ${topScene[1].vendors.size} 家厂商。` : "当前周期暂无活跃场景。"],
+        ["能力变化", topAbility ? `${topAbility[0]}出现在 ${topAbility[1].count} 项方案中，其中 ${topAbility[1].updates} 项在本周期变化。` : "当前周期暂无可识别的能力变化。"],
+      ].map(([label, text]) => <article key={label}><span>{label}</span><strong>{text}</strong></article>)}</div></div></section>
+      <section className="solution-section"><header className="solution-head"><div><span className="solution-kicker">KEY CHANGES</span><h2>重点方案变化</h2><p>优先展示有具体变化描述、相关技术能力及近期更新的官方方案</p></div><a href="#solution-latest">查看全部 <ArrowRight size={15}/></a></header>{focus ? <div className="solution-feature"><article className="solution-feature-main"><div className="solution-feature-brand"><Image src={eventImage(focus.image_url, focus.vendor)} alt={focus.image_url ? focus.title : vendorName(focus.vendor, en)} width={240} height={160} unoptimized /></div><div className="solution-feature-body"><span className="solution-tag">{vendorName(focus.vendor, en)} · {scenario(focus)}</span><time>{dateText(focus.last_changed_date)}</time><h3>{focus.title}</h3><p>{readable(meaningfulChange(focus.change_summary) ? focus.change_summary : solutionValue(focus), 180)}</p><div className="solution-feature-reason"><strong>为什么值得关注</strong><span>{board?.summary?.focus?.event_id === focus.event_id && !vendor && !normalizedQuery && period === "7days" ? readable(board?.summary?.focus?.why || "", 130) : `${scenario(focus)}方向的方案变化；${abilities(focus).slice(0, 3).join("、") || "具体能力"}可从官方来源继续核实。`}</span></div><div className="solution-feature-bottom"><span>{eventType(focus)} · {abilities(focus).slice(0, 3).join(" / ") || cleanCategory(focus.category)}</span><Link href={`/insights/solutions/${focus.id}`}>查看详情 <ArrowRight size={15}/></Link></div></div></article><div className="solution-feature-list">{recent.slice(1, 6).map((item, index) => <Link href={`/insights/solutions/${item.id}`} key={item.id}><b>{String(index + 2).padStart(2, "0")}</b><span><small>{vendorName(item.vendor, en)} · {scenario(item)} · {dateText(item.last_changed_date)}</small><strong>{item.title}</strong></span><em>{eventType(item)}</em></Link>)}</div></div> : <div className="solution-empty">当前周期暂无可核实的方案变化。</div>}</section>
+      <section className="solution-section"><header className="solution-head"><div><span className="solution-kicker">VENDOR WATCH</span><h2>厂商动态</h2><p>各厂商的方案覆盖、近期变化与活跃场景</p></div></header><div className="solution-vendor-grid">{vendorRows.map(row => <button key={row.name} type="button" onClick={() => selectVendor(row.name)} aria-pressed={vendor === row.name}><Image src={row.name === "Huawei Cloud" ? "/brand-logos/huawei.svg" : "/brand-logos/alibabacloud.svg"} alt="" width={50} height={50} unoptimized/><strong>{vendorName(row.name, en)}</strong><span><b>{row.total}</b> 个方案 <b>{row.updates}</b> 次变化 <b>{row.added}</b> 个新增</span><small>活跃场景：{row.active.join(" / ") || "本周期暂无变化"}</small><time>最近更新 {dateText(row.latest)}</time></button>)}</div></section>
+      <section className="solution-section"><header className="solution-head"><div><span className="solution-kicker">SCENARIO & CAPABILITY</span><h2>场景与能力趋势</h2><p>从已收录方案与当前周期变化中聚合；“升温”表示本周期有变化</p></div></header><div className="solution-trends"><div><h3>场景趋势</h3><div className="solution-table-wrap"><table><thead><tr><th>场景</th><th>方案</th><th>变化</th><th>厂商</th><th>状态</th></tr></thead><tbody>{scenes.slice(0, 10).map(([name, row]) => <tr key={name}><td><button type="button" onClick={() => chooseScene(name)}>{name}</button></td><td>{row.count}</td><td>{row.updates}</td><td>{row.vendors.size}</td><td><span className={row.updates ? "solution-status hot" : "solution-status"}>{row.updates ? "活跃" : "稳定"}</span></td></tr>)}</tbody></table></div></div><div><h3>能力趋势</h3><div className="solution-ability-list">{capabilities.map(([name, row]) => <div key={name}><span>{name}</span><div className="solution-track"><i style={{ width: `${Math.max(5, row.count / (capabilities[0]?.[1].count || 1) * 100)}%` }}/></div><strong>{row.count} 项</strong><small>{row.updates} 项变化</small></div>)}</div></div></div></section>
+      <section className="solution-section" id="solution-directory"><header className="solution-head"><div><span className="solution-kicker">SOLUTION CATALOG</span><h2>解决方案目录</h2><p>完整目录始终可浏览；时间仅影响每条方案的变化状态</p></div><span>{directory.length} 个方案</span></header><div className="solution-scene-tabs" role="group" aria-label="场景筛选"><button type="button" aria-pressed={!scene} onClick={() => { setScene(""); setPage(1); }}>全部场景</button>{scenes.slice(0, 12).map(([name]) => <button type="button" key={name} aria-pressed={scene === name} onClick={() => { setScene(name); setPage(1); }}>{name}</button>)}</div>{scene && <div className="solution-compare"><strong>{scene} · 同场景方案比较</strong><p>当前范围涉及 {[...new Set(directory.map(item => vendorName(item.vendor, en)))].join("、")}，点击方案查看各厂商的产品、能力、部署信息和官方来源。</p></div>}{scene && directory.length > 0 && <div className="solution-table-wrap"><table className="solution-updates-table"><thead><tr><th>厂商</th><th>同场景方案</th><th>核心产品</th><th>核心能力</th><th>部署方式</th><th>最近更新</th></tr></thead><tbody>{[...directory].sort((a, b) => a.vendor.localeCompare(b.vendor)).slice(0, 12).map(item => <tr key={item.id}><td>{vendorName(item.vendor, en)}</td><td><Link href={`/insights/solutions/${item.id}`}>{item.title}</Link></td><td>{readable(products(item), 45)}</td><td>{abilities(item).slice(0, 4).join(" / ") || "官方资料未明确"}</td><td>{/私有化|私有部署|on.premise/i.test(item.source_description) ? "私有化" : /一键部署|云上部署/i.test(item.source_description) ? "云上部署" : "以官方资料为准"}</td><td>{dateText(item.last_changed_date)}</td></tr>)}</tbody></table></div>}<div className="solution-directory">{shown.map(item => <article key={item.id}><div className="solution-directory-top"><span>{vendorName(item.vendor, en)}</span><span className={dateInPeriod(item.last_changed_date, period) && !item.is_baseline ? "solution-status hot" : "solution-status"}>{dateInPeriod(item.last_changed_date, period) && !item.is_baseline ? eventType(item) : "已收录"}</span></div><h3><Link href={`/insights/solutions/${item.id}`}>{item.title}</Link></h3><p>{readable(solutionValue(item), 90)}</p><div className="solution-tags"><span>{scenario(item)}</span><span>行业：{industry(item)}</span>{abilities(item).slice(0, 3).map(value => <span key={value}>{value}</span>)}</div><small className="solution-product-line">相关产品：{readable(products(item), 32)}</small><footer><time>更新 {dateText(item.last_changed_date || item.last_seen_date)}</time><Link href={`/insights/solutions/${item.id}`}>查看方案 <ArrowUpRight size={14}/></Link></footer></article>)}</div>{!directory.length && <div className="solution-empty">没有匹配的方案。</div>}{directory.length > 12 && <div className="solution-pagination"><button type="button" disabled={page === 1} onClick={() => setPage(value => value - 1)}>上一页</button><span>{page} / {Math.ceil(directory.length / 12)}</span><button type="button" disabled={page * 12 >= directory.length} onClick={() => setPage(value => value + 1)}>下一页</button></div>}</section>
+      <section className="solution-section" id="solution-latest"><header className="solution-head"><div><span className="solution-kicker">LATEST UPDATES</span><h2>最新方案动态</h2><p>按时间查看官方方案变化与来源</p></div><span>{updates.length} 条</span></header><div className="solution-scene-tabs" role="group" aria-label="事件类型筛选"><button type="button" aria-pressed={!eventFilter} onClick={() => setEventFilter("")}>全部</button>{eventTypes.map(type => <button key={type} type="button" aria-pressed={eventFilter === type} onClick={() => setEventFilter(type)}>{type}</button>)}</div><div className="solution-table-wrap"><table className="solution-updates-table"><thead><tr><th>时间</th><th>厂商</th><th>解决方案</th><th>场景</th><th>事件类型</th><th>变化摘要</th><th>来源</th></tr></thead><tbody>{updates.slice(0, 30).map(item => <tr key={item.id}><td>{dateText(item.last_changed_date)}</td><td>{vendorName(item.vendor, en)}</td><td><Link href={item.is_active === false ? item.url : `/insights/solutions/${item.id}`}>{item.title}</Link></td><td>{scenario(item)}</td><td><span className="solution-status hot">{eventType(item)}</span></td><td title={item.change_summary}>{readable(meaningfulChange(item.change_summary) ? item.change_summary : solutionValue(item), 72)}</td><td><a href={item.url} target="_blank" rel="noopener noreferrer">官方页面 <ArrowUpRight size={13}/></a></td></tr>)}</tbody></table></div>{!updates.length && <div className="solution-empty">当前筛选范围暂无方案动态。</div>}</section>
+    </>}
+  </main>;
 }

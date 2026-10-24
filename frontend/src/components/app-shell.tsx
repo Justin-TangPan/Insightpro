@@ -37,6 +37,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     </header>
-    <main id="app-main" className={`page-shell${pathname === "/" ? " home-page-shell" : pathname === "/insights/hotspots" ? " ecosystem-page-shell" : pathname.startsWith("/admin") ? " admin-page-shell" : ""}`}>{children}</main>
+    <main id="app-main" className={`page-shell${pathname === "/" ? " home-page-shell" : pathname === "/insights/hotspots" ? " ecosystem-page-shell" : pathname.startsWith("/insights/solutions") ? " solution-page-shell" : pathname.startsWith("/admin") ? " admin-page-shell" : ""}`}>{children}</main>
   </div>;
 }

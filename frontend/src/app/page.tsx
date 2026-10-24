@@ -5,9 +5,10 @@ import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Radar } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { API } from "@/lib/api";
+import { eventImage } from "@/lib/vendor-image";
 
 type Source = { name: string; url: string };
-type Event = { id: string; title: string; vendor: string; happened_at: string; date_basis: string; type: string; summary: string; why: string; importance: number; sources: Source[]; board: string };
+type Event = { image_url?: string; id: string; title: string; vendor: string; happened_at: string; date_basis: string; type: string; summary: string; why: string; importance: number; sources: Source[]; board: string };
 type HomeData = { as_of: string; today_count: number; event_count: number; priority_count: number; vendor_count: number; source_count: number; events: Event[]; highlights: Event[]; highlights_scope: "today" | "recent" };
 
 const boardLinks: Record<string, string> = { github: "/insights/hotspots", apps: "/insights/app-launches", solutions: "/insights/solutions", community: "/insights/community", competitors: "/insights/competitors" };
@@ -64,15 +65,6 @@ function vendorGroup(vendor: string) {
   return vendorNames.find(name => vendor.toLowerCase().includes(name.toLowerCase())) || "其他厂商";
 }
 
-function vendorLogo(vendor: string) {
-  if (/阿里|Alibaba/i.test(vendor)) return "/brand-logos/alibabacloud.svg";
-  if (/华为|Huawei/i.test(vendor)) return "/brand-logos/huawei.svg";
-  if (/OpenAI/i.test(vendor)) return "/brand-logos/openai.svg";
-  if (/Anthropic/i.test(vendor)) return "/brand-logos/anthropic.svg";
-  if (/Google/i.test(vendor)) return "/brand-logos/google.svg";
-  if (/Meta/i.test(vendor)) return "/brand-logos/meta.svg";
-  return "";
-}
 
 export default function HomePage() {
   const [data, setData] = useState<HomeData | null>(null);
@@ -140,7 +132,7 @@ export default function HomePage() {
     <section className="intel-focus" aria-labelledby="intel-focus-title">
       <div className="intel-section-head"><h2 id="intel-focus-title">今日焦点</h2><span>{data?.highlights_scope === "recent" ? "近期重点事件" : "值得继续阅读的事件"}</span></div>
       {focus ? <div className="intel-focus-grid">
-        <Link className="intel-focus-visual" href={eventHref(focus)} aria-label={`阅读${focus.title}`}><span className="intel-visual-grid"/><span className="intel-visual-orbit"/><span className="intel-visual-core">{vendorLogo(focus.vendor) ? <Image src={vendorLogo(focus.vendor)} alt="" width={150} height={90} unoptimized /> : <Radar size={80} strokeWidth={1.2} />}</span><span className="intel-visual-caption">INSIGHT / {focus.vendor || "AI INTELLIGENCE"}</span></Link>
+        <Link className="intel-focus-visual" href={eventHref(focus)} aria-label={`阅读${focus.title}`}><span className="intel-visual-grid"/><span className="intel-visual-orbit"/><span className="intel-visual-core">{eventImage(focus.image_url, focus.vendor) ? <Image src={eventImage(focus.image_url, focus.vendor)} alt="" width={150} height={90} unoptimized /> : <Radar size={80} strokeWidth={1.2} />}</span><span className="intel-visual-caption">INSIGHT / {focus.vendor || "AI INTELLIGENCE"}</span></Link>
         <article className="intel-focus-story"><div className="intel-focus-overline"><span>01</span><span>{businessOf(focus)} / {eventTypeOf(focus)}</span></div><h3><Link href={eventHref(focus)}>{displayTitle(focus)}</Link></h3><p>{usefulSummary(focus) || focus.why}</p><div className="intel-story-meta"><time>{dateLabel(focus.happened_at)}</time><span>{focus.sources.length} 个来源</span><span>{focus.vendor || "行业情报"}</span><span>{eventTypeOf(focus)}</span></div><Link className="intel-read-more" href={eventHref(focus)}>阅读详情 <ArrowRight size={15} /></Link></article>
         <div className="intel-secondary">{secondary.map((event, index) => <article key={event.id}><span className="intel-number">{String(index + 2).padStart(2, "0")}</span><div><Link href={eventHref(event)}>{displayTitle(event)}</Link><p>{usefulSummary(event) || event.why}</p><small>{businessOf(event)} · {eventTypeOf(event)} · {dateLabel(event.happened_at)} · {event.sources.length} 个来源</small></div><ArrowUpRight size={15}/></article>)}</div>
       </div> : <p className="intel-empty">{failed ? "焦点事件加载失败。" : "暂无可展示的焦点事件。"}</p>}
