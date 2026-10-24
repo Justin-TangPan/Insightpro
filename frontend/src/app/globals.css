@@ -1188,3 +1188,41 @@ body {
 .ecosystem-toolbar>div:first-child>div:first-child { margin-right:auto; }
 .ecosystem-ai-judgment { display:flex; align-items:center; gap:.65rem; padding:.65rem .85rem; border:1px solid #e1e9f6; border-radius:.55rem; background:#f7faff; color:#536686; font-size:.72rem; }.ecosystem-ai-judgment span { flex:none; color:#315fc8; font-weight:700; }.ecosystem-ai-judgment p { overflow:hidden; margin:0; text-overflow:ellipsis; white-space:nowrap; }.ecosystem-ai-judgment a { display:flex; align-items:center; gap:.2rem; flex:none; margin-left:auto; color:#2465ed; font-weight:650; }
 @media(max-width:750px) { .ecosystem-ai-judgment { align-items:flex-start; flex-wrap:wrap; }.ecosystem-ai-judgment p { flex-basis:100%; white-space:normal; } }
+
+/* Keep the technology dashboard on one centered twelve-column baseline. */
+#app-main.ecosystem-page-shell { padding-inline:0; }
+.ecosystem-page {
+  --ecosystem-column-gap:16px;
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  align-content:start;
+  column-gap:var(--ecosystem-column-gap);
+  row-gap:28px;
+  margin:-2rem 0 -5rem;
+  padding:1.5rem max(1rem,2.5vw,calc((100% - 1368px)/2)) 5rem;
+}
+.ecosystem-page>* { grid-column:1/-1; min-width:0; }
+.ecosystem-hero { grid-template-columns:repeat(12,minmax(0,1fr)); column-gap:var(--ecosystem-column-gap); }
+.ecosystem-hero-copy { grid-column:span 7; padding:24px 0 24px 16px; }
+.ecosystem-hero-visual { grid-column:span 3; }
+.ecosystem-hero-status { grid-column:span 2; align-items:flex-end; padding:24px 16px 24px 0; text-align:right; }
+.project-grid,.trend-grid,.evaluation-grid { grid-template-columns:repeat(12,minmax(0,1fr)); gap:var(--ecosystem-column-gap); }
+.project-grid>*,.trend-grid>* { grid-column:span 3; min-width:0; }
+.evaluation-grid>* { grid-column:span 4; min-width:0; }
+.project-card { display:grid; grid-template-rows:40px 56px 28px minmax(40px,1fr) auto auto; row-gap:8px; }
+.project-description { min-height:0; margin:0; }
+.project-tags { min-height:0; align-content:start; overflow:hidden; }
+.project-trend { height:auto; margin-top:0; }
+.project-actions { margin-top:0; }
+@media(max-width:1150px) {
+  .ecosystem-hero-visual { grid-column:span 2; }
+  .ecosystem-hero-status { grid-column:span 3; }
+  .project-grid>*,.trend-grid>*,.evaluation-grid>* { grid-column:span 6; }
+}
+@media(max-width:750px) {
+  .ecosystem-page { row-gap:22px; }
+  .ecosystem-hero-copy,.ecosystem-hero-status { grid-column:span 12; }
+  .ecosystem-hero-copy { padding:1.4rem 1rem; }
+  .ecosystem-hero-status { align-items:center; padding:0 1rem 1.3rem; text-align:left; }
+  .project-grid>*,.trend-grid>*,.evaluation-grid>* { grid-column:span 12; }
+}
