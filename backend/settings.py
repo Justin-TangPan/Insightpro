@@ -25,7 +25,7 @@ def _required_env(name: str) -> str:
 
 
 class Settings:
-    APP_VERSION: str = os.getenv("APP_VERSION", "1.1.0")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.1.1")
     # ── AI ──
     CHAT_API_URL: str = os.getenv("CHAT_API_URL", "")
     CHAT_API_KEY: str = os.getenv("CHAT_API_KEY", "")

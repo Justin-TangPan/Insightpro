@@ -1,6 +1,6 @@
 # 小雷达前端
 
-这是小雷达 v1.1.0 的 Next.js 16 / React 19 前端。项目采用 App Router、TypeScript、Tailwind CSS 4 和 Recharts，通过同源 `/api/*` 访问服务接口。页面覆盖首页简讯、五类情报业务、事件详情、管理员运营工作台和用户方案实践。
+这是小雷达 v1.1.1 的 Next.js 16 / React 19 前端。项目采用 App Router、TypeScript、Tailwind CSS 4 和 Recharts，通过同源 `/api/*` 访问服务接口。页面覆盖首页简讯、五类情报业务、事件详情、管理员运营工作台和用户方案实践。
 
 ## 启动
 

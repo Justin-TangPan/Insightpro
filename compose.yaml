@@ -1,7 +1,7 @@
 services:
   backend:
     container_name: insight-backend
-    image: insight-web-backend:1.1.0
+    image: insight-web-backend:1.1.1
     build:
       context: .
       dockerfile: ./backend/Dockerfile
@@ -12,7 +12,7 @@ services:
       STARTUP_CATCHUP_ENABLED: "true"
       SCHEDULER_ENABLED: "true"
       REQUIREMENT_ABSORPTION_ON_STARTUP: "true"
-      APP_VERSION: "1.1.0"
+      APP_VERSION: "1.1.1"
       INSIGHT_FRONTEND_URL: http://frontend:3000
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -37,7 +37,7 @@ services:
 
   frontend:
     container_name: insight-frontend
-    image: insight-web-frontend:1.1.0
+    image: insight-web-frontend:1.1.1
     build:
       context: ./frontend
       dockerfile: Dockerfile
