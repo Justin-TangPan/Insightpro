@@ -32,7 +32,7 @@ export function ProfileCard({ user, profileName, setProfileName, isAdmin }: Prof
         <div>
           <label className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider block mb-1.5">{en ? "Plan" : "套餐"}</label>
           <div className="px-3.5 py-2 rounded-lg border border-grid bg-surface-subtle text-[13px] font-semibold text-ink flex items-center gap-2">
-            InsightPro
+            小雷达
             <span className="ui-tag">{isAdmin ? "Admin" : "User"}</span>
           </div>
         </div>

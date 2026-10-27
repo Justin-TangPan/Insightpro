@@ -1,6 +1,6 @@
-# InsightPro 前端
+# 小雷达前端
 
-这是 InsightPro 的 Next.js 16 / React 19 前端。项目采用 App Router、TypeScript、Tailwind CSS 4 和 Recharts，通过同源 `/api/*` 访问 FastAPI。
+这是小雷达 v1.1.0 的 Next.js 16 / React 19 前端。项目采用 App Router、TypeScript、Tailwind CSS 4 和 Recharts，通过同源 `/api/*` 访问服务接口。页面覆盖首页简讯、五类情报业务、事件详情、管理员运营工作台和用户方案实践。
 
 ## 启动
 
@@ -36,4 +36,4 @@ npm run lint
 npm run build
 ```
 
-生产镜像使用 standalone 输出，正式部署统一从仓库根目录执行 `sudo ./scripts/deploy-docker.sh`。完整页面、接口和架构信息见根目录 [README](../README.md) 与 [架构清单](../doc/技术架构与业务架构清单.md)。
+生产镜像使用 standalone 输出。正式部署统一从仓库根目录执行 `sudo bash scripts/deploy-docker.sh`，脚本会运行后端测试、前端 lint、双端镜像构建和完整健康检查。完整页面、接口和架构信息见根目录 [README](../README.md) 与 [架构清单](../doc/技术架构与业务架构清单.md)。

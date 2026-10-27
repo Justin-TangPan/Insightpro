@@ -25,7 +25,7 @@ export default function InsightAgentLaunchPage() {
     <div className="ui-card mx-auto mt-20 flex max-w-lg flex-col items-center py-12 text-center">
       <Bot className="h-8 w-8 text-primary" />
       <h1 className="mt-4 type-h2 text-ink">正在进入 Insight-Agent</h1>
-      <p className="mt-2 text-sm text-ink-muted">{error || "正在验证 InsightPro 身份并创建短时访问授权…"}</p>
+      <p className="mt-2 text-sm text-ink-muted">{error || "正在验证小雷达身份并创建短时访问授权…"}</p>
       {error && <Link href="/" className="ui-button-secondary mt-5">返回首页</Link>}
     </div>
   );

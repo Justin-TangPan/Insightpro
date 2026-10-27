@@ -10,9 +10,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from pydantic import BaseModel, Field, field_validator
 
 from routers.auth import require_admin
-from services.event_service import get_event, list_events, merge_events, split_event, update_event, rescore_event
+from services.event_service import get_event, list_events, merge_events, split_event, update_event, rescore_event, publish_event, analyze_event_for_review
 from services.entity_service import get_entity_detail
-from services.source_registry_service import list_sources, create_source, set_source_enabled, update_source, update_source_schedule, test_source_connection
+from services.source_registry_service import list_sources, create_source, set_source_enabled, update_source, update_source_schedule, test_source_connection, preview_source
 from services.discovery_service import list_candidates, approve_candidate, ignore_candidate
 from services.prompt_service import list_prompts, create_draft, publish_prompt
 from services.recall_benchmark_service import record_reference, recall_report
@@ -33,17 +33,37 @@ class SourceUpdate(BaseModel):
     priority: Optional[int] = Field(default=None, ge=0, le=1000)
     authority: Optional[Literal["P0", "P1", "P2"]] = None
     business_scopes: Optional[list[Literal["technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"]]] = Field(default=None, min_length=1)
+    source_role: Optional[Literal["OFFICIAL", "MEDIA", "COMMUNITY", "ACADEMIC", "PLATFORM"]] = None
+    language: Optional[Literal["zh", "en"]] = None
 
 
 class SourceCreate(BaseModel):
     source_key: str = Field(min_length=2, max_length=64, pattern=r"^[a-z0-9][a-z0-9_-]+$")
     name: str = Field(min_length=1, max_length=200)
-    adapter: Literal["product_hunt_feed", "hacker_news_api", "hugging_face_api", "arxiv_api", "github_search_api", "rss_feed"]
+    adapter: Literal["product_hunt_feed", "hacker_news_api", "hugging_face_api", "arxiv_api", "github_search_api", "rss_feed", "api_json", "html_links"]
     base_url: str = Field(min_length=8, max_length=2000)
     business_scopes: list[Literal["technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"]] = Field(min_length=1)
     authority: Literal["P0", "P1", "P2"] = "P1"
     priority: int = Field(default=100, ge=0, le=1000)
-    cron: str = Field(default="45 9 * * *", min_length=9, max_length=100)
+    cron: str = Field(default="45 8 * * *", min_length=9, max_length=100)
+    source_role: Literal["OFFICIAL", "MEDIA", "COMMUNITY", "ACADEMIC", "PLATFORM"] = "MEDIA"
+    language: Literal["zh", "en"] = "zh"
+    region: str = Field(default="GLOBAL", max_length=32)
+    topics: list[str] = Field(default_factory=list, max_length=20)
+
+
+class SourcePreview(BaseModel):
+    base_url: str = Field(min_length=8, max_length=2000)
+    adapter: Literal["rss_feed", "api_json", "html_links", "hacker_news_api", "hugging_face_api", "arxiv_api", "github_search_api", "product_hunt_feed"]
+    language: Literal["zh", "en"] = "zh"
+
+
+class TopicKeyword(BaseModel):
+    topic: str = Field(min_length=1, max_length=80)
+    keyword: str = Field(min_length=2, max_length=120)
+    language: Literal["zh", "en"]
+    type: Literal["INCLUDE", "EXCLUDE"] = "INCLUDE"
+    enabled: bool = True
 
 
 class SourceScheduleUpdate(BaseModel):
@@ -62,6 +82,8 @@ class EventSplit(BaseModel):
 
 
 class EventUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=3, max_length=300)
+    summary: Optional[str] = Field(default=None, max_length=5000)
     event_type: Optional[str] = Field(default=None, min_length=3, max_length=80)
     business_scopes: Optional[list[Literal["technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"]]] = Field(default=None, min_length=1)
     tags: Optional[list[str]] = Field(default=None, max_length=20)
@@ -122,7 +144,7 @@ async def trending_repositories(period: Literal["daily", "weekly", "monthly"] = 
 @router.get("/events/{event_id}")
 async def event_detail(event_id: int):
     event = await asyncio.to_thread(get_event, event_id)
-    if not event:
+    if not event or event["status"] != "active":
         raise HTTPException(status_code=404, detail="Event not found")
     return event
 
@@ -136,10 +158,42 @@ async def entity_detail(entity_key: str):
 
 
 @router.get("/admin/events")
-async def admin_events(status: Literal["active", "ignored", "archived", "all"] = "active",
+async def admin_events(status: Literal["active", "pending_review", "ignored", "archived", "all"] = "active",
                        limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
                        business_scope: Optional[str] = None, _=Depends(require_admin)):
     return await asyncio.to_thread(list_events, limit, offset, business_scope, status)
+
+
+@router.get("/admin/events/{event_id}")
+async def admin_event_detail(event_id: int, _=Depends(require_admin)):
+    event = await asyncio.to_thread(get_event, event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return event
+
+
+@router.post("/admin/events/{event_id}/analyze")
+async def analyze_event_route(event_id: int, admin=Depends(require_admin)):
+    try:
+        return await asyncio.to_thread(analyze_event_for_review, event_id, str(admin.id))
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+
+
+@router.post("/admin/events/{event_id}/publish")
+async def publish_event_route(event_id: int, background_tasks: BackgroundTasks, admin=Depends(require_admin)):
+    try:
+        published = await asyncio.to_thread(publish_event, event_id, str(admin.id))
+        background_tasks.add_task(run_task, "radar_event_analysis_daily", "event_published")
+        background_tasks.add_task(run_task, "board_insights_daily", "event_published")
+        background_tasks.add_task(run_task, "page_snapshots_daily", "event_published")
+        return published
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
 
 
 @router.get("/admin/sources")
@@ -147,11 +201,49 @@ async def sources(_=Depends(require_admin)):
     return {"items": await asyncio.to_thread(list_sources)}
 
 
+@router.post("/admin/sources/preview")
+async def preview_new_source(request: SourcePreview, _=Depends(require_admin)):
+    try:
+        return await asyncio.to_thread(preview_source, request.model_dump())
+    except Exception as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@router.get("/admin/source-topics")
+async def source_topics(_=Depends(require_admin)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id,topic,keyword,language,type,enabled FROM intelligence_topic_keywords ORDER BY topic,id")
+        return {"items": [dict(row) for row in cursor.fetchall()]}
+
+
+@router.post("/admin/source-topics", status_code=201)
+async def add_source_topic(request: TopicKeyword, _=Depends(require_admin)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""INSERT INTO intelligence_topic_keywords(topic,keyword,language,type,enabled)
+            VALUES (%s,%s,%s,%s,%s) ON CONFLICT (topic,keyword,type) DO UPDATE SET
+            language=EXCLUDED.language,enabled=EXCLUDED.enabled RETURNING id,topic,keyword,language,type,enabled""",
+            (request.topic.strip(), request.keyword.strip(), request.language, request.type, request.enabled))
+        return dict(cursor.fetchone())
+
+
+@router.delete("/admin/source-topics/{keyword_id}")
+async def delete_source_topic(keyword_id: int, _=Depends(require_admin)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM intelligence_topic_keywords WHERE id=%s RETURNING id", (keyword_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Keyword not found")
+    return {"deleted": True}
+
+
 @router.post("/admin/sources", status_code=201)
 async def add_source(request: SourceCreate, http_request: Request, admin=Depends(require_admin)):
     try:
+        await asyncio.to_thread(preview_source, request.model_dump())
         source = await asyncio.to_thread(create_source, request.model_dump(), str(admin.id))
-    except ValueError as error:
+    except Exception as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     task_key = "discovery_sentinel_daily"
     set_task_schedule(task_key, request.cron)
@@ -255,7 +347,7 @@ async def email_deliveries(limit: int = Query(100, ge=1, le=500), _=Depends(requ
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""SELECT subscriber_id,recipient_email,delivery_date,delivery_type,status,
-                              attempts,last_error,sent_at,updated_at FROM email_delivery_attempts
+                              attempts,last_error,sent_at,updated_at,snapshot_id FROM email_delivery_attempts
                               ORDER BY delivery_date DESC,updated_at DESC LIMIT %s""", (limit,))
             return [dict(row) for row in cursor.fetchall()]
     return {"items": await asyncio.to_thread(rows)}

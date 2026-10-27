@@ -12,8 +12,6 @@ const sections = [
   { name: "需求工作区", path: "/workbench/requirements" },
   { name: "新建需求", path: "/workbench/requirements/new" },
   { name: "新建方案", path: "/workbench/solutions/new" },
-  { name: "AI 工作区", path: "/workbench/ai" },
-  { name: "Insight Agent", path: "/insight-agent" },
   { name: "仪表盘", path: "/dashboard", loginRequired: true },
   { name: "报告", path: "/reports" },
   { name: "知识库", path: "/knowledge" },
@@ -70,27 +68,22 @@ for (const section of sections) {
   });
 }
 
-test("首页单屏锚点和统一事件可进入详情", async ({ page }) => {
-  const event = { id: 987, title: "New AI product", summary: "Official launch", event_type: "product_launch",
-    business_scopes: ["ai_applications"], tags: [], scores: { hot_score: { value: 82 } }, status: "active",
-    first_seen_at: "2026-10-23T08:00:00+08:00", last_seen_at: "2026-10-23T08:00:00+08:00", evidence: [], metrics: [] };
-  await page.route("**/api/v2/events?limit=100", route => route.fulfill({
-    status: 200, contentType: "application/json", body: JSON.stringify({ items: [{ ...event, source_count: 2, source_names: ["Official blog", "Hacker News"] }] }),
-  }));
-  await page.route("**/api/v2/events/987", route => route.fulfill({
-    status: 200, contentType: "application/json", body: JSON.stringify(event),
+test("首页情报在新窗口打开并保留当前页", async ({ page }) => {
+  await page.route("**/api/radar/intelligence", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({
+      as_of: "2026-10-26T09:00:00+08:00", event_count: 1, priority_count: 1, vendor_count: 1, source_count: 0,
+      events: [{ id: "event:987", title: "New AI Agent launched", vendor: "Test", happened_at: "2026-10-25",
+        date_basis: "published", type: "产品发布", summary: "New AI Agent launched", why: "New tool", importance: 5,
+        sources: [], board: "apps" }],
+    }),
   }));
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "从技术信号，到可落地的方案实践。" })).toBeVisible();
-  await expect(page.locator("#technology-ecosystem")).toBeVisible();
-  await expect(page.locator("#community-insights")).toHaveCount(1);
-  await expect(page.getByText("近期事件", { exact: true })).toHaveCount(0);
-  await page.getByRole("navigation", { name: "洞察导航" }).getByRole("link", { name: "AI 应用" }).click();
-  await expect(page).toHaveURL(/#ai-applications$/);
-  await expect(page.locator("#ai-applications")).toBeInViewport();
-  await page.getByRole("link", { name: /New AI product/ }).first().click();
-  await expect(page).toHaveURL(/\/events\/987$/);
-  await expect(page.getByRole("heading", { name: "New AI product" })).toBeVisible();
+  const item = page.locator(".intel-feed a").first();
+  await expect(item).toHaveAttribute("target", "_blank");
+  const popup = page.waitForEvent("popup");
+  await item.click();
+  await expect(await popup).toHaveURL(/\/events\/987$/);
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("社区页优先展示统一事件并链接到 Event Detail", async ({ page }) => {
@@ -100,26 +93,27 @@ test("社区页优先展示统一事件并链接到 Event Detail", async ({ page
     body: JSON.stringify({ items: [{ id: 987, title: "社区发现的新 AI Agent", summary: "跨站信号摘要", last_seen_at: "2026-10-23T08:00:00+08:00", source_names: ["知乎", "CSDN"], source_count: 2, scores: {} }] }),
   }));
   await page.goto("/insights/community");
-  const event = page.getByRole("link", { name: /社区发现的新 AI Agent/ });
+  const event = page.getByRole("link", { name: "社区发现的新 AI Agent", exact: true });
   await expect(event).toHaveAttribute("href", "/events/987");
-  await expect(event).toContainText("知乎");
-  await expect(event).toContainText("CSDN");
+  await expect(event).toHaveAttribute("target", "_blank");
 });
 
-test("AI 应用动态优先展示统一事件", async ({ page }) => {
+test("AI 应用展示近 7 天核心情报", async ({ page }) => {
   await page.route("**/api/agent-launches", route => route.fulfill({
     status: 200,
     contentType: "application/json",
     body: JSON.stringify({ items: [], products: [], sources: [], vendors: [], refreshing: false }),
   }));
-  await page.route("**/api/v2/events?business_scope=ai_applications&limit=100", route => route.fulfill({
+  await page.route("**/api/boards/apps/daily-insight", route => route.fulfill({
     status: 200,
     contentType: "application/json",
-    body: JSON.stringify({ items: [{ id: 654, title: "OpenAI 发布新能力", summary: "官方发布摘要", published_at: "2026-10-23T00:00:00Z", vendor: "OpenAI", kinds: ["update"] }] }),
+    body: JSON.stringify({ date: "2026-10-26", count: 1, summary: { judgment: "近 7 天 AI 应用有新的官方能力发布。", focus: { title: "OpenAI 发布新能力", url: "https://example.com/source", why: "有官方来源", analysis: "官方发布摘要", impact: "值得跟踪", caveat: "采用情况待核实" } }, sources: [] }),
   }));
   await page.goto("/insights/app-launches");
-  await expect(page.getByText("OpenAI 发布新能力")).toBeVisible();
-  await expect(page.getByRole("link", { name: /查看事件与来源证据/ })).toHaveAttribute("href", "/events/654");
+  await expect(page.getByRole("heading", { name: "近 7 天核心情报" })).toBeVisible();
+  await expect(page.getByText("近 7 天 AI 应用有新的官方能力发布。")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "近期焦点" })).toHaveCount(0);
+  await expect(page.getByText("本期核心判断", { exact: false })).toHaveCount(0);
 });
 
 test("友商动态优先展示统一事件", async ({ page }) => {

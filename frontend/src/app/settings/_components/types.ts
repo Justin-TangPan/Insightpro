@@ -6,6 +6,16 @@ export interface Subscriber {
   weekdays: number[];
   send_time: string;
   language: "zh" | "en";
+  subscriptions: EmailSubscription[];
+}
+
+export interface EmailSubscription {
+  id: number;
+  email_type: "business" | "technical";
+  enabled: boolean;
+  weekdays: number[];
+  send_time: string;
+  timezone: string;
 }
 
 export interface AccountUser {

@@ -1,15 +1,17 @@
 """Compact technical-project email built from stored GitHub observations."""
+from __future__ import annotations
 from datetime import datetime
 from html import escape
 from zoneinfo import ZoneInfo
 
-from db import get_db
 
 
 def _rows() -> list[dict]:
-    from services.repository_service import list_trending_repositories
-
-    snapshot = list_trending_repositories("daily")
+    from services.page_snapshot_service import get_page_snapshot
+    page = get_page_snapshot("/api/v2/repositories/trending?period=daily")
+    if page is None:
+        raise RuntimeError("Technical page snapshot is unavailable")
+    snapshot = page["content"]
     if snapshot["source"] == "event_store":
         items = []
         for row in snapshot["items"]:
@@ -23,28 +25,16 @@ def _rows() -> list[dict]:
                           "recommendation": evaluation.get("recommendation"),
                           "reasoning": evaluation.get("reasoning") or evaluation.get("summary")})
         return items
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""WITH latest AS (SELECT MAX(scrape_date) AS day FROM github_trending WHERE category='daily')
-            SELECT g.repo_name,g.repo_url,g.description,g.language,g.stars,g.forks,g.today_stars,
-                   e.total,e.d4,e.recommendation,e.reasoning
-            FROM github_trending g CROSS JOIN latest
-            LEFT JOIN LATERAL (
-                SELECT total,recommendation,reasoning FROM trending_business_eval
-                WHERE repo_name=g.repo_name AND scrape_date=g.scrape_date
-                ORDER BY id DESC LIMIT 1
-            ) e ON TRUE
-            WHERE g.category='daily' AND g.scrape_date=latest.day
-            ORDER BY COALESCE((regexp_match(g.today_stars, '[0-9,]+'))[1]::numeric,0) DESC,g.repo_name
-            LIMIT 8""")
-        return [{**dict(row), "engineering_score": row.get("d4"), "stars_delta": None, "pushed_at": None, "topics": [],
-                 "contributors_count": None, "latest_release": None}
-                for row in cursor.fetchall()]
+    return [{**row, "total": None, "engineering_score": None, "technical_assessment": None,
+             "stars_delta": None, "recommendation": None, "reasoning": None,
+             "pushed_at": None, "topics": [], "contributors_count": None,
+             "latest_release": None, "repository_metadata_available": False}
+            for row in snapshot["items"]]
 
 
-def build_html(language: str = "zh") -> str:
+def build_html(language: str = "zh", rows: list[dict] | None = None) -> str:
     en = language == "en"
-    rows = _rows()
+    rows = rows if rows is not None else _rows()
     leads = ("Technical project brief", "Developer trend", "Trending repositories", "No verified release records.") if en else (
         "技术项目洞察", "开发者趋势", "Trending Repo", "当前没有可核实的重大版本发布记录。")
     title, trend_title, repos_title, empty = leads
@@ -130,4 +120,4 @@ def build_html(language: str = "zh") -> str:
         trend_html = empty if en else "暂无足够的项目样本形成趋势判断。"
     now = datetime.now(ZoneInfo("Asia/Shanghai"))
     data_note = ("Repository metadata is refreshed from GitHub at most daily for the top eight daily repositories." if en else "仓库元数据每天最多更新一次，仅覆盖当日 Trending 前 8 个项目。")
-    return f'''<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Arial,'Noto Sans SC',sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:26px"><tr><td><div style="font-size:11px;letter-spacing:1.5px;color:#64748b">INSIGHTPRO · {now:%Y-%m-%d}</div><h1 style="font-size:24px;margin:10px 0 6px">{title}</h1><p style="margin:0;color:#64748b">{len(rows)} {('repositories' if en else '个趋势项目')} · {now:%H:%M}</p><h2 style="font-size:16px;margin:24px 0 8px">{trend_title}</h2><p style="font-size:14px;line-height:1.8;color:#334155">{trend_html}</p><h2 style="font-size:16px;margin:24px 0 8px">{repos_title}</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0">{''.join(cards) if cards else '<tr><td style="padding:20px 0;color:#64748b">'+escape(empty)+'</td></tr>'}</table><p style="margin-top:22px;color:#64748b;font-size:12px">{data_note}</p></td></tr></table></td></tr></table></body></html>'''
+    return f'''<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Arial,'Noto Sans SC',sans-serif;color:#172033"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 12px"><table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:26px"><tr><td><div style="font-size:11px;letter-spacing:1.5px;color:#64748b">小雷达 · {now:%Y-%m-%d}</div><h1 style="font-size:24px;margin:10px 0 6px">{title}</h1><p style="margin:0;color:#64748b">{len(rows)} {('repositories' if en else '个趋势项目')} · {now:%H:%M}</p><h2 style="font-size:16px;margin:24px 0 8px">{trend_title}</h2><p style="font-size:14px;line-height:1.8;color:#334155">{trend_html}</p><h2 style="font-size:16px;margin:24px 0 8px">{repos_title}</h2><table role="presentation" width="100%" cellspacing="0" cellpadding="0">{''.join(cards) if cards else '<tr><td style="padding:20px 0;color:#64748b">'+escape(empty)+'</td></tr>'}</table><p style="margin-top:22px;color:#64748b;font-size:12px">{data_note}</p></td></tr></table></td></tr></table></body></html>'''

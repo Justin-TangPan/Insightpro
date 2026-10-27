@@ -3,15 +3,12 @@
 import { PointerEvent, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import {
-  Bot,
   ChevronDown,
   ChevronUp,
   GripHorizontal,
   History,
-  Maximize2,
   MessageSquarePlus,
   Minimize2,
-  PanelRightOpen,
   Sparkles,
   Trash2,
   X,
@@ -581,12 +578,6 @@ function InsightAgentShell() {
     setMode("floating");
     if (routeFull) router.push("/workbench");
   };
-  const leaveFull = () => {
-    stopGeneration();
-    void discardEmptySession().catch(() => undefined);
-    setMode("floating");
-    if (routeFull) router.back();
-  };
   if (loading || !user) return null;
   if (!activeOpen)
     return (
@@ -624,10 +615,10 @@ function InsightAgentShell() {
                   `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
                 )
           }
-          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-elevated)] transition hover:bg-primary-dark"
-          aria-label={en ? "Open Insight Agent" : "打开 Insight Agent"}
+          className="flex min-h-14 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[var(--shadow-elevated)] transition hover:bg-primary-dark"
+          aria-label={en ? "Open intelligence assistant" : "打开情报小助手"}
         >
-          <Bot className="h-5 w-5" />
+          {en ? "Intelligence assistant" : "情报小助手"}
         </button>
       </div>
     );
@@ -636,10 +627,10 @@ function InsightAgentShell() {
       <button
         type="button"
         onClick={() => setMinimized(false)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 items-center justify-center rounded-full bg-primary text-white shadow-[var(--shadow-elevated)]"
-        aria-label={en ? "Restore Insight Agent" : "还原 Insight Agent"}
+        className="fixed bottom-6 right-6 z-50 flex min-h-14 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[var(--shadow-elevated)]"
+        aria-label={en ? "Restore intelligence assistant" : "还原情报小助手"}
       >
-        <Bot className="h-5 w-5" />
+        {en ? "Intelligence assistant" : "情报小助手"}
       </button>
     );
   const full = activeMode === "full";
@@ -789,7 +780,7 @@ function InsightAgentShell() {
             <div className="min-w-0">
               <p className="flex items-center gap-2 truncate text-sm font-semibold">
                 <span className="agent-live-dot h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
-                {session?.task_title || "Insight Agent"}
+                {session?.task_title || (en ? "Intelligence assistant" : "情报小助手")}
               </p>
               <p className="truncate text-[11px] text-ink-muted">
                 {session
@@ -811,34 +802,6 @@ function InsightAgentShell() {
                 </button>
               </Tooltip>
             )}
-            {!full && (
-              <button
-                type="button"
-                onClick={() => setMode(split ? "floating" : "split")}
-                className="ui-icon-button hidden sm:inline-flex"
-                aria-label={split ? (en ? "Restore floating window" : "还原浮窗") : (en ? "Expand on the right" : "在右侧展开")}
-              >
-                <PanelRightOpen className="h-4 w-4" />
-              </button>
-            )}
-            <Tooltip
-              label={full ? (en ? "Restore floating window" : "还原右下角浮窗") : (en ? "Open full Insight Agent" : "进入完整 Insight Agent")}
-            >
-              <button
-                type="button"
-                onClick={() => (full ? leaveFull() : setMode("full"))}
-                className="ui-icon-button"
-                aria-label={
-                  full ? (en ? "Restore floating window" : "还原右下角浮窗") : (en ? "Open full Insight Agent" : "进入完整 Insight Agent")
-                }
-              >
-                {full ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </button>
-            </Tooltip>
             {!full && (
               <Tooltip label={en ? "Minimize" : "最小化"}>
                 <button

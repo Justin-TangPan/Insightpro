@@ -52,7 +52,9 @@ def test_scheduled_insight_waits_for_active_source_refreshes(monkeypatch):
         def __enter__(self): return self
         def __exit__(self, *_): return False
         def cursor(self): return self
-        def execute(self, *_): pass
+        def execute(self, sql, params):
+            if "task_key = ANY" in sql:
+                assert params == (["github_daily", "daily_crawl", "competitor_daily"],)
         def fetchone(self): return {"present": next(states)}
         def fetchall(self): return [{"task_key": key, "status": "success"} for key in ("github_daily", "daily_crawl", "competitor_daily")]
 

@@ -169,7 +169,7 @@ def _search(query: str, kind: SearchKind, page: int, page_size: int, user_id: Op
             LIMIT %s OFFSET %s
         )
         SELECT p.*, (SELECT count(*) FROM filtered) AS total,
-               s.technical, s.solution, s.competitor, s.ai_application, s.requirement, s.managed_solution
+               s.technical, s.solution, s.competitor, s.ai_application, s.community, s.requirement, s.managed_solution
         FROM stats s LEFT JOIN page_rows p ON TRUE
     """
     params.extend([

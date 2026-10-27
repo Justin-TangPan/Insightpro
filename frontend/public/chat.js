@@ -1,7 +1,7 @@
 (function(){
   var API=window.__CHAT_API_URL__;
   if(!API){
-    console.error("InsightPro chat API is not configured. Set window.__CHAT_API_URL__ from layout.");
+    console.error("小雷达 chat API is not configured. Set window.__CHAT_API_URL__ from layout.");
     return;
   }
   var msgs=[];
@@ -21,7 +21,7 @@
 
   var header=document.createElement("div");
   header.style.cssText="background:var(--color-primary-dark);padding:14px 20px;display:flex;align-items:center;justify-content:space-between";
-  header.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center">'+botSvg.replace(/14/g,'16')+'</div><div><div style="color:#fff;font-size:14px;font-weight:600">InsightPro 智能助手</div><div style="color:rgba(255,255,255,0.5);font-size:10px">AI · 站点问答</div></div></div>';
+  header.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="width:32px;height:32px;border-radius:8px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center">'+botSvg.replace(/14/g,'16')+'</div><div><div style="color:#fff;font-size:14px;font-weight:600">小雷达智能助手</div><div style="color:rgba(255,255,255,0.5);font-size:10px">AI · 站点问答</div></div></div>';
   var closeBtn=document.createElement("button");
   closeBtn.style.cssText="background:rgba(255,255,255,0.1);border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center";
   closeBtn.innerHTML='<svg width="16" height="16" fill="none" stroke="#fff" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>';
@@ -35,7 +35,7 @@
 
   var welcome=document.createElement("div");
   welcome.style.cssText="display:flex;gap:10px";
-  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:var(--color-primary-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:var(--color-surface-subtle);border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:var(--color-ink-secondary);line-height:1.6">你好！我是 InsightPro 智能助手，可以回答技术洞察以及 Requirements、Solutions 工作台相关问题。</p></div>';
+  welcome.innerHTML='<div style="width:28px;height:28px;border-radius:8px;background:var(--color-primary-dark);display:flex;align-items:center;justify-content:center;flex-shrink:0">'+botSvg+'</div><div style="background:var(--color-surface-subtle);border-radius:12px 12px 12px 4px;padding:10px 14px;max-width:85%"><p style="margin:0;font-size:13px;color:var(--color-ink-secondary);line-height:1.6">你好！我是小雷达智能助手，可以回答技术洞察以及 Requirements、Solutions 工作台相关问题。</p></div>';
   msgBox.appendChild(welcome);
 
   var quickBox=document.createElement("div");

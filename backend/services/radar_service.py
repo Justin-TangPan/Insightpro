@@ -174,7 +174,7 @@ def build_radar_snapshot(today: date | None = None) -> dict:
             events.append(event)
     try:
         from services import agent_launch_service
-        launch_items, _ = agent_launch_service.snapshot()
+        launch_items, _ = agent_launch_service.snapshot(refresh=False)
         apps = [_agent_launch_app(item) for item in launch_items[:4]]
     except Exception as exc:
         logger.warning("Official AI application snapshot unavailable: %s", exc)
@@ -197,10 +197,10 @@ def build_radar_snapshot(today: date | None = None) -> dict:
             "top_signals": top_signals, "apps": apps[:4]}
 
 
-VENDORS = ("OpenAI", "Anthropic", "Google", "DeepSeek", "Microsoft", "AWS", "阿里云", "腾讯云", "火山引擎", "华为云", "Meta", "行业动态")
+VENDORS = ("OpenAI", "Anthropic", "Google", "DeepSeek", "Kimi", "Microsoft", "AWS", "阿里云", "腾讯云", "火山引擎", "华为云", "Meta", "行业动态")
 VENDOR_ALIASES = {
     "openai": "OpenAI", "anthropic": "Anthropic", "claude": "Anthropic", "google": "Google", "gemini": "Google", "deepseek": "DeepSeek",
-    "microsoft": "Microsoft", "azure": "Microsoft", "aws": "AWS", "amazon": "AWS", "阿里云": "阿里云", "alibaba": "阿里云",
+    "microsoft": "Microsoft", "azure": "Microsoft", "aws": "AWS", "amazon": "AWS", "kimi": "Kimi", "月之暗面": "Kimi", "阿里云": "阿里云", "alibaba": "阿里云",
     "aliyun": "阿里云", "腾讯云": "腾讯云", "tencent": "腾讯云", "火山引擎": "火山引擎", "volcengine": "火山引擎",
     "豆包": "火山引擎", "华为云": "华为云", "huawei": "华为云", "meta": "Meta", "facebook": "Meta",
 }
@@ -216,7 +216,9 @@ TYPE_RULES = (
 
 
 def _normal_url(value: str) -> str:
-    return canonical_url(value, strip_query=True)
+    url = canonical_url(value, strip_query=True)
+    fragment = urlsplit(value).fragment
+    return f"{url}#{fragment}" if url and re.match(r"^(?:update|release)[-_]", fragment, re.I) else url
 
 
 def _event_vendor(vendor: str, title: str, url: str) -> str:
@@ -410,6 +412,10 @@ def build_intelligence_radar(now: datetime | None = None) -> dict:
                             "date_basis": "published" if published_at else "observed", "board": "community", "category": "社区热点"})
     except Exception as exc:
         logger.warning("Community radar feed unavailable: %s", exc)
+
+    from services.event_service import pending_event_urls
+    unpublished_urls = {_normal_url(url) for url in pending_event_urls()}
+    raw = [row for row in raw if row.get("v2_event_id") or _normal_url(str(row.get("url") or "")) not in unpublished_urls]
 
     merged: dict[str, dict] = {}
     title_index: dict[tuple[str, str], str] = {}

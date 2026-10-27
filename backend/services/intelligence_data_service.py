@@ -51,7 +51,7 @@ def store_github_signal(cursor, item: dict, scrape_date: str, scrape_time: str, 
           canonical_url=EXCLUDED.canonical_url, metadata=EXCLUDED.metadata, updated_at=NOW()
     """, (entity_key, item["repo_name"], item["repo_url"], json.dumps({"language": item.get("language")}, ensure_ascii=False)))
     cursor.execute("""SELECT event.id FROM intelligence_event_evidence evidence
-        JOIN intelligence_events event ON event.id=evidence.event_id AND event.status='active'
+        JOIN intelligence_events event ON event.id=evidence.event_id AND event.status IN ('active','pending_review')
         WHERE evidence.raw_item_id=%s ORDER BY event.id LIMIT 1""", (raw_item_id,))
     linked = cursor.fetchone()
     if linked:

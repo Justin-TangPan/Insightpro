@@ -7,9 +7,113 @@ from services.discovery_service import _candidate_groups, _parse_arxiv_feed, _pa
 def test_rss_and_atom_discovery_parses_real_item_evidence():
     payload = b'''<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>tag:example.test,2026:item-1</id><title>  New Agent  Framework </title><link href="/posts/1"/><updated>2026-10-23T08:00:00Z</updated><summary>Useful signal</summary></entry></feed>'''
     items = _parse_rss_feed(payload, "https://example.test/feed", "2026-10-23")
-    assert items == [{"external_id": "tag:example.test,2026:item-1:2026-10-23", "url": "https://example.test/posts/1",
-                      "title": "New Agent Framework", "published_at": "2026-10-23T08:00:00Z",
+    assert items == [{"external_id": "tag:example.test,2026:item-1", "url": "https://example.test/posts/1",
+                      "title": "New Agent Framework", "published_at": "2026-10-23T08:00:00+00:00",
                       "content": {"summary": "Useful signal", "kind": "feed_item"}}]
+
+
+def test_feed_id_is_stable_and_pubdate_is_database_safe():
+    from services.discovery_service import _parse_rss_feed
+    payload = b'<rss><channel><item><title>AI agent released</title><link>https://example.com/a</link><pubDate>Mon, 26 Oct 2026 09:00:00 GMT</pubDate></item></channel></rss>'
+    first = _parse_rss_feed(payload, "https://example.com/rss", "2026-10-26")[0]
+    second = _parse_rss_feed(payload, "https://example.com/rss", "2026-10-27")[0]
+    assert first["external_id"] == second["external_id"]
+    assert first["published_at"] == "2026-10-26T09:00:00+00:00"
+
+
+def test_topic_keywords_filter_noise_and_exclusions():
+    from services.discovery_service import _matches_topics
+    keywords = {"INCLUDE": {"agent", "智能体"}, "EXCLUDE": {"travel agent"}}
+    assert _matches_topics({"title": "New AI agent", "content": {}}, keywords)
+    assert not _matches_topics({"title": "Travel agent booking", "content": {}}, keywords)
+    assert not _matches_topics({"title": "New smartphone", "content": {}}, keywords)
+
+
+def test_duplicate_raw_items_report_no_new_data(monkeypatch):
+    from services import discovery_service
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return None
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(discovery_service, "get_db", Connection)
+    assert discovery_service._store_discovery_raw("feed", [{"external_id": "same", "url": "https://example.com/a", "title": "AI update", "content": {}}]) == 0
+
+
+def test_official_signal_is_candidate_and_shared_original_url_keeps_evidence_together():
+    from datetime import datetime, timezone
+    from services.discovery_service import _candidate_groups
+    now = datetime.now(timezone.utc)
+    rows = [
+        {"id": 1, "source_key": "official", "canonical_url": "https://vendor.example/news/agent", "title": "Vendor releases new AI agent",
+         "content": {"kind": "feed_item"}, "observed_at": now, "authority": "P0", "business_scopes": ["ai_applications", "competitor_dynamics"]},
+        {"id": 2, "source_key": "community", "canonical_url": "https://vendor.example/news/agent?ref=hn", "title": "New AI agent from Vendor",
+         "content": {"kind": "feed_item"}, "observed_at": now, "authority": "P1", "business_scopes": ["community_insights"]},
+    ]
+    assert len(_candidate_groups(rows[:1])) == 1
+    groups = _candidate_groups(rows)
+    assert len(groups) == 1
+    assert groups[0]["source_count"] == 2
+    assert groups[0]["raw_ids"] == [1, 2]
+
+
+def test_ai_relevance_filters_public_items_and_attaches_event_hint(monkeypatch):
+    from services import ai_service, discovery_service
+    from settings import settings
+    monkeypatch.setattr(settings, "CHAT_API_KEY", "test")
+    monkeypatch.setattr(ai_service, "chat_complete", lambda **_: '[{"index":0,"relevant":true,"event_hint":"Vendor Agent Launch"},{"index":1,"relevant":false,"event_hint":""}]')
+    items = [{"title": "Vendor launches agent", "content": {"summary": "AI assistant"}},
+             {"title": "Travel agents", "content": {"summary": "Holiday booking"}}]
+    result = discovery_service._ai_relevant_items(items)
+    assert result == [items[0]]
+    assert result[0]["content"]["event_hint"] == "vendor agent launch"
+
+
+def test_distinct_query_identifiers_are_not_merged():
+    from datetime import datetime, timezone
+    from services.discovery_service import _candidate_groups
+    now = datetime.now(timezone.utc)
+    rows = [{"id": number, "source_key": "official", "canonical_url": f"https://news.ycombinator.com/item?id={number}",
+             "title": f"Agent product update {number}", "content": {}, "observed_at": now,
+             "authority": "P0", "business_scopes": ["technology_ecosystem"]} for number in (1, 2)]
+    assert len(_candidate_groups(rows)) == 2
+
+
+def test_ai_relevance_retries_only_missing_indices(monkeypatch):
+    import json
+    from services import ai_service, discovery_service
+    from settings import settings
+    monkeypatch.setattr(settings, "CHAT_API_KEY", "test")
+    calls = []
+    def complete(**kwargs):
+        indices = [item["index"] for item in json.loads(kwargs["user_prompt"])]
+        calls.append(indices)
+        return json.dumps([{"index": index, "relevant": True, "event_hint": "vendor model release"} for index in indices[:1]])
+    monkeypatch.setattr(ai_service, "chat_complete", complete)
+    items = [{"title": "AI model", "content": {}} for _ in range(2)]
+    assert len(discovery_service._ai_relevant_items(items)) == 2
+    assert calls == [[0, 1], [1]]
+
+
+def test_ai_relevance_uses_yes_no_for_incomplete_json(monkeypatch):
+    from services import ai_service, discovery_service
+    from settings import settings
+    monkeypatch.setattr(settings, "CHAT_API_KEY", "test")
+    replies = iter(["[]", "[]", "YES"])
+    monkeypatch.setattr(ai_service, "chat_complete", lambda **_: next(replies))
+    assert len(discovery_service._ai_relevant_items([{"title": "New AI model", "content": {}}])) == 1
+
+
+def test_ai_relevance_omits_undecidable_item_and_reports_partial(monkeypatch):
+    from services import ai_service, discovery_service
+    from settings import settings
+    monkeypatch.setattr(settings, "CHAT_API_KEY", "test")
+    monkeypatch.setattr(ai_service, "chat_complete", lambda **_: "")
+    errors = []
+    assert discovery_service._ai_relevant_items([{"title": "Unclear agent", "content": {}}], errors) == []
+    assert errors == ["Unclear agent"]
 
 
 def test_rss_discovery_fetches_and_parses_feed_without_following_redirects(monkeypatch):
@@ -244,7 +348,7 @@ def test_product_hunt_feed_enters_raw_items_and_records_health(monkeypatch):
     assert requested == ["https://feed.example.test/products.xml"]
     assert stored[0][0] == "custom_products"
     assert stored[0][1][0]["content"]["kind"] == "ai_product"
-    assert health == [("custom_products", "healthy")]
+    assert health == [("custom_products", "HEALTHY", None, 1)]
 
 
 def test_new_evidence_refreshes_the_active_event_of_an_approved_candidate(monkeypatch):

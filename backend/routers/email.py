@@ -1,7 +1,9 @@
 """Email service routes"""
 import re
 import logging
+import asyncio
 from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import HTMLResponse
@@ -15,12 +17,16 @@ from services.email_service import (
     add_subscriber,
     build_daily_digest_html,
     build_technical_digest_html,
+    create_business_snapshot,
+    create_email_snapshot,
+    get_business_snapshot,
     get_subscriber,
     get_subscribers,
     send_daily_digest,
     send_email,
     send_subscriber_briefs,
     update_subscriber,
+    update_subscription,
 )
 from db import get_db
 
@@ -34,6 +40,7 @@ class EmailRequest(BaseModel):
     send_time: str = "10:05"
     language: str = "zh"
     template: Literal["business", "technical", "both"] = "both"
+    email_types: list[Literal["business", "technical"]] = Field(default_factory=lambda: ["business", "technical"], min_length=1)
 
     @field_validator("email")
     @classmethod
@@ -73,6 +80,20 @@ class ScheduleRequest(BaseModel):
     _validate_language = field_validator("language")(EmailRequest.validate_language.__func__)
 
 
+class SubscriptionRequest(BaseModel):
+    enabled: bool
+    weekdays: list[int] = Field(min_length=1, max_length=7)
+    send_time: str
+    timezone: str = "Asia/Shanghai"
+
+    _validate_weekdays = field_validator("weekdays")(EmailRequest.validate_weekdays.__func__)
+    _validate_send_time = field_validator("send_time")(EmailRequest.validate_send_time.__func__)
+
+
+class LanguageRequest(BaseModel):
+    language: Literal["zh", "en"]
+
+
 @router.get("/email/subscribers")
 async def list_subscribers(_=Depends(require_admin)):
     subs = get_subscribers()
@@ -81,7 +102,7 @@ async def list_subscribers(_=Depends(require_admin)):
 
 @router.post("/email/subscribe")
 async def subscribe_email(req: EmailRequest, _=Depends(require_admin)):
-    if add_subscriber(req.email, req.name, req.weekdays, req.send_time, req.language):
+    if add_subscriber(req.email, req.name, req.weekdays, req.send_time, req.language, tuple(req.email_types)):
         return {"status": "success", "message": f"{req.email} subscription saved"}
     raise HTTPException(status_code=500, detail="Subscription save failed")
 
@@ -94,6 +115,19 @@ async def configure_subscriber(subscriber_id: int, req: ScheduleRequest, _=Depen
     return {"status": "success", "message": f"{subscriber['email']} delivery schedule saved", "subscriber": subscriber}
 
 
+@router.put("/email/subscribers/{subscriber_id}/subscriptions/{email_type}")
+async def configure_subscription(subscriber_id: int, email_type: Literal["business", "technical"], req: SubscriptionRequest, _=Depends(require_admin)):
+    try:
+        subscription = update_subscription(subscriber_id, email_type, req.enabled, req.weekdays, req.send_time, req.timezone)
+    except Exception as error:
+        if isinstance(error, (ValueError, KeyError)):
+            raise HTTPException(status_code=422, detail="Invalid timezone") from error
+        raise
+    if not subscription:
+        raise HTTPException(status_code=404, detail="Subscriber not found")
+    return subscription
+
+
 @router.post("/email/preference")
 async def update_my_email_language(language: str, user=Depends(require_auth)):
     language = "en" if language == "en" else "zh"
@@ -101,6 +135,16 @@ async def update_my_email_language(language: str, user=Depends(require_auth)):
         cursor = conn.cursor()
         cursor.execute("UPDATE email_subscribers SET language = %s WHERE email = %s AND active = 1", (language, user.email.lower()))
     return {"status": "success", "language": language}
+
+
+@router.patch("/email/subscribers/{subscriber_id}/language")
+async def configure_subscriber_language(subscriber_id: int, req: LanguageRequest, _=Depends(require_admin)):
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE email_subscribers SET language=%s WHERE id=%s AND active=1 RETURNING id", (req.language, subscriber_id))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Subscriber not found")
+    return {"language": req.language}
 
 
 @router.delete("/email/subscribers/{email}")
@@ -115,12 +159,12 @@ async def unsubscribe_email(email: str, _=Depends(require_admin)):
 async def test_email(req: EmailRequest, _=Depends(require_admin)):
     today = datetime.now(SHANGHAI_TZ).strftime("%Y-%m-%d")
     messages = []
-    if req.template in ("business", "both"):
-        messages.append(("商业洞察" if req.language == "zh" else "Business brief", build_daily_digest_html(req.language)))
-    if req.template in ("technical", "both"):
-        messages.append(("技术项目洞察" if req.language == "zh" else "Technical project brief", build_technical_digest_html(req.language)))
+    for kind in ("business", "technical"):
+        if req.template in (kind, "both"):
+            _, html = await asyncio.to_thread(create_email_snapshot, kind, req.language)
+            messages.append(("商业洞察" if kind == "business" else "技术项目", html))
     try:
-        results = [send_email(req.email, f"[Test] InsightPro · {label} ({today})", html) for label, html in messages]
+        results = await asyncio.to_thread(lambda: [send_email(req.email, f"[Test] 小雷达 · {label} ({today})", html) for label, html in messages])
         if all(results):
             return {"status": "success", "message": f"{len(results)} test email(s) sent to {req.email}"}
         raise HTTPException(status_code=500, detail="Email send failed")
@@ -130,11 +174,15 @@ async def test_email(req: EmailRequest, _=Depends(require_admin)):
 
 
 @router.post("/email/subscribers/{subscriber_id}/send")
-async def send_to_subscriber(subscriber_id: int, _=Depends(require_admin)):
+async def send_to_subscriber(subscriber_id: int, snapshot_id: Optional[str] = None,
+                             email_type: Optional[Literal["business", "technical"]] = None, _=Depends(require_admin)):
     subscriber = get_subscriber(subscriber_id)
     if not subscriber:
         raise HTTPException(status_code=404, detail="Subscriber not found")
-    result = send_subscriber_briefs(subscriber)
+    try:
+        result = await asyncio.to_thread(send_subscriber_briefs, subscriber, snapshot_id=snapshot_id, email_type=email_type)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
     if not result["sent"]:
         raise HTTPException(status_code=500, detail="Email send failed")
     return {"status": "success", "message": f"{result['deliveries']} emails sent to {subscriber['email']}"}
@@ -142,7 +190,16 @@ async def send_to_subscriber(subscriber_id: int, _=Depends(require_admin)):
 
 @router.get("/email/preview", response_class=HTMLResponse)
 async def preview_email(language: str = "zh", template: Literal["business", "technical"] = "business", _=Depends(require_admin)):
-    return build_daily_digest_html(language) if template == "business" else build_technical_digest_html(language)
+    snapshot_id, html = await asyncio.to_thread(create_email_snapshot, template, language)
+    return HTMLResponse(html, headers={"X-Email-Snapshot-Id": snapshot_id})
+
+
+@router.get("/email/snapshots/{snapshot_id}", response_class=HTMLResponse)
+async def view_email_snapshot(snapshot_id: str, _=Depends(require_admin)):
+    snapshot = get_business_snapshot(snapshot_id)
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="Snapshot not found")
+    return HTMLResponse(snapshot["html"])
 
 
 @router.post("/email/send-now")

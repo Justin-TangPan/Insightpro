@@ -1,15 +1,18 @@
 from services import task_service
 
 
-def test_ai_brief_pipeline_finishes_before_default_email_window():
+def test_daily_collection_starts_at_eight_and_finishes_scheduling_before_nine():
     schedules = {task.key: task.cron for task in task_service.TASKS}
 
-    assert schedules["github_daily"] == {"hour": 8, "minute": 30}
-    assert schedules["trending_business_eval_daily"] == {"hour": 8, "minute": 35}
+    assert schedules["github_daily"] == {"hour": 8, "minute": 0}
+    assert all(schedules[key]["hour"] == 8 for key in task_service.SOURCE_TASK_KEYS)
+    assert schedules["community_insights_daily"] == {"hour": 8, "minute": 30}
+    assert schedules["trending_business_eval_daily"] == {"hour": 8, "minute": 20}
     assert schedules["project_briefs_zh_daily"] == {"hour": 8, "minute": 55}
-    assert schedules["ai_applications_daily"] == {"hour": 9, "minute": 30}
-    assert schedules["board_insights_daily"] == {"hour": 10, "minute": 0}
-    assert schedules["radar_event_analysis_daily"] == {"hour": 10, "minute": 15}
+    assert schedules["ai_applications_daily"] == {"hour": 8, "minute": 35}
+    assert schedules["radar_event_analysis_daily"] == {"hour": 9, "minute": 5}
+    assert schedules["board_insights_daily"] == {"hour": 9, "minute": 20}
+    assert schedules["page_snapshots_daily"] == {"hour": 9, "minute": 50}
 
 
 def test_task_schedule_uses_a_consistent_registry_cron(monkeypatch):
@@ -33,7 +36,7 @@ def test_task_schedule_uses_a_consistent_registry_cron(monkeypatch):
 def test_source_task_mapping_supports_legacy_schedule_and_request_cache_sources():
     assert task_service.source_task_key({"adapter": "github_trending", "schedule": {}}) == "github_daily"
     assert task_service.source_task_key({"adapter": "product_hunt_feed", "schedule": {}}) == "discovery_sentinel_daily"
-    assert task_service.source_task_key({"adapter": "community_zhihu", "schedule": {"task_key": "daily_crawl"}}) is None
+    assert task_service.source_task_key({"adapter": "community_zhihu", "schedule": {"task_key": "community_insights_daily"}}) == "community_insights_daily"
 
 
 def test_required_source_tasks_include_registered_sources(monkeypatch):
@@ -45,7 +48,7 @@ def test_required_source_tasks_include_registered_sources(monkeypatch):
         {"adapter": "arxiv_api", "enabled": False, "schedule": {}},
     ])
     assert task_service.required_source_tasks() == (
-        "github_daily", "daily_crawl", "competitor_daily", "discovery_sentinel_daily")
+        "github_daily", "daily_crawl", "competitor_daily", "community_insights_daily", "discovery_sentinel_daily")
 
 
 def test_task_runner_records_one_success(monkeypatch):
@@ -167,3 +170,24 @@ def test_cleanup_unlinks_old_children_and_preserves_canonical_rows_used_by_recen
     assert "UPDATE trending_business_eval SET analysis_id=NULL" in evaluation_cleanup[0]
     assert "recent.analysis_id=old.id" in evaluation_cleanup[1]
     assert "recent.scrape_date >= %s" in evaluation_cleanup[1]
+
+
+def test_task_list_inherits_business_scopes_and_source_links(monkeypatch):
+    class Cursor:
+        def execute(self, sql, *_): self.sql = sql
+        def fetchone(self): return None
+        def fetchall(self):
+            if "intelligence_sources" in self.sql:
+                return [{"source_key": "ai_app_official", "name": "官方 AI 应用动态",
+                         "adapter": "ai_applications_official", "business_scopes": ["ai_applications"],
+                         "schedule": {"task_key": "ai_applications_daily"}}]
+            return []
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(task_service, "get_db", Connection)
+    items = {item["key"]: item for item in task_service.list_tasks()}
+    assert items["ai_applications_daily"]["business_scopes"] == ["ai_applications"]
+    assert items["ai_applications_daily"]["sources"] == [
+        {"source_key": "ai_app_official", "name": "官方 AI 应用动态"}]

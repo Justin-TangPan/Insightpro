@@ -8,8 +8,9 @@ import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { usePreferences } from "@/lib/preferences";
 import { EmailSubscriptionManager } from "@/app/settings/_components/email-subscription-manager";
+import { AppDialog } from "@/components/ui";
 
-type Delivery = { subscriber_id: number; recipient_email: string; delivery_date: string; delivery_type: string; status: string; attempts: number; last_error?: string; sent_at?: string; updated_at: string };
+type Delivery = { subscriber_id: number; recipient_email: string; delivery_date: string; delivery_type: string; status: string; attempts: number; last_error?: string; sent_at?: string; updated_at: string; snapshot_id?: string };
 
 export default function AdminEmailsPage() {
   const { user, loading } = useAuth();
@@ -17,6 +18,7 @@ export default function AdminEmailsPage() {
   const en = preferences.language === "en";
   const [items, setItems] = useState<Delivery[]>([]);
   const [error, setError] = useState("");
+  const [snapshotHtml, setSnapshotHtml] = useState("");
   const load = useCallback(async () => {
     try {
       const response = await authenticatedFetch(API + "/api/v2/admin/email-deliveries?limit=200");
@@ -31,7 +33,8 @@ export default function AdminEmailsPage() {
   return <div className="page-stack">
     <SectionHeader badge="Admin / Email" title={en ? "Email" : "邮件管理"} subtitle={en ? "Manage subscribers and review brief delivery." : "管理订阅用户，查看商业与技术简报投递记录。"} action={<button className="ui-button-secondary" onClick={() => void load()}><RefreshCw size={15} />{en ? "Refresh" : "刷新"}</button>} />
     {error && <div role="status" className="ui-card text-sm text-danger">{error}</div>}
+    <AppDialog open={!!snapshotHtml} onClose={() => setSnapshotHtml("")} title={en ? "Sent content snapshot" : "历史投递内容快照"} className="h-[90dvh] w-[min(48rem,calc(100vw-2rem))] max-w-none"><iframe title={en ? "Email snapshot" : "邮件快照"} srcDoc={snapshotHtml} sandbox="" className="h-[75dvh] w-full" /></AppDialog>
     <EmailSubscriptionManager />
-    <section className="ui-card overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="text-ink-muted"><tr><th className="py-2">{en ? "Recipient" : "收件人"}</th><th>{en ? "Date" : "日期"}</th><th>{en ? "Brief" : "简报"}</th><th>{en ? "Status" : "状态"}</th><th>{en ? "Attempts" : "尝试次数"}</th><th>{en ? "Last error" : "最近错误"}</th></tr></thead><tbody>{items.map((item, index) => <tr key={`${item.subscriber_id}-${item.delivery_date}-${item.delivery_type}-${index}`} className="border-t border-grid"><td className="py-2.5">{item.recipient_email}</td><td className="font-mono">{item.delivery_date}</td><td>{item.delivery_type === "business" ? (en ? "Business" : "商业洞察") : (en ? "Technical" : "技术项目")}</td><td><span className={`ui-tag ${item.status === "sent" ? "ui-tag-success" : "ui-tag-danger"}`}>{item.status}</span></td><td className="font-mono">{item.attempts}</td><td className="max-w-72 truncate text-danger">{item.last_error || "—"}</td></tr>)}</tbody></table>{!items.length && !error && <p className="py-10 text-center text-sm text-ink-muted">{en ? "No delivery attempts yet." : "暂无投递记录。"}</p>}</section>
+    <section className="ui-card overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs"><thead className="text-ink-muted"><tr><th className="py-2">{en ? "Recipient" : "收件人"}</th><th>{en ? "Date" : "日期"}</th><th>{en ? "Brief" : "简报"}</th><th>{en ? "Status" : "状态"}</th><th>{en ? "Attempts" : "尝试次数"}</th><th>{en ? "Snapshot" : "内容快照"}</th><th>{en ? "Last error" : "最近错误"}</th></tr></thead><tbody>{items.map((item, index) => <tr key={`${item.subscriber_id}-${item.delivery_date}-${item.delivery_type}-${index}`} className="border-t border-grid"><td className="py-2.5">{item.recipient_email}</td><td className="font-mono">{item.delivery_date}</td><td>{item.delivery_type === "business" ? (en ? "Business" : "商业洞察") : (en ? "Technical" : "技术项目")}</td><td><span className={`ui-tag ${item.status === "sent" ? "ui-tag-success" : "ui-tag-danger"}`}>{item.status}</span></td><td className="font-mono">{item.attempts}</td><td>{item.snapshot_id && <button className="text-primary underline" onClick={async () => { const response = await authenticatedFetch(`${API}/api/email/snapshots/${item.snapshot_id}`); if (response.ok) setSnapshotHtml(await response.text()); }}>{en ? "View" : "查看"}</button>}</td><td className="max-w-72 truncate text-danger">{item.last_error || "—"}</td></tr>)}</tbody></table>{!items.length && !error && <p className="py-10 text-center text-sm text-ink-muted">{en ? "No delivery attempts yet." : "暂无投递记录。"}</p>}</section>
   </div>;
 }

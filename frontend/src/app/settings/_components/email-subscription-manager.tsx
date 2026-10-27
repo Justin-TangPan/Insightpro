@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth-provider";
 import { usePreferences } from "@/lib/preferences";
 import { Mail, Eye, Clock3, Plus, Send, Trash2, CheckCircle2, Search } from "lucide-react";
 import { AppDialog } from "@/components/ui";
-import type { Subscriber } from "./types";
+import type { Subscriber, EmailSubscription } from "./types";
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"];
 const EN_WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
@@ -30,11 +30,14 @@ export function EmailSubscriptionManager() {
   const [newWeekdays, setNewWeekdays] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
   const [newSendTime, setNewSendTime] = useState("10:05");
   const [newLanguage, setNewLanguage] = useState<Subscriber["language"]>(preferences.language);
+  const [newEmailTypes, setNewEmailTypes] = useState<EmailSubscription["email_type"][]>(["business", "technical"]);
   const [emailStatus, setEmailStatus] = useState("");
   const [emailError, setEmailError] = useState(false);
   const [sendingId, setSendingId] = useState<number | null>(null);
   const [savingId, setSavingId] = useState<number | null>(null);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [previewSnapshotId, setPreviewSnapshotId] = useState("");
+  const [previewRecipientId, setPreviewRecipientId] = useState(0);
   const [previewing, setPreviewing] = useState(false);
   const [previewTemplate, setPreviewTemplate] = useState<"business" | "technical">("business");
   const [subscriberQuery, setSubscriberQuery] = useState("");
@@ -77,7 +80,7 @@ export function EmailSubscriptionManager() {
       const res = await authenticatedFetch(`${API}/api/email/subscribe`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newEmail, name: newName, weekdays: newWeekdays, send_time: newSendTime, language: newLanguage }),
+        body: JSON.stringify({ email: newEmail, name: newName, weekdays: newWeekdays, send_time: newSendTime, language: newLanguage, email_types: newEmailTypes }),
       });
       if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       await res.json();
@@ -125,20 +128,17 @@ export function EmailSubscriptionManager() {
     setSubscribers((items) => items.map((item) => item.id === id ? { ...item, ...changes } : item));
   };
 
-  const toggleSubscriberWeekday = (subscriber: Subscriber, day: number) => {
-    const weekdays = subscriber.weekdays.includes(day)
-      ? subscriber.weekdays.filter((item) => item !== day)
-      : [...subscriber.weekdays, day].sort();
-    if (weekdays.length) updateSubscriberDraft(subscriber.id, { weekdays });
+  const updateSubscriptionDraft = (subscriber: Subscriber, kind: EmailSubscription["email_type"], changes: Partial<EmailSubscription>) => {
+    updateSubscriberDraft(subscriber.id, { subscriptions: subscriber.subscriptions.map(item => item.email_type === kind ? { ...item, ...changes } : item) });
   };
 
-  const handleUpdateSubscriber = async (subscriber: Subscriber) => {
+  const handleUpdateSubscription = async (subscriber: Subscriber, subscription: EmailSubscription) => {
     setSavingId(subscriber.id);
     try {
-      const res = await authenticatedFetch(`${API}/api/email/subscribers/${subscriber.id}`, {
+      const res = await authenticatedFetch(`${API}/api/email/subscribers/${subscriber.id}/subscriptions/${subscription.email_type}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ weekdays: subscriber.weekdays, send_time: subscriber.send_time, language: subscriber.language }),
+        body: JSON.stringify({ enabled: subscription.enabled, weekdays: subscription.weekdays, send_time: subscription.send_time, timezone: subscription.timezone }),
       });
       if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       await res.json();
@@ -152,14 +152,18 @@ export function EmailSubscriptionManager() {
     }
   };
 
-  const handleSendSubscriber = async (subscriber: Subscriber) => {
+  const handleSendSubscriber = async (subscriber: Subscriber, snapshotId = "", emailType?: EmailSubscription["email_type"]) => {
     setSendingId(subscriber.id);
     try {
-      const res = await authenticatedFetch(`${API}/api/email/subscribers/${subscriber.id}/send`, { method: "POST" });
+      const query = new URLSearchParams();
+      if (snapshotId) query.set("snapshot_id", snapshotId);
+      if (emailType) query.set("email_type", emailType);
+      const res = await authenticatedFetch(`${API}/api/email/subscribers/${subscriber.id}/send?${query}`, { method: "POST" });
       if (!res.ok) { throw new Error(`API error: ${res.status}`); }
       await res.json();
       setEmailStatus(t("已发送", "Email sent"));
       setEmailError(false);
+      if (snapshotId) setPreviewHtml("");
     } catch {
       setEmailStatus(t("发送失败，请检查 SMTP 配置", "Send failed. Check SMTP settings."));
       setEmailError(true);
@@ -174,6 +178,7 @@ export function EmailSubscriptionManager() {
     try {
       const res = await authenticatedFetch(`${API}/api/email/preview?language=${preferences.language}&template=${previewTemplate}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
+      setPreviewSnapshotId(res.headers.get("X-Email-Snapshot-Id") || "");
       setPreviewHtml(await res.text());
     } catch {
       setEmailStatus(t("预览生成失败，请稍后重试", "Could not generate preview. Try again later."));
@@ -196,7 +201,7 @@ export function EmailSubscriptionManager() {
           <div className="flex items-center gap-2.5">
             <Mail className="h-4 w-4 text-ink-muted" />
             <h3 className="type-h3 text-ink">{t("邮件订阅管理", "Email subscriptions")}</h3>
-            <span className="text-xs font-medium text-ink-muted">{t("五板块情报摘要 · 每位订阅者独立排期", "Five-board intelligence brief · individual schedules")}</span>
+            <span className="text-xs font-medium text-ink-muted">{t("技术项目与商业洞察独立订阅、独立排期", "Independent subscriptions and schedules")}</span>
           </div>
           <div className="flex gap-2 self-start">
             <select aria-label={t("邮件模板", "Email template")} className="ui-input px-2 text-xs" value={previewTemplate} onChange={event => setPreviewTemplate(event.target.value as "business" | "technical")}>
@@ -215,7 +220,7 @@ export function EmailSubscriptionManager() {
         </div>
 
         <p className="mb-4 rounded-lg border border-grid bg-surface-subtle px-4 py-3 text-sm leading-6 text-ink-secondary">
-          {t("每天发送两封短邮件：商业洞察解释业务与竞争影响；技术项目洞察聚焦 Trending Repo、Stars 增长和开发者方向。分析准备后发送，最早为北京时间 10:05。", "Two concise emails arrive each day: business impact and technical project trends. Delivery starts after analysis is ready, no earlier than 10:05 China time.")}
+          {t("可分别启用技术项目和商业洞察邮件，并为每种邮件设置投递星期、时间与时区。", "Choose each brief independently and set its own weekdays, time and timezone.")}
         </p>
 
         {/* Add subscriber */}
@@ -239,12 +244,15 @@ export function EmailSubscriptionManager() {
             />
             <button
               onClick={handleSubscribe}
-              disabled={!newEmail || !newWeekdays.length}
+              disabled={!newEmail || !newWeekdays.length || !newEmailTypes.length}
               className="ui-button-primary"
             >
               <Plus className="h-3.5 w-3.5" />
               {t("添加订阅", "Add subscriber")}
             </button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-4 text-xs">
+            {(["business", "technical"] as const).map(kind => <label key={kind} className="flex items-center gap-2"><input type="checkbox" checked={newEmailTypes.includes(kind)} onChange={() => setNewEmailTypes(types => types.includes(kind) ? types.filter(item => item !== kind) : [...types, kind])} />{kind === "business" ? t("商业洞察", "Business insight") : t("技术项目", "Technical projects")}</label>)}
           </div>
           <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-1.5" aria-label={t("新订阅投递星期", "New subscriber delivery weekdays")}>
@@ -307,38 +315,20 @@ export function EmailSubscriptionManager() {
                     </div>
                   </div></div>
 
-                  <div className="flex flex-1 flex-wrap items-center gap-1.5" aria-label={`${sub.email} ${t("投递星期", "delivery weekdays")}`}>
-                    {(en ? EN_WEEKDAYS : WEEKDAYS).map((label, day) => (
-                      <button
-                        key={day}
-                        type="button"
-                        aria-pressed={sub.weekdays.includes(day)}
-                        onClick={() => toggleSubscriberWeekday(sub, day)}
-                        className={`h-7 w-7 rounded-md text-[11px] font-semibold transition-colors ${sub.weekdays.includes(day) ? "bg-primary text-white" : "border border-grid text-ink-muted hover:border-primary/30"}`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                    <DeliveryTimePicker value={sub.send_time} onChange={(send_time) => updateSubscriberDraft(sub.id, { send_time })} label={`${sub.email} ${t("投递时间", "delivery time")}`} />
-                    <select aria-label={`${sub.email} ${t("邮件语言", "email language")}`} value={sub.language || "zh"} onChange={event => updateSubscriberDraft(sub.id, { language: event.target.value as Subscriber["language"] })} className="ui-input px-2 py-1.5 text-xs"><option value="zh">中文</option><option value="en">English</option></select>
+                  <div className="flex flex-1 flex-col gap-3">
+                    {(sub.subscriptions || []).map(subscription => <div key={subscription.email_type} className="flex flex-wrap items-center gap-2 rounded-lg border border-grid bg-white p-2">
+                      <label className="flex min-w-24 items-center gap-2 text-xs font-semibold"><input type="checkbox" checked={subscription.enabled} onChange={event => updateSubscriptionDraft(sub, subscription.email_type, { enabled: event.target.checked })} />{subscription.email_type === "business" ? t("商业洞察", "Business") : t("技术项目", "Technical")}</label>
+                      <div className="flex gap-1" aria-label={`${sub.email} ${subscription.email_type} ${t("投递星期", "weekdays")}`}>
+                        {(en ? EN_WEEKDAYS : WEEKDAYS).map((label, day) => <button key={day} type="button" aria-pressed={subscription.weekdays.includes(day)} onClick={() => { const weekdays = subscription.weekdays.includes(day) ? subscription.weekdays.filter(item => item !== day) : [...subscription.weekdays, day].sort(); if (weekdays.length) updateSubscriptionDraft(sub, subscription.email_type, { weekdays }); }} className={`h-7 w-7 rounded-md text-[11px] font-semibold ${subscription.weekdays.includes(day) ? "bg-primary text-white" : "border border-grid text-ink-muted"}`}>{label}</button>)}
+                      </div>
+                      <DeliveryTimePicker value={subscription.send_time} onChange={send_time => updateSubscriptionDraft(sub, subscription.email_type, { send_time })} label={`${sub.email} ${subscription.email_type} ${t("投递时间", "delivery time")}`} />
+                      <input aria-label={`${sub.email} ${subscription.email_type} ${t("时区", "timezone")}`} value={subscription.timezone} onChange={event => updateSubscriptionDraft(sub, subscription.email_type, { timezone: event.target.value })} className="ui-input w-36 px-2 py-1.5 text-xs" />
+                      <button onClick={() => void handleUpdateSubscription(sub, subscription)} disabled={savingId === sub.id} className="ui-button-secondary !min-h-8 !px-2.5 !py-1.5 text-[11px]">{t("保存", "Save")}</button>
+                      <button onClick={() => void handleSendSubscriber(sub, "", subscription.email_type)} disabled={!subscription.enabled || sendingId === sub.id} className="ui-button-primary !min-h-8 !px-2.5 !py-1.5 text-[11px]"><Send className="h-3 w-3" />{t("发送", "Send")}</button>
+                    </div>)}
+                    <select aria-label={`${sub.email} ${t("邮件语言", "email language")}`} value={sub.language || "zh"} onChange={async event => { const language = event.target.value as Subscriber["language"]; updateSubscriberDraft(sub.id, { language }); await authenticatedFetch(`${API}/api/email/subscribers/${sub.id}/language`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ language }) }); }} className="ui-input w-28 px-2 py-1.5 text-xs"><option value="zh">中文</option><option value="en">English</option></select>
                   </div>
-
                   <div className="flex items-center gap-1.5 self-end lg:self-auto">
-                    <button
-                      onClick={() => handleUpdateSubscriber(sub)}
-                      disabled={savingId === sub.id}
-                      className="ui-button-secondary !min-h-8 !px-2.5 !py-1.5 text-[11px]"
-                    >
-                      {savingId === sub.id ? t("保存中", "Saving") : t("保存排期", "Save schedule")}
-                    </button>
-                    <button
-                      onClick={() => handleSendSubscriber(sub)}
-                      disabled={sendingId === sub.id}
-                      className="ui-button-primary !min-h-8 !px-2.5 !py-1.5 text-[11px]"
-                    >
-                      <Send className="h-3 w-3" />
-                      {sendingId === sub.id ? t("发送中", "Sending") : t("立即发送", "Send now")}
-                    </button>
                     <button
                       onClick={() => handleRemove(sub.email)}
                       className="rounded-md p-1.5 text-ink-muted transition-colors hover:bg-warning-soft hover:text-warning"
@@ -355,8 +345,9 @@ export function EmailSubscriptionManager() {
         {filteredSubscribers.length > pageSize && <div className="mt-4 flex items-center justify-between text-xs text-ink-muted"><span>{t(`第 ${subscriberPage}/${pageCount} 页`, `Page ${subscriberPage} of ${pageCount}`)}</span><div className="flex gap-2"><button type="button" disabled={subscriberPage === 1} onClick={() => setSubscriberPage(page => page - 1)} className="ui-button-secondary !min-h-8 !px-3 !py-1.5">{t("上一页", "Previous")}</button><button type="button" disabled={subscriberPage === pageCount} onClick={() => setSubscriberPage(page => page + 1)} className="ui-button-secondary !min-h-8 !px-3 !py-1.5">{t("下一页", "Next")}</button></div></div>}
       </div>
 
-      <AppDialog open={!!previewHtml} onClose={() => setPreviewHtml("")} title={t("商业情报简报预览", "Intelligence brief preview")} description={t("显示当前实时内容；定时发送时会重新生成。", "Live content is shown; scheduled delivery is generated again at send time.")} className="h-[92dvh] w-[min(80rem,calc(100vw-2rem))] max-w-none overflow-hidden">
-        <iframe title={t("每日洞察邮件", "Daily insights email")} srcDoc={previewHtml} sandbox="" className="h-[calc(92dvh-8rem)] w-full bg-surface-subtle" />
+      <AppDialog open={!!previewHtml} onClose={() => setPreviewHtml("")} title={previewTemplate === "business" ? t("商业洞察邮件预览", "Business insight preview") : t("技术项目邮件预览", "Technical project preview")} description={previewTemplate === "business" ? t("以下是小雷达首页内容的邮件版。发送此预览将投递相同的内容快照。", "This is the email version of the current Xiao Leida homepage. Sending this preview delivers the same saved snapshot.") : t("发送此预览将投递相同的技术项目邮件快照。", "Sending this preview delivers the same technical project snapshot.")} className="h-[92dvh] w-[min(80rem,calc(100vw-2rem))] max-w-none overflow-hidden">
+        {previewSnapshotId && <div className="flex items-center gap-2 p-2"><select className="ui-input flex-1" aria-label={t("选择收件人", "Choose recipient")} value={previewRecipientId} onChange={event => setPreviewRecipientId(Number(event.target.value))}><option value={0}>{t("选择收件人", "Choose recipient")}</option>{subscribers.filter(sub => sub.language === preferences.language && sub.subscriptions.some(item => item.email_type === previewTemplate && item.enabled)).map(sub => <option key={sub.id} value={sub.id}>{sub.email}</option>)}</select><button type="button" className="ui-button-primary" disabled={!previewRecipientId || sendingId !== null} onClick={() => { const sub = subscribers.find(item => item.id === previewRecipientId); if (sub) void handleSendSubscriber(sub, previewSnapshotId, previewTemplate); }}>{t("发送此预览", "Send this preview")}</button></div>}
+        <iframe title={t("每日洞察邮件", "Daily insights email")} srcDoc={previewHtml} sandbox="" className="h-[calc(92dvh-11rem)] w-full bg-surface-subtle" />
       </AppDialog>
     </>
   );

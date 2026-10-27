@@ -73,7 +73,11 @@ def _event_rows(board: str, day: str) -> list[dict]:
 def _rows(board: str, day: str) -> list[dict]:
     current = _event_rows(board, day)
     legacy = _legacy_rows(board, day)
+    from services.event_service import pending_event_urls
+    scope = {"github": "technology_ecosystem", "apps": "ai_applications", "solutions": "solutions",
+             "community": "community_insights", "competitors": "competitor_dynamics"}[board]
     event_urls = {_url_key(str(row.get("url") or "")) for row in current}
+    event_urls.update(_url_key(url) for url in pending_event_urls(scope))
     return current + [row for row in legacy if _url_key(str(row.get("url") or "")) not in event_urls]
 
 
@@ -161,7 +165,7 @@ def _wait_for_source_refreshes() -> None:
                 SELECT 1 FROM platform_task_runs
                 WHERE task_key = ANY(%s) AND status='running'
                   AND started_at > NOW() - INTERVAL '2 hours'
-            ) AS present""", (source_tasks,))
+            ) AS present""", (list(source_tasks),))
             running = bool(cursor.fetchone()["present"])
         if not running:
             break
@@ -184,7 +188,7 @@ def _wait_for_source_refreshes() -> None:
         raise RuntimeError("Source refreshes missing or unsuccessful today: " + ", ".join(incomplete))
 
 
-def insight(board: str) -> dict:
+def insight(board: str, generate: bool = True) -> dict:
     if board not in BOARDS:
         raise ValueError("Unknown board")
     day = datetime.now(SHANGHAI).date().isoformat()
@@ -194,6 +198,17 @@ def insight(board: str) -> dict:
         if _source_url(str(row.get("url") or "")):
             unique_by_url.setdefault(row["url"], row)
     unique = list(unique_by_url.values())
+    if not generate:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""SELECT insight_date,analysis,prompt_name,prompt_version FROM board_daily_insights
+                WHERE board=%s ORDER BY insight_date DESC LIMIT 1""", (board,))
+            stored = cursor.fetchone()
+        summary = json.loads(stored["analysis"]) if stored else {"analysis_version": 4, "judgment": "分析准备中。", "focus": None}
+        return {"date": str(stored["insight_date"]) if stored else day,
+                "count": len(unique), "metrics": _metrics(board, unique), "summary": summary,
+                "sources": unique, "prompt_name": stored["prompt_name"] if stored else None,
+                "prompt_version": stored["prompt_version"] if stored else None}
     fingerprint = sha256(json.dumps(unique, ensure_ascii=False, sort_keys=True, default=str).encode()).hexdigest()
     prompt_name = f"board_{board}"
     active_prompt = published_prompt(prompt_name)

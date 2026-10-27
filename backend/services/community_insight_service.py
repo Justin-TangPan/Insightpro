@@ -108,12 +108,17 @@ def refresh_community_source(source_key: str) -> dict:
     return {"status": "success", "source_key": source_key, "total": len(items), "stored": stored}
 
 
+def collect_daily() -> dict:
+    result = get_community_insights(force=True)
+    return {"total": result["count"], "sources": result["sources"]}
+
+
 def get_community_insights(force: bool = False) -> dict:
     global _cache
     sources = {source["source_key"]: source for source in list_sources()
                if source["source_key"] in FEEDS and source["enabled"]}
     signature = tuple(sorted((key, source.get("base_url") or "") for key, source in sources.items()))
-    if not force and time.time() - _cache[0] < 900 and _cache[2] == signature:
+    if not force and time.time() - _cache[0] < 10800 and _cache[2] == signature:
         items = _cache[1]
     else:
         items = []

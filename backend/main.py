@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import logging
 import threading
+from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 from pytz import timezone as tz
 
@@ -25,7 +26,7 @@ from routers import (
 
 def schedule_jobs(scheduler: BackgroundScheduler):
     """注册所有定时任务"""
-    from services.task_service import TASKS, load_source_schedules, run_task, task_trigger
+    from services.task_service import TASKS, daily_brief_schedule_enabled, load_source_schedules, run_task, task_trigger
     load_source_schedules()
     for task in TASKS:
         scheduler.add_job(
@@ -38,6 +39,8 @@ def schedule_jobs(scheduler: BackgroundScheduler):
             misfire_grace_time=6 * 60 * 60,
             replace_existing=True,
         )
+        if task.key == "daily_ai_brief" and not daily_brief_schedule_enabled():
+            scheduler.pause_job(task.key)
 
 
 @asynccontextmanager
@@ -63,7 +66,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Context search init failed: %s", e)
     init_crawler_tables()
-    if settings.STARTUP_CATCHUP_ENABLED and settings.SCHEDULER_ENABLED:
+    if settings.SCHEDULER_ENABLED:
+        from services.page_snapshot_service import bootstrap_page_snapshots_sync
+        threading.Thread(target=bootstrap_page_snapshots_sync, name="insight-page-snapshot-startup", daemon=True).start()
+    if settings.STARTUP_CATCHUP_ENABLED and settings.SCHEDULER_ENABLED and datetime.now(tz("Asia/Shanghai")).hour >= 8:
         from services.startup_service import run_startup_catchup
         threading.Thread(
             target=run_startup_catchup,
@@ -77,12 +83,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="InsightPro API", version=settings.APP_VERSION, lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
-)
 
 from middleware.error_handler import SanitizingErrorHandler
 app.add_middleware(SanitizingErrorHandler)
@@ -103,6 +103,49 @@ app.include_router(workbench.router, prefix="/api", tags=["Workbench"])
 app.include_router(agent.router, prefix="/api", tags=["Insight-Agent"])
 app.include_router(tasks.router, prefix="/api", tags=["Tasks"])
 app.include_router(intelligence_v2.router, prefix="/api/v2", tags=["Intelligence V2"])
+
+
+@app.middleware("http")
+async def published_page_reads(request, call_next):
+    from services.page_snapshot_service import BUILDING, PATH_TO_PAGE, get_page_snapshot
+    path = request.url.path + ("?" + request.url.query if request.url.query else "")
+    if request.method == "GET" and path in PATH_TO_PAGE and not BUILDING.get():
+        snapshot = await asyncio.to_thread(get_page_snapshot, path)
+        if snapshot:
+            return JSONResponse(snapshot["content"], headers={"X-Page-Snapshot-Date": snapshot["snapshot_date"].isoformat(),
+                                                             "X-Page-Snapshot-Id": str(snapshot["id"])})
+        return JSONResponse({"detail": "Daily page snapshot is being prepared"}, status_code=503)
+    response = await call_next(request)
+    if request.method == "POST" and response.status_code < 400 and request.url.path in {
+        "/api/github-trending/refresh", "/api/github-trending/business-eval/refresh",
+        "/api/solutions/catalog/refresh", "/api/solutions/aliyun/refresh",
+        "/api/community/insights/refresh", "/api/competitors/refresh",
+    }:
+        try:
+            from services.page_snapshot_service import publish_page_snapshots
+            await publish_page_snapshots()
+        except Exception:
+            logger.exception("Could not publish refreshed page snapshots")
+    return response
+
+
+@app.get("/api/pages/{page}/latest")
+async def latest_page_snapshot(page: str):
+    from services.page_snapshot_service import PAGE_PATHS, get_page_snapshot
+    if page not in PAGE_PATHS:
+        return JSONResponse({"detail": "Unknown page"}, status_code=404)
+    snapshots = {path: await asyncio.to_thread(get_page_snapshot, path) for path in PAGE_PATHS[page]}
+    if any(row is None for row in snapshots.values()):
+        return JSONResponse({"detail": "Daily page snapshot is being prepared"}, status_code=503)
+    return {"date": max(row["snapshot_date"] for row in snapshots.values()),
+            "content": {path: row["content"] for path, row in snapshots.items()}}
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+)
 
 
 @app.get("/")

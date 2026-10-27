@@ -1,7 +1,7 @@
 """Project insights routes — GitHub Trending"""
 import asyncio
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from typing import Optional
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -20,7 +20,7 @@ async def agent_launches():
     from services.agent_launch_service import MONITORED, FEED_HEALTH, snapshot
     from services.ai_app_sources import PRODUCTS, FEEDS, GITHUB_REPOSITORIES
     from services.intelligence_format import application
-    items, refreshing = snapshot(limit=None)
+    items, refreshing = snapshot(limit=None, refresh=False)
     return {"items": [{**item, "intelligence": application(item)} for item in items],
             "vendors": MONITORED, "products": [{"vendor": v, "name": n, "url": u} for v, n, u in PRODUCTS],
             "sources": [{"vendor": v, "product": p, "url": u, "status": FEED_HEALTH.get(u, "pending")} for v, p, u, _ in FEEDS]
@@ -34,12 +34,32 @@ async def agent_launches_progress(_=Depends(require_admin)):
     return await asyncio.to_thread(analysis_progress)
 
 
+@router.get("/daily-ai-brief")
+async def daily_ai_brief(date: Optional[str] = None, version: Optional[int] = Query(None, ge=1)):
+    from services.daily_ai_brief_service import read
+    return await asyncio.to_thread(read, date, version)
+
+
+@router.get("/daily-ai-brief/history")
+async def daily_ai_brief_history(_=Depends(require_admin)):
+    from services.daily_ai_brief_service import history
+    return {"items": await asyncio.to_thread(history)}
+
+
+@router.post("/daily-ai-brief/regenerate", status_code=202)
+async def daily_ai_brief_regenerate(background_tasks: BackgroundTasks, _=Depends(require_admin)):
+    from services.daily_ai_brief_service import regenerate
+    from services.task_service import run_task
+    background_tasks.add_task(run_task, "daily_ai_brief", "regenerate", regenerate)
+    return {"status": "accepted", "task_key": "daily_ai_brief"}
+
+
 @router.get("/boards/{board}/daily-insight")
 async def board_daily_insight(board: str):
     from services.daily_board_insight_service import BOARDS, insight
     if board not in BOARDS:
         raise HTTPException(status_code=404, detail="Unknown board")
-    return await asyncio.to_thread(insight, board)
+    return await asyncio.to_thread(insight, board, False)
 
 
 # Import functions from original main.py (to be fully migrated to service later)

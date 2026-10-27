@@ -147,6 +147,8 @@ class TestAPIEndpoints:
 
     def test_business_evaluation_read_uses_v2_without_live_crawl(self, monkeypatch):
         from routers import hotspots
+        from services import page_snapshot_service
+        monkeypatch.setattr(page_snapshot_service, "get_page_snapshot", lambda *_: {"id": 1, "snapshot_date": date(2026, 10, 25), "content": {"source": "event_store", "date": "2026-10-23", "items": [{"repo_name": "org/repo", "repo_url": "https://github.com/org/repo", "summary": "Evidence based", "evaluation_mode": "ai"}]}})
         monkeypatch.setattr(hotspots, "list_repository_business_evaluations", lambda *args: {
             "source": "event_store", "date": "2026-10-23", "items": [{
                 "repo_name": "org/repo", "repo_url": "https://github.com/org/repo", "summary": "Evidence based",
@@ -166,6 +168,7 @@ class TestAPIEndpoints:
         user_id = uuid4()
         requested = []
         monkeypatch.setitem(client.app.dependency_overrides, require_admin, lambda: SimpleNamespace(id=user_id))
+        monkeypatch.setattr(intelligence_v2, "preview_source", lambda source: {"ok": True, "items": [{"title": "Agent", "url": source["base_url"]}]})
         monkeypatch.setattr(intelligence_v2, "create_source", lambda source, actor:
                             requested.append((source, actor)) or {"source_key": source["source_key"], "enabled": False})
 

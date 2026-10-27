@@ -269,8 +269,10 @@ def evaluate_trending_business(limit: int = 25, force: bool = False) -> dict:
 
     _store_live_evaluations(snapshot["date"], results)
     complete = all(item.get("evaluation_mode") == "ai" for item in results)
+    fallback_count = sum(item.get("evaluation_mode") != "ai" for item in results)
     return {"status": "success" if complete else "partial_success", "count": len(results),
-            "date": snapshot["date"], "source": "event_store"}
+            "date": snapshot["date"], "source": "event_store",
+            **({"error": f"{fallback_count} of {len(results)} repository evaluations used heuristic fallback"} if fallback_count else {})}
 
 
 def list_repository_business_evaluations(date_str: Optional[str] = None, limit: int = 25) -> dict:

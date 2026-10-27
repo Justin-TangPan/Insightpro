@@ -1,10 +1,12 @@
 # InsightPro 数据库契约
 
-**基线日期**：2026-08-31
+**更新日期**：2026-10-27
 
 **状态**：已与当前 PostgreSQL 和后端 SQL 对齐
 
 **事实来源**：`backend/services/startup_service.py` 与后端读写 SQL
+
+**版本说明**：1.1.0 增加事件审核/来源配置、每日简讯版本、邮件快照与页面快照等结构。下方 V1 核心表字段说明继续作为兼容数据模型参考；V2 及后续表结构以 `backend/migrations/versions/` 的 Alembic 迁移为准。
 
 ## 1. 约定
 
@@ -17,6 +19,21 @@
 - 启动时 `ensure_runtime_schema()` 幂等补齐当前必要字段、表和索引。
 
 ## 2. 表清单
+
+下表列出核心兼容表。1.1.0 的增量数据集包括：
+
+| 表 | 用途 | 主要版本/关联 |
+|---|---|---|
+| `intelligence_sources`、`intelligence_raw_items` | 来源注册与不可变原始采集记录 | `source_key + external_id` 去重 |
+| `intelligence_entities`、`intelligence_events`、`intelligence_event_evidence` | 实体、审核事件及其原始证据关系 | Alembic V2 情报基础迁移 |
+| `intelligence_metric_snapshots`、`intelligence_analysis`、`board_daily_insights` | 指标历史、来源分析与板块摘要 | 由事件/来源及分析版本关联 |
+| `discovery_candidates`、`prompt_registry`、`prompt_versions` | 候选审核与 Prompt 版本 | 由发现与 Prompt 迁移创建 |
+| `platform_task_runs` | 定时任务、手动任务及 Pipeline 运行记录 | 每次执行独立记录 |
+| `daily_ai_brief_versions` | 每日 AI 简讯历史版本及邮件状态 | `brief_date + version` 唯一 |
+| `email_content_snapshots`、`email_delivery_attempts`、`email_subscriptions` | 邮件内容快照、投递记录和分业务订阅 | 订阅者及快照 ID 关联 |
+| `page_snapshots` | 首页与业务页面发布快照 | `snapshot_date + page` 唯一 |
+
+上述字段和索引的权威定义是对应 Alembic migration；本文件不复制迁移 SQL，以免结构变化时文档与数据库定义漂移。
 
 | 表 | 用途 | 主去重规则 |
 |---|---|---|

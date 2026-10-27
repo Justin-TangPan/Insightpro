@@ -51,6 +51,7 @@ systemctl daemon-reload
 systemctl disable --now insight-health-guard.timer || true
 systemctl disable --now insight-web.target || true
 SWITCHED=true
+systemctl stop insight-backend.service insight-frontend.service || true
 
 compose up --detach --remove-orphans
 

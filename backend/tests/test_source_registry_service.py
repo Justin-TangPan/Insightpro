@@ -24,6 +24,7 @@ def test_create_source_registers_supported_adapter_disabled_and_audited(monkeypa
         def cursor(self): return Cursor()
 
     monkeypatch.setattr(source_registry_service, "get_db", Connection)
+    monkeypatch.setattr(source_registry_service.socket, "getaddrinfo", lambda *_: [(None, None, None, None, ("93.184.215.14", 443))])
     created = source_registry_service.create_source({
         "source_key": "custom_hn", "name": "Custom HN", "adapter": "hacker_news_api",
         "base_url": "https://example.test/v0/topstories.json", "business_scopes": ["technology_ecosystem"],
@@ -31,7 +32,7 @@ def test_create_source_registers_supported_adapter_disabled_and_audited(monkeypa
     }, "00000000-0000-0000-0000-000000000001")
 
     assert created["enabled"] is False
-    assert "discovery_sentinel_daily" in statements[0][1][-1]
+    assert "discovery_sentinel_daily" in statements[0][1][7]
     assert any("source_created" in query for query, _ in statements)
     assert any("source_schedule_changed" in query for query, _ in statements)
 
@@ -70,6 +71,7 @@ def test_source_edit_can_change_name_and_collector_url_with_audit(monkeypatch):
         def cursor(self): return Cursor()
 
     monkeypatch.setattr(source_registry_service, "get_db", Connection)
+    monkeypatch.setattr(source_registry_service.socket, "getaddrinfo", lambda *_: [(None, None, None, None, ("93.184.215.14", 443))])
     updated = source_registry_service.update_source("source_a", {
         "name": "New", "base_url": "https://new.example/feed",
     }, "00000000-0000-0000-0000-000000000001")

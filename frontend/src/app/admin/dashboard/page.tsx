@@ -24,7 +24,7 @@ interface ProjectInsight {
   level: string;
 }
 
-const pageNames: Record<string, string> = { "/": "首页", "/insights/hotspots": "GitHub", "/insights/app-launches": "AI 应用", "/insights/solutions": "解决方案", "/insights/competitors": "友商洞察", "/knowledge": "知识库", "/workbench/ai": "Insight Agent" };
+const pageNames: Record<string, string> = { "/": "首页", "/insights/hotspots": "GitHub", "/insights/app-launches": "AI 应用", "/insights/solutions": "解决方案", "/insights/competitors": "友商洞察", "/knowledge": "知识库" };
 const pageName = (path: string) => pageNames[path] || (path.startsWith("/workbench/solutions/") ? "方案实践详情" : path);
 const tooltipStyle = { background: "var(--color-surface-elevated)", border: "1px solid var(--color-grid)", borderRadius: "10px", fontSize: "12px" };
 

@@ -54,7 +54,7 @@ def test_ticket_and_gateway_session_are_one_time_and_revocable(monkeypatch):
 def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
     user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user"})
     result = asyncio.run(auth.create_agent_ticket(None, user))
-    assert result["redirect_url"].endswith("/workbench/ai")
+    assert result["redirect_url"].endswith("/")
     with pytest.raises(HTTPException) as error:
         asyncio.run(auth.create_agent_ticket(
             auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), user,
@@ -75,7 +75,7 @@ def test_admin_can_target_another_agent_identity(monkeypatch):
     result = asyncio.run(auth.create_agent_ticket(
         auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), admin,
     ))
-    assert result["redirect_url"].endswith("/workbench/ai")
+    assert result["redirect_url"].endswith("/")
 
 
 def test_admin_user_directory_exposes_no_credentials(monkeypatch):

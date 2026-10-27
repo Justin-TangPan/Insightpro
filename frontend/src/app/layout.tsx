@@ -11,9 +11,9 @@ import { ToastProvider } from "@/components/ui";
 const inter = Inter({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], variable: "--font-inter", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "InsightPro | AI Radar",
+  title: "小雷达 | AI 情报",
   description: "AI 产业热点、趋势与应用洞察雷达",
-  icons: { icon: "/brand/insightpro-logo.png", apple: "/brand/insightpro-logo.png" },
+  icons: { icon: "/brand/xiaoleida.svg", apple: "/brand/xiaoleida.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

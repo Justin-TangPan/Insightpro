@@ -1,7 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Moon, Sun, Shield, LogIn, LogOut, Search } from "lucide-react";
 import { SearchBar } from "@/components/search-bar";
@@ -9,7 +9,7 @@ import { useAuth } from "@/components/auth-provider";
 import { usePreferences } from "@/lib/preferences";
 
 const links = [
-  ["/", "首页"], ["/insights/hotspots", "技术生态"], ["/insights/app-launches", "AI 应用"],
+  ["/", "首页"], ["/insights/app-launches", "AI 应用"], ["/insights/hotspots", "技术生态"],
   ["/insights/solutions", "解决方案"], ["/insights/community", "社区洞察"],
   ["/insights/competitors", "友商动态"],
 ] as const;
@@ -23,7 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return <div className="min-h-screen">
     <header className={`app-header sticky top-0 z-30 border-b border-grid${pathname === "/" ? " app-header-home" : ""}`}>
       <div className="app-header-inner">
-        <Link href="/" className="app-brand" aria-label="InsightPro 首页"><Image src="/brand/insightpro-logo.png" alt="" width={32} height={32} className="rounded-lg" priority /><span>InsightPro</span></Link>
+        <Link href="/" className="app-brand" aria-label="小雷达 首页"><Image src="/brand/xiaoleida.svg" alt="" width={32} height={32} aria-hidden="true" /><span>小雷达</span></Link>
         {!admin && <nav aria-label="洞察导航" className="app-top-navigation">
           {links.map(([href, label]) => <Link key={href} href={href} aria-current={pathname === href ? "page" : undefined}>{label}</Link>)}
         </nav>}

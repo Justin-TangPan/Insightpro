@@ -1,128 +1,125 @@
-from datetime import datetime, timedelta
+from datetime import datetime
+from email import message_from_string
 
 from services import email_dashboard, email_service, email_technical_dashboard
 
 
-def test_subscriber_schedule_and_sent_html(monkeypatch):
-    monday = email_service.SHANGHAI_TZ.localize(datetime(2026, 8, 24, 9, 5))
-    subscriber = {
-        "id": 1,
-        "email": "reader@example.com",
-        "weekdays": [0, 2, 4],
-        "send_time": "09:05",
-        "last_sent_at": monday - timedelta(days=1),
-    }
-    assert email_service.subscriber_is_due(subscriber, monday)
-    assert email_service.subscriber_is_due(subscriber, monday.replace(hour=9, minute=6))
-    assert not email_service.subscriber_is_due(subscriber, monday.replace(hour=9, minute=4))
-    assert not email_service.subscriber_is_due({**subscriber, "last_sent_at": monday}, monday)
+def test_smtp_sender_header_is_rfc_encoded(monkeypatch):
+    sent = []
+    class SMTP:
+        def __init__(self, *_): pass
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def login(self, *_): pass
+        def sendmail(self, sender, recipients, message): sent.append((sender, message))
+    monkeypatch.setattr(email_service.smtplib, "SMTP_SSL", SMTP)
+    monkeypatch.setattr(email_service.settings, "SMTP_USER", "sender@example.com")
+    monkeypatch.setattr(email_service.settings, "SMTP_PASSWORD", "test-password")
+    monkeypatch.setattr(email_service.settings, "EMAIL_FROM", "sender@example.com")
+    assert email_service.send_email("reader@example.com", "Test", "<p>hello</p>")
+    sender, message = sent[0]
+    assert sender == "sender@example.com"
+    assert message_from_string(message)["From"].startswith("=?utf-8?")
 
+
+def _sub(kind, ident, weekdays, send_time, tz="Asia/Shanghai", enabled=True):
+    return {"id": ident, "email_type": kind, "weekdays": weekdays, "send_time": send_time,
+            "timezone": tz, "enabled": enabled}
+
+
+def test_independent_schedules_and_disabled_briefs():
+    now = email_service.SHANGHAI_TZ.localize(datetime(2026, 8, 24, 8, 30))
+    assert email_service._subscription_due(_sub("business", 1, [0], "08:30"), now)
+    assert not email_service._subscription_due(_sub("technical", 2, [0, 2, 4], "09:00"), now)
+    assert not email_service._subscription_due(_sub("business", 1, [0], "08:30", enabled=False), now)
+    assert email_service._subscription_due(_sub("technical", 2, [6], "14:30", "Pacific/Honolulu"), now)
+
+
+def test_selected_preview_sends_only_its_exact_html(monkeypatch):
+    subscriber = {"id": 9, "email": "reader@example.com", "language": "zh",
+                  "subscriptions": [_sub("business", 1, [0], "08:30"), _sub("technical", 2, [0], "09:00")]}
+    sent = []
+    monkeypatch.setattr(email_service, "get_business_snapshot", lambda _: {"id": "preview", "language": "zh", "email_type": "technical", "html": "<h1>Previewed</h1>"})
+    monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: sent.append(html) or True)
+    monkeypatch.setattr(email_service, "_record_brief_delivery", lambda *args: None)
+    result = email_service.send_subscriber_briefs(subscriber, snapshot_id="preview", email_type="technical")
+    assert result["deliveries"] == 1
+    assert sent == ["<h1>Previewed</h1>"]
+
+
+def test_scheduler_sends_each_type_on_its_own_day(monkeypatch):
+    now = email_service.SHANGHAI_TZ.localize(datetime(2026, 8, 24, 8, 30))
+    subscriber = {"id": 1, "email": "reader@example.com", "language": "zh",
+                  "subscriptions": [_sub("business", 1, [0], "08:30"), _sub("technical", 2, [0, 2, 4], "09:00")]}
     sent = []
     monkeypatch.setattr(email_service, "get_subscribers", lambda: [subscriber])
-    monkeypatch.setattr(email_service, "daily_digest_ready", lambda _: True)
-    monkeypatch.setattr(email_service, "build_daily_digest_html", lambda language: f"<html>{language}</html>")
-    monkeypatch.setattr(email_service, "build_technical_digest_html", lambda language: f"<technical>{language}</technical>")
-    monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: sent.append((email, html)) or True)
-
-    sent_briefs = set()
-
-    class Cursor:
-        def execute(self, query, params=()):
-            if "SELECT delivery_type" in query:
-                self.rows = [{"delivery_type": kind} for kind in sent_briefs]
-            elif "INSERT INTO email_delivery_attempts" in query and params[4] == "sent":
-                sent_briefs.add(params[3])
-            else:
-                self.rows = []
-
-        def fetchall(self):
-            return getattr(self, "rows", [])
-
-    class Connection:
-        def cursor(self):
-            return Cursor()
-
-    class Context:
-        def __enter__(self):
-            return Connection()
-
-        def __exit__(self, *_):
-            pass
-
-    monkeypatch.setattr(email_service, "get_db", Context)
-    assert email_service.send_scheduled_digests(monday) == {"sent": 1, "total": 1, "deliveries": 2}
-    assert sent == [("reader@example.com", "<html>zh</html>"), ("reader@example.com", "<technical>zh</technical>")]
-
-    monkeypatch.setattr(email_service, "daily_digest_ready", lambda _: False)
-    assert email_service.send_scheduled_digests(monday.replace(hour=9, minute=6)) == {"sent": 0, "total": 0}
-    assert len(sent) == 2
-
-
-def test_scheduled_email_retries_only_the_failed_brief(monkeypatch):
-    now = email_service.SHANGHAI_TZ.localize(datetime(2026, 8, 24, 9, 5))
-    subscriber = {"id": 2, "email": "retry@example.com", "weekdays": [0], "send_time": "09:05",
-                  "last_sent_at": now - timedelta(days=1)}
-    delivered = set()
-    calls = []
+    monkeypatch.setattr(email_service, "_sent_briefs", lambda *_: set())
+    monkeypatch.setattr(email_service, "create_email_snapshot", lambda kind, language: (kind, f"<{kind}>"))
+    monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: sent.append(html) or True)
+    monkeypatch.setattr(email_service, "_record_brief_delivery", lambda *args: None)
+    monkeypatch.setattr("services.daily_ai_brief_service.read", lambda *_: {"date": "2026-08-24", "version": 1, "status": "success", "headline": {"title": "发布新模型"}})
+    monkeypatch.setattr("services.daily_ai_brief_service.mark_email_status", lambda *args: None)
 
     class Cursor:
-        def execute(self, query, params=()):
-            if "SELECT delivery_type" in query:
-                self.rows = [{"delivery_type": kind} for kind in delivered]
-            elif "INSERT INTO email_delivery_attempts" in query:
-                kind, status = params[3], params[4]
-                if status == "sent":
-                    delivered.add(kind)
-            else:
-                self.rows = []
-
-        def fetchall(self):
-            return getattr(self, "rows", [])
-
+        def execute(self, *_): pass
+        def fetchone(self): return None
     class Connection:
-        def cursor(self): return Cursor()
-
-    class Context:
-        def __enter__(self): return Connection()
+        def __enter__(self): return self
         def __exit__(self, *_): pass
-
-    results = iter((True, False, True))
-    monkeypatch.setattr(email_service, "get_subscribers", lambda: [subscriber])
-    monkeypatch.setattr(email_service, "daily_digest_ready", lambda _: True)
-    monkeypatch.setattr(email_service, "_digest_messages", lambda *_: [("business", "b"), ("technical", "t")])
-    monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: calls.append(subject) or next(results))
-    monkeypatch.setattr(email_service, "get_db", Context)
-
-    assert email_service.send_scheduled_digests(now) == {"sent": 0, "total": 1, "deliveries": 1}
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(email_service, "get_db", Connection)
     assert email_service.send_scheduled_digests(now) == {"sent": 1, "total": 1, "deliveries": 1}
-    assert calls == ["business", "technical", "technical"]
+    assert sent == ["<business>"]
 
 
-def test_manual_email_run_records_each_brief_delivery(monkeypatch):
-    subscriber = {"id": 3, "email": "manual@example.com", "language": "zh"}
-    attempts = []
-
-    class Cursor:
-        def execute(self, query, params=()):
-            if "INSERT INTO email_delivery_attempts" in query:
-                attempts.append(params)
-
-    class Connection:
-        def cursor(self): return Cursor()
-
-    class Context:
-        def __enter__(self): return Connection()
-        def __exit__(self, *_): pass
-
+def test_business_email_waits_when_only_previous_day_brief_exists(monkeypatch):
+    now = email_service.SHANGHAI_TZ.localize(datetime(2026, 8, 24, 10, 5))
+    subscriber = {"id": 1, "email": "reader@example.com", "language": "zh",
+                  "subscriptions": [_sub("business", 1, [0], "10:05")]}
     monkeypatch.setattr(email_service, "get_subscribers", lambda: [subscriber])
-    monkeypatch.setattr(email_service, "_digest_messages", lambda *_: [("business", "b"), ("technical", "t")])
-    monkeypatch.setattr(email_service, "send_email", lambda *_: True)
-    monkeypatch.setattr(email_service, "get_db", Context)
+    monkeypatch.setattr(email_service, "_sent_briefs", lambda *_: set())
+    monkeypatch.setattr("services.daily_ai_brief_service.read", lambda *_: {"date": "2026-08-23", "version": 3, "status": "success", "headline": {"title": "旧头条"}})
+    monkeypatch.setattr(email_service, "send_email", lambda *_: (_ for _ in ()).throw(AssertionError("sent stale brief")))
+    result = email_service.send_scheduled_digests(now)
+    assert result["status"] == "blocked" and result["blocked"] == 1
 
-    result = email_service.send_daily_digest()
 
-    assert result == {"sent": 1, "total": 1, "deliveries": 2}
-    assert [(row[3], row[4]) for row in attempts] == [("business", "sent"), ("technical", "sent")]
+def test_retry_business_email_only_targets_failed_deliveries(monkeypatch):
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchall(self): return [{"subscriber_id": 2}]
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return Cursor()
+    subscribers = [{"id": ident, "subscriptions": [_sub("business", ident, [0], "10:05")]} for ident in (1, 2)]
+    sent = []
+    monkeypatch.setattr(email_service, "get_db", Connection)
+    monkeypatch.setattr(email_service, "get_subscribers", lambda: subscribers)
+    monkeypatch.setattr(email_service, "send_subscriber_briefs", lambda subscriber, **_: sent.append(subscriber["id"]) or {"sent": 1, "total": 1, "deliveries": 1})
+    assert email_service.retry_business_emails()["deliveries"] == 1
+    assert sent == [2]
+
+
+def test_retry_reuses_failed_html_snapshot(monkeypatch):
+    subscriber = {"id": 2, "email": "retry@example.com", "language": "zh",
+                  "subscriptions": [_sub("technical", 2, [0], "09:00")]}
+    sent = []
+    monkeypatch.setattr(email_service, "_sent_briefs", lambda *_: set())
+    monkeypatch.setattr(email_service, "get_business_snapshot", lambda _: {"id": "failed-id", "html": "<stored>"})
+    monkeypatch.setattr(email_service, "create_email_snapshot", lambda *_: (_ for _ in ()).throw(AssertionError("rebuilt")))
+    monkeypatch.setattr(email_service, "send_email", lambda email, subject, html: sent.append(html) or True)
+    monkeypatch.setattr(email_service, "_record_brief_delivery", lambda *args: None)
+    class Cursor:
+        def execute(self, *_): pass
+        def fetchone(self): return {"snapshot_id": "failed-id"}
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return Cursor()
+    monkeypatch.setattr(email_service, "get_db", Connection)
+    assert email_service.send_subscriber_briefs(subscriber, skip_sent=True)["deliveries"] == 1
+    assert sent == ["<stored>"]
 
 
 def test_technical_email_uses_repository_facts_and_escapes_source_text(monkeypatch):
@@ -141,8 +138,8 @@ def test_technical_email_uses_repository_facts_and_escapes_source_text(monkeypat
 
 
 def test_technical_email_prefers_canonical_repository_events(monkeypatch):
-    from services import repository_service
-    monkeypatch.setattr(repository_service, "list_trending_repositories", lambda *_: {
+    from services import page_snapshot_service
+    monkeypatch.setattr(page_snapshot_service, "get_page_snapshot", lambda *_: {"content": {
         "source": "event_store", "items": [{
             "repo_name": "org/v2-project", "repo_url": "https://github.com/org/v2-project", "description": "Verified summary",
             "language": "Rust", "stars": "2k", "forks": "100", "today_stars": "220", "category": "daily",
@@ -156,7 +153,7 @@ def test_technical_email_prefers_canonical_repository_events(monkeypatch):
             "contributors_count": 32, "latest_release": {"tag_name": "v1.4.0", "published_at": "2026-10-20T00:00:00Z", "major_release": True},
             "repository_metadata_available": True,
         }],
-    })
+    }})
 
     rows = email_technical_dashboard._rows()
     html = email_technical_dashboard.build_html()
@@ -175,42 +172,10 @@ def test_technical_email_prefers_canonical_repository_events(monkeypatch):
     assert "重大版本" in html
 
 
-def test_business_email_links_v2_focus_to_its_event_detail(monkeypatch):
-    from types import SimpleNamespace
-    monkeypatch.setattr("services.event_service.list_events", lambda *_: {"items": []})
-    monkeypatch.setattr(email_dashboard, "settings", SimpleNamespace(BASE_URL="https://insight.example"))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {"apps": {
-        "analysis_version": 4, "judgment": "有新变化。", "focus": {
-            "title": "New AI product", "url": "https://vendor.example/update", "event_id": 55,
-            "meta": "Official", "why": "值得关注。", "analysis": "官方更新了产品。",
-            "impact": "可能影响市场。", "caveat": "后续采用情况待核实。",
-        }
-    }})
-    monkeypatch.setattr("services.radar_service.build_intelligence_radar", lambda _: {"events": []})
-
-    html = email_dashboard.build_html()
-
-    assert 'href="https://insight.example/events/55"' in html
-    assert 'href="https://vendor.example/update"' in html
-
-
-def test_business_email_uses_a_compact_shared_event_brief(monkeypatch):
+def test_business_email_links_homepage_focus(monkeypatch):
     from types import SimpleNamespace
     monkeypatch.setattr(email_dashboard, "settings", SimpleNamespace(BASE_URL="https://insight.example"))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {"apps": {
-        "focus": {"event_id": 55, "impact": "可能改变企业采购优先级。"}
-    }})
-    monkeypatch.setattr("services.event_service.list_events", lambda *_: {"items": [
-        {"id": 55, "title": "New AI product", "summary": "Official launch", "business_scopes": ["ai_applications"],
-         "scores": {"hot_score": {"value": 82}}, "source_count": 2, "evidence_count": 3},
-        {"id": 56, "title": "New developer framework", "summary": "Release observed", "business_scopes": ["technology_ecosystem"],
-         "scores": {}, "source_count": 1, "evidence_count": 1},
-    ]})
-
-    html = email_dashboard.build_html()
-
-    assert "今日 AI 市场简报" in html
+    snapshot = {"as_of": "2026-10-25T10:05:00+08:00", "focus": {"event": {"id": "event:55", "title": "New AI product", "sources": []}},
+                "keypoints": [], "insights": [], "boards": [], "vendors": [], "latest": []}
+    html = email_dashboard.build_html(snapshot=snapshot)
     assert 'href="https://insight.example/events/55"' in html
-    assert "热度评分 82" in html and "2 个来源" in html and "3 条证据" in html
-    assert "可能改变企业采购优先级。" in html
-    assert "Overall assessment" not in html and "总体判断" not in html

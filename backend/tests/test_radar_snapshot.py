@@ -42,64 +42,27 @@ def test_snapshot_counts_five_directions(monkeypatch):
     assert len(snapshot["top_signals"]) == 1
 
 
-def test_email_dashboard_has_five_recent_boards_and_safe_sources(monkeypatch):
-    boards = list(email_dashboard.BOARDS)
-    monkeypatch.setattr("services.event_service.list_events", lambda *_: {"items": []})
-    monkeypatch.setattr(radar_service, "build_intelligence_radar", lambda *_: (_ for _ in ()).throw(AssertionError("Email must use the board snapshot only")))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {
-        board: {"judgment": f"{board} 已有变化", "focus": {
-            "title": f"{board} <update>", "url": "https://example.com/" + board, "meta": "官方",
-            "why": "近期热度与业务价值同时提升。", "analysis": "该项目更新了关键能力。",
-            "impact": "可能增加云服务需求。", "caveat": "采用率待核实。"}}
-        for board in boards})
-    html = email_service.build_daily_digest_html()
-    assert "五大业务情报简报" in html and "五个板块均有当日分析缓存" in html
-    assert all(name in html for name in ("GitHub 技术", "AI 应用", "解决方案", "社区洞察", "厂商动态"))
-    assert html.count("查看板块详情") == 5
-    assert html.count("总体判断") == 5 and html.count("本期重点分析") == 5
-    assert "近期热度与业务价值同时提升。" in html and "可能增加云服务需求。" in html
-    assert "github &lt;update&gt;" in html and 'href="javascript:' not in html
-    assert "当前社区热榜" in html and "首屏情报雷达" not in html and "data:image" not in html
-    assert "Five-board intelligence brief" in email_service.build_daily_digest_html("en")
+def test_business_email_uses_homepage_snapshot_and_escapes_content():
+    snapshot = {
+        "as_of": "2026-10-25T10:05:00+08:00",
+        "focus": {"type": "新产品", "event": {"id": "event:12", "title": "Focus <launch>", "summary": "Released", "why": "Business impact", "vendor": "Vendor", "sources": [{"url": "https://example.com/focus"}]}},
+        "keypoints": [],
+        "insights": [{"label": "厂商动态", "event": {"why": "Core judgment"}}],
+        "boards": [{"name": name, "events": [{"title": "Board item", "summary": "Homepage board summary", "sources": []}]} for name in ("技术生态", "AI 应用", "解决方案", "社区洞察", "友商动态")],
+        "vendors": [], "latest": [],
+    }
+    html = email_dashboard.build_html(snapshot=snapshot)
+    assert "Focus &lt;launch&gt;" in html
+    assert "Core judgment" in html
+    assert "Homepage board summary" in html and "小雷达首页商业情报简报" in html
+    assert all(name in html for name in ("技术生态", "AI 应用", "解决方案", "社区洞察", "友商动态"))
+    assert all(title in html for title in ("近期焦点", "本期核心判断", "五大业务摘要", "重点动态", "厂商关注 / 友商动态摘要", "最新动态", "查看完整首页"))
+    assert 'href="https://example.com/focus"' in html
 
 
-def test_business_email_does_not_fill_missing_board_focus_from_live_radar(monkeypatch):
-    from types import SimpleNamespace
-    monkeypatch.setattr("services.event_service.list_events", lambda *_: {"items": []})
-    monkeypatch.setattr(email_dashboard, "settings", SimpleNamespace(BASE_URL="https://insight.example"))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {
-        "apps": {"analysis_version": 4, "judgment": "缓存板块结论。", "focus": None}})
-    monkeypatch.setattr(radar_service, "build_intelligence_radar", lambda *_: (_ for _ in ()).throw(AssertionError("Live radar must not be mixed into email")))
-
-    html = email_dashboard.build_html()
-
-    assert "缓存板块结论。" in html
-    assert "live-only-event" not in html
-    assert "未缓存来源不作补入" in html
-    assert "已展示可核实的近期来源" not in html
-
-
-def test_business_email_status_is_literal_when_all_cached_boards_have_no_focus(monkeypatch):
-    monkeypatch.setattr("services.event_service.list_events", lambda *_: {"items": []})
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {
-        board: {"analysis_version": 4, "judgment": "暂无可核实信息。", "focus": None}
-        for board in email_dashboard.BOARDS})
-    monkeypatch.setattr(radar_service, "build_intelligence_radar", lambda *_: (_ for _ in ()).throw(AssertionError("Live radar must not be mixed into email")))
-
-    html = email_dashboard.build_html()
-
-    assert "五个板块均有当日分析缓存" in html
-    assert "无焦点板块不补入其他来源" in html
-    assert "当前没有缓存重点来源" in html
-
-
-def test_digest_waits_for_analyses_then_uses_late_fallback(monkeypatch):
+def test_digest_starts_at_scheduled_window():
     now = email_service.SHANGHAI_TZ.localize(datetime(2026, 10, 19, 9, 5))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: {})
     assert not email_service.daily_digest_ready(now)
-    assert not email_service.daily_digest_ready(now.replace(hour=10, minute=5))
-    assert email_service.daily_digest_ready(now.replace(hour=11, minute=30))
-    monkeypatch.setattr(email_dashboard, "current_analyses", lambda _: dict.fromkeys(email_dashboard.BOARDS, {}))
     assert email_service.daily_digest_ready(now.replace(hour=10, minute=5))
 
 
@@ -230,6 +193,33 @@ def test_radar_prefers_v2_event_id_and_merges_legacy_evidence(monkeypatch):
     assert event["id"] == "event:55"
     assert event["boards"] == ["apps", "competitors"]
     assert {source["name"] for source in event["sources"]} == {"Official feed", "OpenAI"}
+
+
+def test_radar_keeps_distinct_release_anchors_on_one_official_page(monkeypatch):
+    class Cursor:
+        sql = ""
+        def execute(self, sql, *_): self.sql = sql
+        def fetchall(self):
+            if "FROM vendor_ai_applications" in self.sql:
+                base = "https://www.kimi.com/code/docs/en/kimi-code/whats-new.html"
+                return [
+                    {"vendor": "Kimi", "title": "Kimi Code · K3.1 Pro Series is live", "summary": "Latest Model Release K3.1 Pro Series is live", "url": f"{base}#update-2026-10-23-0", "happened_at": "2026-10-23", "date_basis": "published", "board": "apps", "category": ""},
+                    {"vendor": "Kimi", "title": "Kimi Code · v1.1.0", "summary": "Version update", "url": f"{base}#update-2026-10-14-0", "happened_at": "2026-10-14", "date_basis": "published", "board": "apps", "category": ""},
+                ]
+            return []
+
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): return False
+        def cursor(self): return Cursor()
+
+    monkeypatch.setattr(radar_service, "get_db", Connection)
+    monkeypatch.setattr("services.community_insight_service.get_community_insights", lambda: {"items": []})
+    data = radar_service.build_intelligence_radar(datetime(2026, 10, 25, 10, 0))
+    kimi = [item for item in data["events"] if item["vendor"] == "Kimi"]
+    assert len(kimi) == 2
+    assert {item["happened_at"] for item in kimi} == {"2026-10-23", "2026-10-14"}
+    assert any("K3.1 Pro" in item["title"] for item in kimi)
 
 
 def test_radar_date_basis_uses_same_priority_as_selected_timestamp(monkeypatch):

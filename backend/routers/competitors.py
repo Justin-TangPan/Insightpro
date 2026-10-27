@@ -67,12 +67,6 @@ async def competitors_summary(limit_per_vendor: int = Query(8, ge=1, le=100)):
     from main_legacy import get_competitor_summary
     summary = get_competitor_summary(limit_per_vendor=limit_per_vendor)
     summary.pop("Huawei Cloud", None)
-    if not summary:
-        try:
-            await asyncio.to_thread(refresh_competitor_news)
-            summary = get_competitor_summary(limit_per_vendor=limit_per_vendor)
-        except Exception as e:
-            logger.warning("competitor summary refresh fallback: %s", e)
     total = sum(len(items) for items in summary.values())
     return {"vendors": summary, "total": total, "count": len(summary)}
 

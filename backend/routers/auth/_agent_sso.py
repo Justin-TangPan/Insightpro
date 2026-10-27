@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import logging
-from urllib.parse import quote, urlencode
+from urllib.parse import quote
 from uuid import UUID
 from typing import Optional
 
@@ -39,8 +39,7 @@ async def create_agent_ticket(req: Optional[AgentTicketRequest] = None, user=Dep
     if agent_session_id:
         from services import agent_service
         await asyncio.to_thread(agent_service.get_session, str(user.id), agent_session_id)
-    query = urlencode({"session": agent_session_id}) if agent_session_id else ""
-    return {"redirect_url": f"{settings.BASE_URL.rstrip('/')}/workbench/ai{f'?{query}' if query else ''}"}
+    return {"redirect_url": f"{settings.BASE_URL.rstrip('/')}/"}
 
 
 @router.get("/auth/agent/callback")

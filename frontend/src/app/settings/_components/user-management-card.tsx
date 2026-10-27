@@ -1,7 +1,6 @@
 "use client";
 
-import { Users, Bot } from "lucide-react";
-import Link from "next/link";
+import { Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
@@ -68,7 +67,7 @@ export function UserManagementCard({ memberStatus, onStatusChange, onMemberUpdat
       <div className="overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead className="text-ink-muted"><tr><th className="px-3 py-2 font-semibold">{t("用户", "User")}</th><th className="px-3 py-2 font-semibold">{t("角色", "Role")}</th><th className="px-3 py-2 font-semibold">{t("状态", "Status")}</th><th className="px-3 py-2 font-semibold">{t("AI 空间", "AI space")}</th><th className="px-3 py-2 font-semibold">{t("操作", "Actions")}</th></tr></thead>
-          <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3">{account.role === "admin" ? "Admin" : t("普通用户", "User")}</td><td className="px-3 py-3"><span className={`ui-tag ${account.status === "disabled" ? "ui-tag-warning" : ""}`}>{account.status === "disabled" ? t("已禁用", "Disabled") : t("正常", "Active")}</span></td><td className="px-3 py-3 text-ink-secondary">{account.agent_space_status}</td><td className="px-3 py-3"><div className="flex gap-2">{account.role === "admin" && <Link href="/workbench/ai" className="ui-link inline-flex items-center gap-1"><Bot className="h-3.5 w-3.5" />{t("工作区", "Workspace")}</Link>}<button type="button" disabled={account.id === user?.id || account.role !== "admin"} onClick={() => void updateMember(account, { disabled: account.status !== "disabled" })} className="ui-link">{account.status === "disabled" ? t("恢复", "Restore") : t("禁用", "Disable")}</button></div></td></tr>)}</tbody>
+          <tbody>{users.map(account => <tr key={account.id} className="border-t border-grid/60"><td className="px-3 py-3"><p className="font-medium text-ink">{account.name || account.email?.split("@")[0]}</p><p className="text-ink-muted">{account.email}</p></td><td className="px-3 py-3">{account.role === "admin" ? "Admin" : t("普通用户", "User")}</td><td className="px-3 py-3"><span className={`ui-tag ${account.status === "disabled" ? "ui-tag-warning" : ""}`}>{account.status === "disabled" ? t("已禁用", "Disabled") : t("正常", "Active")}</span></td><td className="px-3 py-3 text-ink-secondary">{account.agent_space_status}</td><td className="px-3 py-3"><div className="flex gap-2"><button type="button" disabled={account.id === user?.id || account.role !== "admin"} onClick={() => void updateMember(account, { disabled: account.status !== "disabled" })} className="ui-link">{account.status === "disabled" ? t("恢复", "Restore") : t("禁用", "Disable")}</button></div></td></tr>)}</tbody>
         </table>
         {!users.length && <p className="py-8 text-center text-sm text-ink-muted">{t("暂无用户数据", "No users found")}</p>}
       </div>

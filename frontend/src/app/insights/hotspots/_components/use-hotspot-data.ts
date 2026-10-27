@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { API } from "@/lib/api";
+import { cachedJson, peekJson } from "@/lib/client-data-cache";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
 import { Solution, workbenchFetch } from "@/lib/workbench";
 import { useAuth } from "@/components/auth-provider";
@@ -57,10 +58,10 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   const locale = preferences.language;
 
   const [period, setPeriod] = useState("daily");
-  const [data, setData] = useState<TrendingItem[]>([]);
-  const [source, setSource] = useState("");
-  const [date, setDate] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<TrendingItem[]>(() => peekJson<TrendingResponse>(`${API}/api/v2/repositories/trending?period=daily`)?.items || peekJson<TrendingResponse>(`${API}/api/github-trending?since=daily`)?.items || []);
+  const [source, setSource] = useState(() => (peekJson<TrendingResponse>(`${API}/api/v2/repositories/trending?period=daily`) || peekJson<TrendingResponse>(`${API}/api/github-trending?since=daily`))?.source || "");
+  const [date, setDate] = useState(() => (peekJson<TrendingResponse>(`${API}/api/v2/repositories/trending?period=daily`) || peekJson<TrendingResponse>(`${API}/api/github-trending?since=daily`))?.date || "");
+  const [loading, setLoading] = useState(() => !peekJson(`${API}/api/v2/repositories/trending?period=daily`) && !peekJson(`${API}/api/github-trending?since=daily`));
   const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -109,15 +110,16 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   };
 
   // ── Fetch trending ───────────────────────────────────────
-  const fetchTrending = useCallback(async (p: string) => {
-    setLoading(true);
+  const fetchTrending = useCallback(async (p: string, force = false) => {
+    if (!peekJson(`${API}/api/v2/repositories/trending?period=${p}`) && !peekJson(`${API}/api/github-trending?since=${p}`) && p !== "all") setLoading(true);
     try {
       const periods = p === "all" ? ["daily", "weekly", "monthly"] : [p];
       const responses = await Promise.all(periods.map(async (period) => {
-        let res = await fetch(`${API}/api/v2/repositories/trending?period=${period}`);
-        if (res.status === 404) res = await fetch(`${API}/api/github-trending?since=${period}`);
-        if (!res.ok) throw new Error(`API error: ${res.status}`);
-        return res.json() as Promise<TrendingResponse>;
+        try { return await cachedJson<TrendingResponse>(`${API}/api/v2/repositories/trending?period=${period}`, force); }
+        catch (error) {
+          if (!String(error).includes("(404)")) throw error;
+          return cachedJson<TrendingResponse>(`${API}/api/github-trending?since=${period}`, force);
+        }
       }));
       const seen = new Set<string>();
       setData(responses.flatMap(response => response.items).filter(item => {
@@ -131,7 +133,6 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
       setError(false);
     } catch (err) {
       console.error("GitHub Trending 加载失败:", err);
-      setData([]);
       setError(true);
     } finally {
       setLoading(false);
@@ -145,7 +146,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
       await authenticatedFetch(`${API}/api/github-trending/refresh`, {
         method: "POST",
       });
-      await fetchTrending(period);
+      await fetchTrending(period, true);
     } catch (err) {
       console.error("刷新失败:", err);
     } finally {
@@ -153,20 +154,14 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
     }
   };
 
-  const handleReload = async () => fetchTrending(period);
+  const handleReload = async () => fetchTrending(period, true);
 
   // ── Fetch history ────────────────────────────────────────
   const fetchHistory = useCallback(async () => {
     const request = ++historyRequest.current;
     setHistoryLoading(true);
     try {
-      const res = await fetch(
-        `${API}/api/github-trending/history?days=14&category=${period === "all" ? "daily" : period}&locale=${locale}`,
-      );
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
-      const json = await res.json();
+      const json = await cachedJson<{ history: HistoryEntry[] }>(`${API}/api/github-trending/history?days=14&category=${period === "all" ? "daily" : period}&locale=${locale}`);
       if (request === historyRequest.current) setHistory(json.history);
     } catch (err) {
       console.error("历史记录加载失败:", err);
@@ -176,15 +171,11 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
   }, [period, locale]);
 
   // ── Fetch evaluation ─────────────────────────────────────
-  const fetchEvaluation = useCallback(async () => {
+  const fetchEvaluation = useCallback(async (force = false) => {
     const request = ++evalRequest.current;
     setEvalLoading(true);
     try {
-      const res = await fetch(`${API}/api/github-trending/business-eval?locale=${locale}`);
-      if (!res.ok) {
-        throw new Error(`API error: ${res.status}`);
-      }
-      const json: EvalResponse = await res.json();
+      const json = await cachedJson<EvalResponse>(`${API}/api/github-trending/business-eval?locale=${locale}`, force);
       if (request === evalRequest.current) {
         setEvaluations(json.items);
         setEvalSummary(json.summary);
@@ -192,7 +183,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
       }
     } catch (err) {
       console.error("业务价值评估加载失败:", err);
-      if (request === evalRequest.current) setEvaluations([]);
+      if (request === evalRequest.current) setEvalError(locale === "en" ? "Evaluation refresh failed" : "评估更新失败");
     } finally {
       if (request === evalRequest.current) setEvalLoading(false);
     }
@@ -209,7 +200,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
       );
       if (!res.ok) throw new Error(`AI evaluation unavailable (${res.status})`);
       const json: EvalResponse & { status?: string } = await res.json();
-      await fetchEvaluation();
+      await fetchEvaluation(true);
       if (json.status === "partial_success") {
         setEvalError(locale === "en" ? "Some projects remain estimates because the AI provider limited requests." : "部分项目因 AI 服务限流仍显示规则估算。");
       }
@@ -232,7 +223,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
 
   useEffect(() => {
     if (!historyDate) {
-      void Promise.resolve().then(fetchEvaluation);
+      void Promise.resolve().then(() => fetchEvaluation());
     }
   }, [period, historyDate, fetchEvaluation]);
 

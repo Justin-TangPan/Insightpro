@@ -207,8 +207,7 @@ async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]
         logger.warning("Repository evaluation prompt unavailable; using built-in compatibility prompt: %s", error)
         active_prompt = None
     system_prompt = active_prompt["system_prompt"] if active_prompt else BUSINESS_EVAL_SYSTEM_PROMPT
-    for offset in range(0, len(selected), 5):
-        batch = selected[offset:offset + 5]
+    async def evaluate_batch(batch: list[dict]) -> list[dict]:
         project_lines = [json.dumps({"repo_name": repo["repo_name"], "evidence": _repository_evidence(repo)},
                                     ensure_ascii=False) for repo in batch]
         user_prompt = (active_prompt.get("user_prompt_template") or "") if active_prompt else ""
@@ -220,14 +219,24 @@ async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 temperature=0.2,
-                max_tokens=8192,
+                max_tokens=16384,
                 timeout=180,
             )
             batch_result = _parse_eval_json(raw)
-            if isinstance(batch_result, list):
-                parsed.extend(batch_result)
+            return batch_result if isinstance(batch_result, list) else []
         except Exception as error:
-            logger.warning("Insight-Agent batch evaluation failed at %s: %s", offset, error)
+            logger.warning("Insight-Agent evaluation failed for %s: %s", [repo["repo_name"] for repo in batch], error)
+            return []
+
+    for offset in range(0, len(selected), 5):
+        parsed.extend(await evaluate_batch(selected[offset:offset + 5]))
+
+    parsed_names = {item.get("repo_name") for item in parsed if isinstance(item, dict)}
+    for repo in selected:
+        if repo["repo_name"] not in parsed_names:
+            retry = await evaluate_batch([repo])
+            parsed.extend(retry)
+            parsed_names.update(item.get("repo_name") for item in retry if isinstance(item, dict))
 
     if not parsed:
         return [_heuristic_score_project(item) for item in selected]
@@ -235,6 +244,8 @@ async def _evaluate_live_items(items: list[dict], limit: int = 25) -> list[dict]
     enriched = []
     seen = set()
     for item in parsed:
+        if not isinstance(item, dict):
+            continue
         repo_name = item.get("repo_name", "")
         match = next((r for r in selected if r.get("repo_name") == repo_name), None)
         if not match or repo_name in seen:
@@ -295,8 +306,10 @@ def _store_live_evaluations(date_str: str, items: list[dict]) -> None:
                 """,
                 (
                     date_str, item.get("repo_name"), item.get("repo_url"), item.get("language"),
-                    item.get("stars"), item.get("summary"), item.get("d1"), item.get("d2"), item.get("d3"),
-                    item.get("d4"), item.get("total"), item.get("level"),
+                    item.get("stars"), item.get("summary"),
+                    *(value.get("score") if isinstance(value, dict) else value
+                      for value in (item.get("d1"), item.get("d2"), item.get("d3"), item.get("d4"))),
+                    item.get("total"), item.get("level"),
                     item.get("recommendation"), item.get("reasoning"), item.get("eval_time"),
                     [_HEURISTIC_REASON, _LEGACY_HEURISTIC_REASON],
                 ),

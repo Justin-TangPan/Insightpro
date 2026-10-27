@@ -8,7 +8,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parent.parent
 version = json.loads((root / "frontend/package.json").read_text())["version"]
-assert re.fullmatch(r"1\.0\.0-rc\.[1-9]\d*", version), version
+assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version), version
 
 lock = json.loads((root / "frontend/package-lock.json").read_text())
 assert lock["version"] == lock["packages"][""]["version"] == version
@@ -21,7 +21,10 @@ checks = {
         f'APP_VERSION: "{version}"',
     ],
     "README.md": [f"`v{version}`", f"version-{version.replace('-', '--')}"],
-    "log/versions.md": [f"当前候选版本：`{version}`", f"## [{version}]"],
+    "log/versions.md": [
+        f"当前{'候选' if '-' in version else '正式'}版本：`{version}`",
+        f"## [{version}]",
+    ],
 }
 for filename, expected in checks.items():
     content = (root / filename).read_text()

@@ -1,139 +1,96 @@
-"""Five-board email dashboard, assembled from finished analyses and source records."""
+"""Render the current homepage projection as a durable email document."""
 from __future__ import annotations
-
-import json
-from datetime import date, datetime
+from datetime import datetime
 from html import escape
+import os
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
-
-from db import get_db
+import requests
 from settings import settings
 
-BOARDS = {
-    "github": ("GitHub 技术", "GitHub technology", "/insights/hotspots"),
-    "apps": ("AI 应用", "AI applications", "/insights/app-launches"),
-    "solutions": ("解决方案", "Solutions", "/insights/solutions"),
-    "community": ("社区洞察", "Community", "/insights/community"),
-    "competitors": ("厂商动态", "Vendor updates", "/insights/competitors"),
-}
+
+def homepage_snapshot() -> dict:
+    response = requests.get(os.getenv('INSIGHT_FRONTEND_URL', 'http://frontend:3000').rstrip('/') + '/api/home-email-snapshot', timeout=40)
+    response.raise_for_status()
+    return response.json()
 
 
-def current_analyses(today: date) -> dict:
-    """Read cached analyses only; generating an email must never start AI work."""
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT board, analysis FROM board_daily_insights WHERE insight_date=%s", (today.isoformat(),))
-        analyses = {row["board"]: json.loads(row["analysis"]) for row in cursor.fetchall()}
-        return {board: summary for board, summary in analyses.items() if summary.get("analysis_version") == 4}
+def _url(event: dict) -> str:
+    source = next((item.get('url', '') for item in event.get('sources', []) if item.get('url', '').startswith(('https://', 'http://'))), '')
+    if source and urlsplit(source).netloc:
+        return source
+    identifier = str(event.get('id', ''))
+    return f"{settings.BASE_URL.rstrip('/')}/events/{identifier[6:]}" if identifier.startswith('event:') and identifier[6:].isdigit() else settings.BASE_URL.rstrip('/')
 
 
-def safe_url(value: str) -> str:
-    try:
-        parsed = urlsplit(value)
-        return value if parsed.scheme in ("http", "https") and parsed.netloc else ""
-    except ValueError:
-        return ""
+def _link(event: dict) -> str:
+    return f'<a href="{escape(_url(event), quote=True)}" style="color:#17345b;text-decoration:none;font-weight:700">{escape(str(event.get("display_title") or event.get("title") or ""))}</a>'
 
 
-def _build_event_brief(analyses: dict, base: str, now: datetime, language: str) -> str | None:
-    from services.event_service import list_events
+def _section(title: str, body: str) -> str:
+    return f'<tr><td style="padding:22px 28px;border-bottom:1px solid #e5ebf2"><h2 style="margin:0 0 12px;font-size:18px;color:#10233c">{title}</h2>{body}</td></tr>'
 
-    events = list_events(100)["items"]
-    if not events:
-        return None
+
+def _daily_brief_section(language: str = "zh", brief: dict | None = None) -> str:
+    """Render the shared daily AI brief as the leading email section (same data as the homepage)."""
+    from services.daily_ai_brief_service import read
+
+    def esc(value) -> str:
+        return escape(str(value or ""))
+
+    if brief is None:
+        try:
+            brief = read()
+        except Exception:
+            return ""
     en = language == "en"
-    scope_names = {
-        "technology_ecosystem": "Technology" if en else "技术生态",
-        "ai_applications": "AI applications" if en else "AI 应用",
-        "solutions": "Solutions" if en else "解决方案",
-        "community_insights": "Community" if en else "社区洞察",
-        "competitor_dynamics": "Competitors" if en else "友商动态",
-    }
-    counts = {scope: 0 for scope in scope_names}
-    for event in events:
-        for scope in event.get("business_scopes") or []:
-            if scope in counts:
-                counts[scope] += 1
-    def score(event: dict) -> float:
-        scores = event.get("scores") or {}
-        if isinstance(scores, str):
-            try:
-                scores = json.loads(scores)
-            except ValueError:
-                scores = {}
-        return float((scores.get("hot_score") or {}).get("value") or 0)
-    events.sort(key=lambda item: (score(item), str(item.get("last_seen_at") or "")), reverse=True)
-    analysis_by_event = {
-        (summary.get("focus") or {}).get("event_id"): summary
-        for summary in analyses.values() if isinstance(summary, dict)
-    }
-    rows = []
-    for event in events[:3]:
-        event_id = event["id"]
-        summary = analysis_by_event.get(event_id) or {}
-        focus = summary.get("focus") or {}
-        event_url = f"{base}/events/{event_id}"
-        title = escape(str(event.get("title") or ""))
-        event_summary = escape(str(event.get("summary") or "")[:180])
-        score_value = score(event)
-        meta = [f"{event.get('source_count') or 0} {'sources' if en else '个来源'}",
-                f"{event.get('evidence_count') or 0} {'evidence items' if en else '条证据'}"]
-        if score_value:
-            meta.insert(0, f"Hot score {score_value:g}" if en else f"热度评分 {score_value:g}")
-        impact = focus.get("impact") or focus.get("why")
-        impact_html = (f'<p style="margin:6px 0 0;color:#475569;font-size:13px">{escape(str(impact)[:180])}</p>'
-                       if impact else "")
-        rows.append(f'<tr><td style="padding:13px 0;border-bottom:1px solid #e5e7eb"><a href="{escape(event_url, quote=True)}" style="color:#27313d;font-size:15px;font-weight:700">{title}</a><div style="margin-top:4px;color:#66717d;font-size:12px">{escape(" · ".join(meta))}</div><div style="margin-top:6px;color:#475569;font-size:13px;line-height:1.55">{event_summary}</div>{impact_html}</td></tr>')
-    business_changes = " · ".join(f"{scope_names[key]} <b>{count}</b>" for key, count in counts.items() if count)
-    business_changes = business_changes or ("No active events" if en else "暂无有效事件")
-    title = "Today's AI market brief" if en else "今日 AI 市场简报"
-    return f'''<!doctype html><html lang="{'en' if en else 'zh-CN'}"><head><meta charset="utf-8"></head><body style="margin:0;background:#fff;color:#27313d;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="100%" style="max-width:600px;border-top:2px solid #334155" cellpadding="0" cellspacing="0"><tr><td style="padding:22px 0 14px;border-bottom:1px solid #e5e7eb"><div style="color:#66717d;font-size:12px">INSIGHTPRO · {now:%Y-%m-%d} UTC+8</div><h1 style="margin:8px 0;font-size:24px">{title}</h1><div style="color:#475569;font-size:13px">{len(events)} {'recent events reviewed (max 100)' if en else '条近期事件（最多检查 100 条）'}</div></td></tr><tr><td style="padding:14px 0;border-bottom:1px solid #e5e7eb"><div style="color:#66717d;font-size:12px;font-weight:700">{'RECENT EVENTS BY BUSINESS' if en else '五大业务近期事件'}</div><div style="margin-top:7px;font-size:14px">{business_changes}</div></td></tr><tr><td><h2 style="margin:20px 0 4px;font-size:17px">{'Top intelligence' if en else '今日重点情报'}</h2><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{''.join(rows)}</table><p style="color:#66717d;font-size:12px;line-height:1.6">{'Counts, evidence and scores are observed system data. Business impact appears only when a cached analysis is linked to the same Event.' if en else '数量、证据与评分来自系统观测；商业影响仅在缓存分析关联到同一 Event 时展示。'}</p></td></tr></table></td></tr></table></body></html>'''
+    if brief.get("status") == "failed" or not (brief.get("headline") or brief.get("quick_reads") or brief.get("recent_judgments")):
+        note = brief.get("note") or ("No high-value AI events today." if en else "今日暂无可核实的高价值 AI 情报。")
+        return _section("Daily AI brief" if en else "每日 AI 洞察简讯", f'<p style="margin:0;color:#526277">{esc(note)}</p>')
+    parts: list[str] = []
+    judgments = brief.get("recent_judgments") or []
+    if judgments:
+        parts.append('<h3 style="margin:0 0 8px;font-size:14px;color:#10233c">' + ("Recent judgments" if en else "近日判断") + '</h3>' + ''.join(
+            f'<p style="margin:8px 0;line-height:1.55"><b>{esc(item["title"])}</b><br><span style="color:#526277">{esc(item["detail"])}</span></p>'
+            for item in judgments))
+    headline = brief.get("headline")
+    if headline:
+        headline_body = f'<p style="font-size:16px;line-height:1.4;margin:0 0 6px"><a href="{esc(headline.get("source_url"))}" style="color:#17345b;text-decoration:none;font-weight:700">{esc(headline.get("title"))}</a></p>'
+        headline_body += f'<p style="margin:0 0 8px;color:#526277;font-size:12px">{esc(headline.get("category"))} · {esc(headline.get("source_name"))} · {esc(str(headline.get("published_at") or "")[:10])}</p>'
+        headline_body += f'<p style="margin:0;line-height:1.6"><b>摘要</b> {esc(headline.get("summary"))}</p><p style="margin:8px 0 0;line-height:1.6"><b>点评</b> {esc(headline.get("commentary"))}</p><p><a href="{escape(str(headline.get("source_url") or ""), quote=True)}">查看原文 →</a></p>'
+        parts.append('<h3 style="margin:14px 0 8px;font-size:14px;color:#10233c">' + ("Today's headline" if en else "今日头条") + '</h3>' + headline_body)
+    quick_reads = brief.get("quick_reads") or []
+    if quick_reads:
+        quick_body = ''.join(
+            f'<p style="margin:10px 0;line-height:1.55"><b style="color:#67809d">{esc(item.get("title"))}</b><br>'
+            f'<span style="color:#526277">【摘要】{esc(item.get("summary"))}<br>【点评】{esc(item.get("commentary"))}</span><br>'
+            f'<a href="{escape(str(item.get("source_url") or ""), quote=True)}" style="color:#17345b;text-decoration:none;font-size:12px">查看原文 →</a></p>'
+            for item in quick_reads)
+        parts.append('<h3 style="margin:14px 0 8px;font-size:14px;color:#10233c">' + ("Quick reads" if en else "今日快读") + '</h3>' + quick_body)
+    return _section("Daily AI brief" if en else "每日 AI 洞察简讯", ''.join(parts))
 
 
-def build_html(language: str = "zh") -> str:
-    en = language == "en"
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    analyses = current_analyses(now.date())
-    base = settings.BASE_URL.rstrip("/")
-    event_brief = _build_event_brief(analyses, base, now, language)
-    if event_brief:
-        return event_brief
-    has_cached_source = any(safe_url((summary.get("focus") or {}).get("url", ""))
-                            for summary in analyses.values() if isinstance(summary, dict))
-    intro = (("Recent board analyses with cached source links." if has_cached_source else "Recent board analyses; no cached focus sources are available.") if en else
-             ("五个业务板块的近期分析与缓存来源。" if has_cached_source else "五个业务板块的近期分析；当前没有缓存重点来源。"))
-    cards = []
-    for key, (zh_name, en_name, path) in BOARDS.items():
-        analysis = analyses.get(key) or {}
-        focus = analysis.get("focus") or {}
-        source_url = safe_url(focus.get("url", ""))
-        event_id = focus.get("event_id")
-        url = f"{base}/events/{event_id}" if type(event_id) is int and event_id > 0 else source_url
-        item_title = focus.get("title") or ""
-        judgment = analysis.get("judgment") or (("Recent source available; in-depth analysis is pending." if item_title else "No verified recent update.") if en else ("近期来源已收录，深入分析待更新。" if item_title else "近 7 天暂无可核实的新信息。"))
-        status = ("Current community snapshot" if en else "当前社区热榜") if key == "community" else ("Last 7 days" if en else "近 7 天")
-        if key not in analyses or "focus" not in analysis:
-            status += " · " + ("Analysis pending" if en else "分析待更新")
-        title_html = f'<a href="{escape(url, quote=True)}" style="color:#27313d;font-weight:700;text-decoration:underline">{escape(item_title)}</a>' if url else escape(item_title)
-        meta = focus.get("meta") or ""
-        detail = "".join(f'<p style="margin:10px 0 0;color:#475569;font-size:14px;line-height:1.65"><strong style="color:#27313d">{label}：</strong>{escape(focus[field])}</p>'
-                         for field, label in (("why", "Why it matters" if en else "为何值得关注"),
-                                              ("analysis", "What changed" if en else "事件解读"),
-                                              ("impact", "Business impact" if en else "业务影响"),
-                                              ("caveat", "Evidence boundary" if en else "证据边界")) if focus.get(field))
-        source_link = f'<a href="{escape(source_url, quote=True)}" style="color:#475569;font-size:12px">{"Original source" if en else "原始来源"}</a>' if source_url else ""
-        cards.append(f'''<tr><td style="padding:23px 0 25px;border-bottom:1px solid #e5e7eb">
-          <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><h2 style="margin:0;color:#27313d;font-size:18px;line-height:1.4">{escape(en_name if en else zh_name)}</h2></td><td align="right" style="color:#66717d;font-size:12px;white-space:nowrap">{status}</td></tr></table>
-          <p style="margin:12px 0 0;color:#27313d;font-size:15px;line-height:1.65;font-weight:600"><span style="display:block;color:#66717d;font-size:12px;font-weight:700">{"Overall assessment" if en else "总体判断"}</span>{escape(judgment)}</p>
-          <p style="margin:16px 0 0;color:#66717d;font-size:12px;font-weight:700">{"Focus to examine" if en else "本期重点分析"}</p>
-          <p style="margin:5px 0 0;color:#27313d;font-size:15px;line-height:1.6">{title_html or ("No representative item" if en else "暂无代表条目")}<span style="display:block;color:#66717d;font-size:12px;line-height:1.5;margin-top:4px">{escape(meta)}</span><span style="display:block;margin-top:5px">{source_link}</span></p>
-          {detail}
-          <p style="margin:13px 0 0"><a href="{escape(base + path, quote=True)}" style="color:#334155;font-size:13px;font-weight:700;text-decoration:underline">{"View board" if en else "查看板块详情"} →</a></p>
-        </td></tr>''')
-    complete = set(analyses) >= set(BOARDS)
-    note = ("All five boards have today's cached analysis · Community is a current ranking snapshot; boards without a focus item omit source fallback." if en else "五个板块均有当日分析缓存 · 社区为当前热榜观察；无焦点板块不补入其他来源。") if complete else ("Some board analyses or focus items are pending; uncached sources are omitted." if en else "部分板块分析或重点条目待更新；未缓存来源不作补入。")
-    title = "Five-board intelligence brief" if en else "五大业务情报简报"
-    community_note = "Community items are a current ranking snapshot; publication dates are not verified." if en else "社区内容为当前热榜观察，未逐条核实发布日期。"
-    return f'''<!doctype html><html lang="{"en" if en else "zh-CN"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;background:#ffffff;color:#27313d;font-family:Arial,'PingFang SC','Microsoft YaHei',sans-serif"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#ffffff"><tr><td align="center" style="padding:20px 12px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff"><tr><td style="padding:28px 25px 23px;border-top:2px solid #334155;border-bottom:1px solid #e5e7eb"><p style="margin:0 0 12px;color:#66717d;font-size:12px;font-weight:700;letter-spacing:1px">INSIGHTPRO &nbsp;/&nbsp; {now:%Y-%m-%d} UTC+8</p><h1 style="margin:0;color:#27313d;font-size:25px;line-height:1.3">{title}</h1><p style="margin:10px 0 0;color:#475569;font-size:14px;line-height:1.6">{intro}</p></td></tr><tr><td style="padding:0 25px 27px"><p style="margin:19px 0 2px;color:#66717d;font-size:12px;line-height:1.6">{note}</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">{''.join(cards)}</table><p style="margin:22px 0 0;color:#66717d;font-size:12px;line-height:1.6">{community_note}</p><p style="margin:8px 0 0;color:#66717d;font-size:12px;line-height:1.6">{"Automated analysis is a reading aid. Verify the original source before acting." if en else "AI 分析仅辅助阅读，采取行动前请核实原始来源。"}</p></td></tr></table></td></tr></table></body></html>'''
+def build_html(language: str = 'zh', snapshot: dict | None = None) -> str:
+    snapshot = snapshot if snapshot is not None else homepage_snapshot()
+    en = language == 'en'
+    base = settings.BASE_URL.rstrip('/')
+    now = datetime.fromisoformat(snapshot['as_of']).astimezone(ZoneInfo('Asia/Shanghai'))
+    focus_item = snapshot.get('focus') or {}
+    focus = focus_item.get('event') or {}
+    focus_body = f'<p style="font-size:20px;line-height:1.45;margin:0 0 12px">{_link(focus) if focus else ("No verified focus" if en else "近期暂无可核实的焦点")}</p>'
+    if focus:
+        focus_body += f'<p style="margin:0 0 8px;color:#526277">{escape(str(focus.get("vendor") or "行业动态"))} · {escape(str(focus_item.get("type") or ""))}</p>'
+        focus_body += f'<p style="line-height:1.6;margin:0">{escape(str(focus.get("summary") or ""))}</p><p style="line-height:1.6;margin:8px 0 0">{escape(str(focus.get("why") or ""))}</p>'
+    judgments = snapshot.get('insights') or []
+    judgment_body = ''.join(f'<p style="margin:8px 0;line-height:1.55"><b>{escape(item["label"])}</b> · {escape(str((item.get("event") or {}).get("why") or "暂无可核实的新变化"))}</p>' for item in judgments)
+    board_body = ''.join(f'<tr><td style="padding:11px 0;border-bottom:1px solid #edf1f5;width:105px;font-weight:700">{escape(board["name"])}</td><td style="padding:11px 0;border-bottom:1px solid #edf1f5">{_link(board["events"][0]) if board["events"] else "近 30 天暂无新增"}<div style="margin-top:4px;color:#526277;line-height:1.5">{escape(str(board["events"][0].get("summary") or board["events"][0].get("why") or "")) if board["events"] else ""}</div></td></tr>' for board in snapshot.get('boards', []))
+    priorities = [focus_item, *(snapshot.get('keypoints') or [])][:5]
+    priority_body = ''.join(f'<p style="margin:10px 0;line-height:1.55"><b style="color:#67809d">{index:02d}</b> &nbsp;{_link(item["event"])}<br><span style="color:#526277">{escape(str(item["event"].get("summary") or item["event"].get("why") or ""))}</span></p>' for index, item in enumerate(priorities, 1) if item.get('event')) or '暂无重点动态'
+    vendor_body = ''.join(f'<p style="margin:8px 0;line-height:1.55">{escape(str(item.get("vendor") or "厂商"))} · {_link(item)}<br><span style="color:#526277">{escape(str(item.get("summary") or item.get("why") or ""))}</span></p>' for item in snapshot.get('vendors', [])) or '近期暂无友商动态'
+    latest_body = '<table role="presentation" width="100%" cellspacing="0" cellpadding="0">' + ''.join(f'<tr><td style="padding:9px 4px;border-bottom:1px solid #edf1f5;color:#60738b;white-space:nowrap">{escape(str(item.get("happened_at") or "")[:10])}</td><td style="padding:9px 4px;border-bottom:1px solid #edf1f5">{_link(item)}</td></tr>' for item in snapshot.get('latest', [])) + '</table>'
+    title = 'Xiao Leida business intelligence brief' if en else '小雷达首页商业情报简报'
+    observed = [item.get('last_seen_at') or item.get('observed_at') or item.get('happened_at') for item in snapshot.get('latest', [])]
+    latest_time = max((datetime.fromisoformat(value.replace('Z', '+00:00')).astimezone(ZoneInfo('Asia/Shanghai')) for value in observed if value), default=now)
+    sections = [_daily_brief_section(language, snapshot.get("_daily_ai_brief")), _section('Recent focus' if en else '近期焦点', focus_body), _section('Core judgments' if en else '本期核心判断', judgment_body), _section('Five business areas' if en else '五大业务摘要', f'<table role="presentation" width="100%" cellspacing="0">{board_body}</table>'), _section('Top updates' if en else '重点动态', priority_body), _section('Vendor watch' if en else '厂商关注 / 友商动态摘要', vendor_body), _section('Latest updates' if en else '最新动态', latest_body)]
+    sections = [s for s in sections if s]
+    return f'''<!doctype html><html lang="{'en' if en else 'zh-CN'}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#edf2f8;font-family:Arial,'PingFang SC',sans-serif;color:#26384d"><table role="presentation" width="100%" cellspacing="0"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="100%" cellspacing="0" style="max-width:640px;background:white;border-radius:12px;overflow:hidden"><tr><td style="padding:26px 28px;background:#102b50;color:white"><div style="font-size:13px;letter-spacing:2px;font-weight:700">小雷达</div><h1 style="margin:12px 0 8px;font-size:26px">{title}</h1><div style="font-size:13px;color:#c7d6e7">{'Latest data: ' if en else '最新数据时间：'}{latest_time:%Y-%m-%d %H:%M} CST</div></td></tr>{''.join(sections)}<tr><td align="center" style="padding:28px"><a href="{escape(base, quote=True)}" style="display:inline-block;background:#173b70;color:white;padding:13px 24px;border-radius:7px;text-decoration:none;font-weight:700">{'View full homepage' if en else '查看完整首页'} →</a></td></tr></table></td></tr></table></body></html>'''

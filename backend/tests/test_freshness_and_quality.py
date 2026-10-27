@@ -187,6 +187,7 @@ def test_solution_catalog_catchup_requires_both_vendors(monkeypatch):
 
 
 def test_startup_runs_daily_insight_after_business_refreshes(monkeypatch):
+    from datetime import datetime
     from types import SimpleNamespace
     import sys
 
@@ -210,10 +211,11 @@ def test_startup_runs_daily_insight_after_business_refreshes(monkeypatch):
     monkeypatch.setattr(startup_service, "_task_attempted_today", lambda key: False)
     monkeypatch.setitem(sys.modules, "main_legacy", SimpleNamespace(_fetch_baidu_hotsearch_sync=lambda: None, evaluate_trending_business=lambda: {"status": "success"}))
     monkeypatch.setattr("services.task_service.run_task", lambda key, trigger, function=None: calls.append(key))
+    monkeypatch.setattr(startup_service, "datetime", type("Clock", (), {"now": staticmethod(lambda *_: datetime(2026, 10, 27, 10, 0))}))
 
     startup_service.run_startup_catchup()
 
-    assert calls[-5:] == ["discovery_sentinel_daily", "baidu_hotsearch_daily", "trending_business_eval_daily", "project_briefs_zh_daily", "board_insights_daily"]
+    assert calls[-6:] == ["discovery_sentinel_daily", "trending_business_eval_daily", "project_briefs_zh_daily", "board_insights_daily", "radar_event_analysis_daily", "daily_ai_brief"]
     assert ("technical_evaluation", "trending_business_eval_daily") in catchup_args
     assert "daily_crawl" in calls
 
@@ -312,25 +314,6 @@ def test_startup_does_not_retry_failed_task_today(monkeypatch):
 
     assert startup_service._run_task_if_missing_today("daily_crawl") is False
     assert calls == []
-
-
-def test_baidu_catchup_uses_task_gate_and_skips_fresh_dataset(monkeypatch):
-    from crawlers import baidu_crawler
-    calls = []
-    monkeypatch.setattr(startup_service, "has_rows_today", lambda _dataset: True)
-    monkeypatch.setattr(baidu_crawler, "_fetch_baidu_hotsearch_sync", lambda: calls.append("fetch"))
-
-    assert startup_service.refresh_baidu_hotsearch_if_missing() == {"status": "success", "total": 0}
-    assert calls == []
-
-
-def test_baidu_catchup_reports_fallback_as_partial(monkeypatch):
-    from crawlers import baidu_crawler
-    monkeypatch.setattr(startup_service, "has_rows_today", lambda _dataset: False)
-    monkeypatch.setattr(baidu_crawler, "_fetch_baidu_hotsearch_sync", lambda: [{"title": "Hot search load failed"}])
-
-    result = startup_service.refresh_baidu_hotsearch_if_missing()
-    assert result["status"] == "partial_success"
 
 
 def test_task_success_uses_latest_run_not_any_success(monkeypatch):

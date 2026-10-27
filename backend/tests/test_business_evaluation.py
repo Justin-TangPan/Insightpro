@@ -1,6 +1,31 @@
+import json
+
 from services.evaluation_service import BUSINESS_EVAL_SYSTEM_PROMPT
 from services.hotspot_service import _canonical_total, _evaluate_live_items, _heuristic_score_project, _localize_evaluations, _summarize_eval
 from services import evaluation_service
+from contextlib import contextmanager
+
+
+def test_live_evaluation_projection_uses_structured_dimension_scores(monkeypatch):
+    calls = []
+
+    class Cursor:
+        def execute(self, query, values):
+            calls.append(values)
+
+    class Connection:
+        def cursor(self):
+            return Cursor()
+
+    @contextmanager
+    def fake_db():
+        yield Connection()
+
+    monkeypatch.setattr("services.hotspot_service.get_db", fake_db)
+    from services.hotspot_service import _store_live_evaluations
+    _store_live_evaluations("2026-10-26", [{"repo_name": "org/repo", "d1": {"score": 7, "reasoning": "evidence"},
+                                           "d2": 6, "d3": {"score": None}, "d4": 8}])
+    assert calls[0][6:10] == (7, 6, None, 8)
 
 
 def test_business_evaluation_uses_solution_practice_admission_rules():
@@ -194,6 +219,7 @@ def test_live_evaluation_uses_dedicated_prompt(monkeypatch):
     assert result[0]["prompt_name"] == "repository_business_eval"
     assert result[0]["prompt_version"] == 3
     assert observed["system_prompt"] == "Managed repository prompt"
+    assert observed["max_tokens"] == 16384
     assert "acme/platform" in observed["user_prompt"]
     assert '"contributors_count": 17' in observed["user_prompt"]
     assert '"latest_release_tag": "v1.2.0"' in observed["user_prompt"]
@@ -203,6 +229,29 @@ def test_live_evaluation_uses_dedicated_prompt(monkeypatch):
     assert technical["engineering_maturity"]["evidence_keys"] == ["contributors_count", "latest_release_tag"]
     assert technical["innovation"]["evidence_keys"] == ["topics"]
     assert technical["deployability"]["score"] == 8
+
+
+def test_live_evaluation_retries_missing_batch_item_individually(monkeypatch):
+    async def run_inline(function, *args, **kwargs):
+        return function(*args, **kwargs)
+
+    monkeypatch.setattr("services.hotspot_service.asyncio.to_thread", run_inline)
+    monkeypatch.setattr("services.prompt_service.published_prompt", lambda _: None)
+    prompts = []
+
+    def chat_complete(**kwargs):
+        prompt = kwargs["user_prompt"]
+        prompts.append(prompt)
+        name = "acme/second" if len(prompts) == 2 else "acme/first"
+        return json.dumps([{"repo_name": name, "summary": "可验证的项目", "d1": 7, "d2": 7,
+                            "d3": 6, "d4": 6, "recommendation": "继续验证", "reasoning": "基于项目证据"}])
+
+    monkeypatch.setattr("services.ai_service.chat_complete", chat_complete)
+    rows = [{"repo_name": name, "description": "AI platform"} for name in ("acme/first", "acme/second")]
+    result = __import__("asyncio").run(_evaluate_live_items(rows, 2))
+
+    assert len(prompts) == 2
+    assert [item["evaluation_mode"] for item in result] == ["ai", "ai"]
 
 
 def test_technical_dimensions_without_valid_evidence_are_not_scored():

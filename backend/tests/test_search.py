@@ -48,6 +48,7 @@ def test_search_query_covers_ai_apps_and_keeps_full_counts(monkeypatch):
     assert "SELECT * FROM compatible i" in captured["sql"]
     assert "LIMIT 100" not in captured["sql"]
     assert "count(*) FILTER (WHERE item_type='ai_application')" in captured["sql"]
+    assert "s.ai_application, s.community, s.requirement" in captured["sql"]
     assert captured["params"][:2] == ("user-1", "user-1")
     assert result["total"] == 137 and result["facets"]["ai_application"] == 37
     assert result["facets"]["community"] == 5

@@ -786,18 +786,20 @@ def analyze_stored_pending() -> list[dict]:
         return _read_structured()
 
 
-def snapshot(limit: int | None = 180) -> tuple[list[dict], bool]:
+def snapshot(limit: int | None = 180, refresh: bool = True) -> tuple[list[dict], bool]:
     global _refresh_future, _refresh_hour
-    hour = int(datetime.now(timezone.utc).timestamp() // 3600)
-    with _refresh_lock:
-        if _refresh_hour != hour or _refresh_future is None:
-            _refresh_future = _refresh_pool.submit(latest)
-            _refresh_hour = hour
-        future = _refresh_future
+    future = None
+    if refresh:
+        hour = int(datetime.now(timezone.utc).timestamp() // 3600)
+        with _refresh_lock:
+            if _refresh_hour != hour or _refresh_future is None:
+                _refresh_future = _refresh_pool.submit(latest)
+                _refresh_hour = hour
+            future = _refresh_future
     rows = _read_structured(limit)
     if rows:
-        return rows, not future.done()
-    if future.done():
+        return rows, bool(future and not future.done())
+    if future and future.done():
         try:
             items = future.result()
             if items:
@@ -810,4 +812,4 @@ def snapshot(limit: int | None = 180) -> tuple[list[dict], bool]:
     fallback += [{"vendor": vendor, "title": title, "published": "", "url": url,
                   "kind": "product", "analysis": _fallback_analysis({"vendor": vendor, "kind": "product"})}
                  for vendor, title, url in PRODUCT_SEEDS]
-    return fallback, True
+    return fallback, bool(future and not future.done())

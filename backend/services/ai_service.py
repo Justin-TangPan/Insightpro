@@ -76,7 +76,17 @@ def chat_complete(
     )
     resp.raise_for_status()
     payload = resp.json()
-    content = payload["choices"][0]["message"]["content"]
+    message = payload["choices"][0]["message"]
+    content = message.get("content")
+    if not (content or "").strip():
+        # 部分网关在思考模式或过滤命中时把正文放到 reasoning_content 或直接置空；
+        # 记录现场便于定位，避免上层拿到空文本后静默降级。
+        logger.warning(
+            "Empty chat content: finish_reason=%s message_keys=%s",
+            payload["choices"][0].get("finish_reason"),
+            sorted(message.keys()),
+        )
+        content = message.get("reasoning_content") or ""
     from services import ai_usage_service
     ai_usage_service.record(None, payload.get("model") or settings.CHAT_MODEL, "backend", payload.get("usage"))
     return content

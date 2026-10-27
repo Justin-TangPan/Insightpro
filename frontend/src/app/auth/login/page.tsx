@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import Link from "next/link"
-import Image from "next/image"
+import { Radar } from "lucide-react"
 import { usePreferences } from "@/lib/preferences"
 
 export default function LoginPage() {
@@ -36,7 +36,7 @@ export default function LoginPage() {
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <Image src="/brand/insightpro-logo.png" alt="InsightPro" width={128} height={128} className="mx-auto mb-4 rounded-2xl shadow-[var(--shadow-card)]" priority />
+          <Radar className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-blue-50 p-4 text-primary" aria-label="小雷达" />
           <p className="type-body text-ink-muted">{en ? "Internal preview" : "内测用户登录"}</p>
         </div>
 

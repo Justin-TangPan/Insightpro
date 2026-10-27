@@ -156,11 +156,12 @@ function SearchContent() {
             const config = typeConfig[result.type];
             const Icon = config.icon;
             const external = result.url.startsWith("http");
+            const newTab = external || !["requirement", "managed_solution"].includes(result.type);
             return (
-              <Link key={`${result.type}-${result.url}-${result.title}`} href={result.url} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="ui-card ui-card-interactive group flex min-h-44 items-start gap-4">
+              <Link key={`${result.type}-${result.url}-${result.title}`} href={result.url} target={newTab ? "_blank" : undefined} rel={newTab ? "noopener noreferrer" : undefined} className="ui-card ui-card-interactive group flex min-h-44 items-start gap-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary"><Icon className="h-4 w-4" /></div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3"><span className="ui-tag"> {en ? config.en : config.label}</span>{external && <ExternalLink className="h-3.5 w-3.5 text-ink-muted transition-colors group-hover:text-primary" />}</div>
+                  <div className="flex items-start justify-between gap-3"><span className="ui-tag"> {en ? config.en : config.label}</span>{newTab && <ExternalLink className="h-3.5 w-3.5 text-ink-muted transition-colors group-hover:text-primary" />}</div>
                   <h2 className="mt-3 type-h3 text-ink"><Highlight text={result.title} query={data.query} /></h2>
                   {result.snippet && <p className="mt-2 line-clamp-2 text-sm leading-6 text-ink-muted"><Highlight text={result.snippet} query={data.query} /></p>}
                   <p className="mt-3 truncate text-xs font-medium text-ink-muted">{result.source}{result.date ? ` · ${({ published: en ? "Published" : "发布", observed: en ? "Collected" : "采集", changed: en ? "Changed" : "变化", updated: en ? "Updated" : "更新" }[result.date_basis || "observed"])} ${result.date}` : ""}</p>

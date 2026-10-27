@@ -16,7 +16,7 @@ const labels: Record<string, string> = {
 };
 const taskDatasets: Record<string, string[]> = {
   github_daily: ["github_trending"], solution_catalogs_daily: ["aliyun_solutions", "huawei_solutions"],
-  daily_crawl: ["baidu_hotsearch"], competitor_daily: ["competitor_news"], ai_applications_daily: ["vendor_ai_applications"],
+  community_insights_daily: ["baidu_hotsearch"], competitor_daily: ["competitor_news"], ai_applications_daily: ["vendor_ai_applications"],
 };
 const date = (value?: string | null) => value ? new Date(value).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }) : "暂无";
 const status = (task?: Task) => task?.last_run?.status === "success" ? "成功" : task?.last_run?.status === "failed" ? "失败" : task?.last_run?.status === "running" ? "运行中" : "尚无记录";

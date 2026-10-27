@@ -135,17 +135,6 @@ def ensure_runtime_schema(absorb_requirements: bool = True) -> None:
         absorb_requirements_into_solutions()
 
 
-def refresh_baidu_hotsearch_if_missing() -> dict:
-    if has_rows_today("baidu_hotsearch"):
-        return {"status": "success", "total": 0}
-    from crawlers.baidu_crawler import _fetch_baidu_hotsearch_sync
-
-    items = _fetch_baidu_hotsearch_sync()
-    if not items or any(item.get("title") in {"Loading data...", "Hot search load failed"} for item in items):
-        return {"status": "partial_success", "error": "Baidu hot search returned no fresh items"}
-    return {"status": "success", "total": len(items)}
-
-
 def _run_if_missing(dataset: str, job_name: str, function=None, task_key: str | None = None) -> bool:
     if has_rows_today(dataset):
         logger.info("startup catch-up skip: %s is already fresh", dataset)
@@ -222,10 +211,14 @@ def run_startup_catchup() -> None:
             try:
                 for task_key in required_source_tasks():
                     _run_task_if_missing_today(task_key)
-                _run_task_if_missing_today("baidu_hotsearch_daily")
                 _run_if_missing("technical_evaluation", "technical evaluation", seed_and_upgrade_technical_evaluation, "trending_business_eval_daily")
                 _run_task_if_missing_today("project_briefs_zh_daily")
                 _run_task_if_missing_today("board_insights_daily")
+                if datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%H:%M") >= "09:30":
+                    from services.task_service import daily_brief_schedule_enabled
+                    _run_task_if_missing_today("radar_event_analysis_daily")
+                    if daily_brief_schedule_enabled():
+                        _run_task_if_missing_today("daily_ai_brief")
             finally:
                 cursor.execute("SELECT pg_advisory_unlock(%s)", (_LOCK_ID,))
     except Exception:

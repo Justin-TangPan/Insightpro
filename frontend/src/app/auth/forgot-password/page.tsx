@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
+import { Radar } from "lucide-react"
 import { useState } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { usePreferences } from "@/lib/preferences"
@@ -37,5 +37,5 @@ export default function ForgotPasswordPage() {
 
 function AuthCard({ title, children }: { title: string, children: React.ReactNode }) {
   const { preferences } = usePreferences()
-  return <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4"><div className="w-full max-w-md"><div className="mb-8 text-center"><Image src="/brand/insightpro-logo.png" alt="InsightPro" width={128} height={128} className="mx-auto mb-4 rounded-2xl shadow-[var(--shadow-card)]" priority /><p className="type-body text-ink-muted">{preferences.language === "en" ? "AI-powered technology solution insights" : "AI 驱动的技术解决方案洞察平台"}</p></div><div className="ui-card p-8"><h2 className="type-h2 mb-6 text-ink">{title}</h2>{children}</div></div></div>
+  return <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center p-4"><div className="w-full max-w-md"><div className="mb-8 text-center"><Radar className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-blue-50 p-4 text-primary" aria-label="小雷达" /><p className="type-body text-ink-muted">{preferences.language === "en" ? "AI-powered technology solution insights" : "AI 驱动的技术解决方案洞察平台"}</p></div><div className="ui-card p-8"><h2 className="type-h2 mb-6 text-ink">{title}</h2>{children}</div></div></div>
 }

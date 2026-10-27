@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import ipaddress
 import re
+import socket
 from urllib.parse import urlparse
 from apscheduler.triggers.cron import CronTrigger
 from pytz import timezone
@@ -14,7 +16,8 @@ from db import get_db
 
 SHANGHAI = timezone("Asia/Shanghai")
 SHANGHAI_ZONE = ZoneInfo("Asia/Shanghai")
-DISCOVERY_ADAPTERS = {"product_hunt_feed", "hacker_news_api", "hugging_face_api", "arxiv_api", "github_search_api", "rss_feed"}
+DISCOVERY_ADAPTERS = {"product_hunt_feed", "hacker_news_api", "hugging_face_api", "arxiv_api", "github_search_api", "rss_feed", "api_json", "html_links"}
+SOURCE_ROLES = {"OFFICIAL", "MEDIA", "COMMUNITY", "ACADEMIC", "PLATFORM"}
 BUSINESS_SCOPES = {"technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"}
 
 
@@ -36,10 +39,45 @@ def enabled_sources(source_keys: tuple[str, ...]) -> set[str]:
 def list_sources() -> list[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""SELECT source_key, name, adapter, base_url, business_scopes, authority,
-                          priority, schedule, enabled, health_status, last_success_at, last_error, updated_at
+        cursor.execute("""SELECT source_key, name, adapter, base_url, business_scopes, authority, config,
+                          priority, schedule, schedule->>'cron' AS fetch_interval, enabled, health_status, last_success_at, last_error, updated_at,
+                          source_role,language,region,last_run_at,last_new_count,consecutive_failures,total_runs,successful_runs
                           FROM intelligence_sources ORDER BY priority, source_key""")
-        return [dict(row) for row in cursor.fetchall()]
+        rows = [dict(row) for row in cursor.fetchall()]
+        for row in rows:
+            row["health_status"] = {"healthy": "HEALTHY", "failed": "HTTP_ERROR", "unknown": "STALE"}.get(row["health_status"], row["health_status"])
+            if not row["enabled"]:
+                row["health_status"] = "DISABLED"
+            elif row["last_success_at"] and row["last_run_at"] and (datetime.now(row["last_success_at"].tzinfo) - row["last_success_at"]).total_seconds() > 172800:
+                row["health_status"] = "STALE"
+            row["success_rate"] = round(100 * row["successful_runs"] / row["total_runs"], 1) if row["total_runs"] else None
+        return rows
+
+
+def validate_source_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+        raise ValueError("Source URL must be an HTTPS URL without credentials")
+    if parsed.hostname in {"localhost", "host.docker.internal"} or parsed.hostname.endswith((".local", ".internal")):
+        raise ValueError("Private network sources are not allowed")
+    try:
+        addresses = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"Source hostname cannot be resolved: {exc}") from exc
+    if any(not ipaddress.ip_address(address[4][0]).is_global for address in addresses):
+        raise ValueError("Private network sources are not allowed")
+
+
+def preview_source(source: dict) -> dict:
+    from services.discovery_service import _fetch_discovery_items
+    validate_source_url(source["base_url"])
+    if source["adapter"] not in DISCOVERY_ADAPTERS:
+        raise ValueError("Unsupported adapter")
+    items = _fetch_discovery_items(source, datetime.now(SHANGHAI_ZONE).date().isoformat())
+    language = source.get("language") or "zh"
+    return {"ok": True, "count": len(items), "items": [{"title": item["title"], "url": item["url"],
+            "published_at": item.get("published_at"), "summary": item.get("content", {}).get("summary") or "",
+            "language": language} for item in items[:5]]}
 
 
 def create_source(source: dict, actor_user_id: str) -> dict:
@@ -49,11 +87,11 @@ def create_source(source: dict, actor_user_id: str) -> dict:
         raise ValueError("Source key or name is invalid")
     if adapter not in DISCOVERY_ADAPTERS:
         raise ValueError("Adapter is not supported by Discovery Sentinel")
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-        raise ValueError("Source URL must be an HTTPS URL without credentials")
+    validate_source_url(url)
     if not scopes or set(scopes) - BUSINESS_SCOPES:
         raise ValueError("Invalid business scopes")
+    if source.get("source_role", "MEDIA") not in SOURCE_ROLES or source.get("language", "zh") not in {"zh", "en"}:
+        raise ValueError("Invalid source role or language")
     if source["authority"] not in {"P0", "P1", "P2"} or type(source["priority"]) is not int or not 0 <= source["priority"] <= 1000:
         raise ValueError("Invalid source authority or priority")
     cron = source["cron"]
@@ -62,10 +100,12 @@ def create_source(source: dict, actor_user_id: str) -> dict:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""INSERT INTO intelligence_sources
-            (source_key,name,adapter,base_url,business_scopes,authority,priority,schedule,enabled)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,FALSE)
+            (source_key,name,adapter,base_url,business_scopes,authority,priority,schedule,enabled,source_role,language,region,config)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s::jsonb,FALSE,%s,%s,%s,%s::jsonb)
             ON CONFLICT (source_key) DO NOTHING RETURNING *""",
-            (key, name, adapter, url, scopes, source["authority"], source["priority"], json.dumps(schedule)))
+            (key, name, adapter, url, scopes, source["authority"], source["priority"], json.dumps(schedule),
+             source.get("source_role", "MEDIA"), source.get("language", "zh"), source.get("region", "GLOBAL"),
+             json.dumps({"topics": source.get("topics", [])}, ensure_ascii=False)))
         created = cursor.fetchone()
         if not created:
             raise ValueError("Source key already exists")
@@ -112,23 +152,25 @@ def set_source_enabled(source_key: str, enabled: bool, actor_user_id: str) -> di
 
 def update_source(source_key: str, changes: dict, actor_user_id: str) -> dict | None:
     allowed_scopes = {"technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"}
-    if not changes or set(changes) - {"name", "base_url", "priority", "authority", "business_scopes"}:
+    if not changes or set(changes) - {"name", "base_url", "priority", "authority", "business_scopes", "source_role", "language"}:
         raise ValueError("No supported source fields supplied")
     if "name" in changes and (not isinstance(changes["name"], str) or not changes["name"].strip()):
         raise ValueError("Source name cannot be empty")
     if "base_url" in changes:
-        parsed = urlparse(changes["base_url"] or "")
-        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-            raise ValueError("Source URL must be an HTTPS URL without credentials")
+        validate_source_url(changes["base_url"] or "")
     if "priority" in changes and (type(changes["priority"]) is not int or not 0 <= changes["priority"] <= 1000):
         raise ValueError("Priority must be between 0 and 1000")
     if "authority" in changes and changes["authority"] not in {"P0", "P1", "P2"}:
         raise ValueError("Authority must be P0, P1 or P2")
     if "business_scopes" in changes and (not changes["business_scopes"] or set(changes["business_scopes"]) - allowed_scopes):
         raise ValueError("Invalid business scopes")
+    if "source_role" in changes and changes["source_role"] not in SOURCE_ROLES:
+        raise ValueError("Invalid source role")
+    if "language" in changes and changes["language"] not in {"zh", "en"}:
+        raise ValueError("Invalid language")
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT name,base_url,priority,authority,business_scopes FROM intelligence_sources WHERE source_key=%s FOR UPDATE", (source_key,))
+        cursor.execute("SELECT name,base_url,priority,authority,business_scopes,source_role,language FROM intelligence_sources WHERE source_key=%s FOR UPDATE", (source_key,))
         previous = cursor.fetchone()
         if not previous:
             return None
@@ -187,23 +229,27 @@ def test_source_connection(source_key: str, actor_user_id: str) -> dict | None:
         source = cursor.fetchone()
     if not source:
         return None
-    status_code, error = None, None
+    status_code, error, preview = None, None, []
     if not source["base_url"]:
         error = "Source URL is not configured"
     else:
         try:
-            response = requests.get(source["base_url"], timeout=8, allow_redirects=False, stream=True,
-                                   headers={"User-Agent": "InsightPro Source Check/1.0"})
-            status_code = response.status_code
-            response.close()
-            if 300 <= status_code < 400:
-                error = "Source returned a redirect"
-            elif status_code >= 400:
-                error = f"Source returned HTTP {status_code}"
-        except requests.RequestException as exc:
+            if source["adapter"] in DISCOVERY_ADAPTERS:
+                checked = preview_source(source)
+                preview = checked["items"]
+                status_code = 200
+            else:
+                validate_source_url(source["base_url"])
+                response = requests.get(source["base_url"], timeout=8, allow_redirects=False, stream=True,
+                                       headers={"User-Agent": "InsightPro Source Check/1.0"})
+                status_code = response.status_code
+                response.close()
+                if status_code >= 300:
+                    error = f"Source returned HTTP {status_code}"
+        except (requests.RequestException, ValueError) as exc:
             error = str(exc)[:500]
     result = {"source_key": source_key, "name": source["name"], "adapter": source["adapter"],
-              "ok": error is None, "status_code": status_code, "error": error,
+              "ok": error is None, "status_code": status_code, "error": error, "items": preview,
               "checked_at": datetime.now(SHANGHAI_ZONE).isoformat(timespec="seconds")}
     with get_db() as conn:
         conn.cursor().execute("""INSERT INTO intelligence_audit
@@ -213,9 +259,13 @@ def test_source_connection(source_key: str, actor_user_id: str) -> dict | None:
     return result
 
 
-def record_source_health(source_key: str, status: str, error: str | None = None) -> None:
+def record_source_health(source_key: str, status: str, error: str | None = None, new_count: int = 0) -> None:
+    success = status in {"healthy", "HEALTHY", "NO_NEW_DATA", "AI_PARTIAL"}
     with get_db() as conn:
         conn.cursor().execute("""UPDATE intelligence_sources SET health_status=%s,
             last_success_at=CASE WHEN %s THEN NOW() ELSE last_success_at END,
+            last_run_at=NOW(),last_new_count=%s,
+            consecutive_failures=CASE WHEN %s THEN 0 ELSE consecutive_failures+1 END,
+            total_runs=total_runs+1,successful_runs=successful_runs+CASE WHEN %s THEN 1 ELSE 0 END,
             last_error=%s, updated_at=NOW() WHERE source_key=%s""",
-            (status, status != "failed", error[:1000] if error else None, source_key))
+            (status, success, new_count, success, success, error[:1000] if error else None, source_key))
