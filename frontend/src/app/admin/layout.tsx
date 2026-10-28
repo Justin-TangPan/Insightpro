@@ -17,8 +17,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading } = useAuth();
+  if (pathname === "/admin/login") return <>{children}</>;
   if (loading) return null;
-  if (user?.app_metadata?.role !== "admin") return <div className="ui-card py-12 text-center">需要管理员权限。</div>;
+  if (user?.app_metadata?.role !== "admin") return null;
   const current = navigation.find(item => item.paths.some(path => pathname === path || (path !== "/admin" && pathname.startsWith(`${path}/`))))?.href || "/admin";
   return <div className="admin-frame">
     <label className="admin-mobile-nav">管理模块<select value={current} onChange={event => router.push(event.target.value)}>{navigation.map(item => <option key={item.href} value={item.href}>{item.label}</option>)}</select></label>

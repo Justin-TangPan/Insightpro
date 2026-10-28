@@ -130,7 +130,7 @@ async def start_agent_space(user_id: UUID, _=Depends(require_admin)):
     await _require_active_agent_user(account)
     try:
         state = await agent_runtime_service.start(
-            str(account.id), (account.app_metadata or {}).get("role", "user"),
+            str(account.id), (account.app_metadata or {}).get("role", "admin"),
             ((account.user_metadata or {}).get("name") or (account.email or "").split("@")[0])[:80],
         )
         agent_audit_service.log(str(_.id), "runtime_start", str(user_id))

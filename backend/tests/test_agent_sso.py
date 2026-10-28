@@ -7,15 +7,9 @@ from fastapi import HTTPException
 from routers import auth
 
 
-def test_public_registration_is_closed():
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(auth.auth_register(auth.RegisterRequest(email="visitor@example.com", password="password123")))
-    assert error.value.status_code == 403
-
-
 def test_only_active_internal_members_can_use_authenticated_routes(monkeypatch):
     credentials = SimpleNamespace(credentials="token")
-    for metadata, allowed in [({}, False), ({"role": "user"}, False), ({"role": "admin"}, True), ({"role": "user", "status": "disabled"}, False)]:
+    for metadata, allowed in [({}, False), ({"role": "user"}, False), ({"role": "admin"}, True), ({"role": "user", "status": "disabled"}, False), ({"role": "admin", "status": "disabled"}, False)]:
         account = SimpleNamespace(id="member-1", app_metadata=metadata)
         monkeypatch.setattr(auth.supabase.auth, "get_user", lambda _token: SimpleNamespace(user=account))
         if allowed:
@@ -51,14 +45,10 @@ def test_ticket_and_gateway_session_are_one_time_and_revocable(monkeypatch):
     assert sso.verify_gateway_session(session) is None
 
 
-def test_normal_user_gets_own_space_but_cannot_target_another_user(monkeypatch):
+def test_normal_user_cannot_start_agent_runtime():
     user = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "user"})
-    result = asyncio.run(auth.create_agent_ticket(None, user))
-    assert result["redirect_url"].endswith("/")
     with pytest.raises(HTTPException) as error:
-        asyncio.run(auth.create_agent_ticket(
-            auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), user,
-        ))
+        asyncio.run(auth.create_agent_ticket(None, user))
     assert error.value.status_code == 403
 
 
@@ -71,29 +61,21 @@ def test_disabled_user_cannot_start_agent_runtime():
 
 def test_admin_can_target_another_agent_identity(monkeypatch):
     admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
-    monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda user_id: SimpleNamespace(user=SimpleNamespace(id=user_id)))
+    monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda user_id: SimpleNamespace(user=SimpleNamespace(id=user_id, app_metadata={"role": "admin"})))
     result = asyncio.run(auth.create_agent_ticket(
         auth.AgentTicketRequest(target_user_id="00000000-0000-4000-8000-000000000002"), admin,
     ))
     assert result["redirect_url"].endswith("/")
 
 
-def test_admin_user_directory_exposes_no_credentials(monkeypatch):
-    account = SimpleNamespace(
-        id="user-1", email="user@example.com", user_metadata={"name": "User"},
-        app_metadata={"role": "user"}, created_at="2026-01-01", last_sign_in_at=None,
-    )
+def test_admin_directory_excludes_non_admin_accounts(monkeypatch):
+    account = SimpleNamespace(id="user-1", app_metadata={"role": "user"})
     monkeypatch.setattr(auth.supabase.auth.admin, "list_users", lambda page, per_page: [account])
-    result = asyncio.run(auth.auth_users())
-    assert result["users"] == [{
-        "id": "user-1", "email": "user@example.com", "name": "User", "role": "user", "status": "active",
-        "agent_space_status": "Auto-created on first access",
-        "created_at": "2026-01-01", "last_sign_in_at": None,
-    }]
+    assert asyncio.run(auth.auth_users()) == {"users": [], "total": 0}
 
 
 def test_admin_can_disable_member_and_revoke_agent_sessions(monkeypatch):
-    member = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "user"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
+    member = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "admin"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
     admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
     monkeypatch.setattr(auth.supabase.auth.admin, "get_user_by_id", lambda _: SimpleNamespace(user=member))
     monkeypatch.setattr(auth.supabase.auth.admin, "update_user_by_id", lambda _, values: SimpleNamespace(user=SimpleNamespace(**{**member.__dict__, "app_metadata": values["app_metadata"]})))
@@ -116,15 +98,8 @@ def test_admin_invitation_assigns_member_role(monkeypatch):
     assert result["user"]["role"] == "admin"
 
 
-def test_test_account_creation_is_closed():
-    admin = SimpleNamespace(id="00000000-0000-4000-8000-000000000001", app_metadata={"role": "admin"})
-    with pytest.raises(HTTPException) as error:
-        asyncio.run(auth.create_test_user(auth.TestUserCreate(username="demo01", password="safe-pass", name="Demo"), admin))
-    assert error.value.status_code == 403
-
-
 def test_admin_can_view_agent_space_states(monkeypatch):
-    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "user"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
+    account = SimpleNamespace(id="00000000-0000-4000-8000-000000000002", app_metadata={"role": "admin"}, user_metadata={}, email="member@example.com", created_at="2026-01-01", last_sign_in_at=None)
     monkeypatch.setattr(auth.supabase.auth.admin, "list_users", lambda *_: [account])
     async def overview():
         return {"ai_space_users": 1, "active_runtimes": 1, "max_active_runtimes": 6, "spaces": [{"user_id": str(account.id), "runtime_status": "running", "workspace_status": "ready", "last_used_at": "2026-01-01T00:00:00Z", "disk_bytes": 1}]}

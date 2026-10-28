@@ -2,14 +2,15 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
-import type { User } from "@supabase/supabase-js"
+import type { Session, User } from "@supabase/supabase-js"
 
 interface AuthState {
   user: User | null
+  session: Session | null
   loading: boolean
+  isAuthenticated: boolean
+  isAdmin: boolean
   signIn: (username: string, password: string) => Promise<{ error: string | null }>
-  resetPassword: (email: string) => Promise<{ error: string | null }>
-  updateProfile: (name: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
 }
 
@@ -17,18 +18,25 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [supabase] = useState(createClient)
   const member = (account: User | null) => account?.app_metadata?.role === "admin" && account.app_metadata?.status !== "disabled" ? account : null
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(member(user))
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      const admin = member(user)
+      setUser(admin)
+      setSession(admin ? (await supabase.auth.getSession()).data.session : null)
+      if (user && !admin) await supabase.auth.signOut()
       setLoading(false)
-    })
+    }).catch(() => { setUser(null); setSession(null); setLoading(false) })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(member(session?.user ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "INITIAL_SESSION") return
+      const admin = member(session?.user ?? null)
+      setUser(admin)
+      setSession(admin ? session : null)
       setLoading(false)
     })
 
@@ -37,22 +45,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (username: string, password: string) => {
     const login = username.trim().toLowerCase()
-    const email = login === "admin" ? "admin@insightpro.local" : login.includes("@") ? login : `${login}@test.insightpro.invalid`
+    const email = login.includes("@") ? login : `${login}@insightpro.local`
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) return { error: error.message }
     const { data: { user: account } } = await supabase.auth.getUser()
     if (!member(account)) {
       await supabase.auth.signOut()
-      return { error: "当前账号尚未获得内测访问权限，请联系管理员。" }
+      return { error: "该账号无管理员权限。" }
     }
     return { error: null }
-  }
-
-  const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    })
-    return { error: error?.message ?? null }
   }
 
   const signOut = async () => {
@@ -65,15 +66,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     await supabase.auth.signOut()
     setUser(null)
+    setSession(null)
   }
 
-  const updateProfile = async (name: string) => {
-    const { data, error } = await supabase.auth.updateUser({ data: { name: name.trim().slice(0, 80) } })
-    if (data.user) setUser(data.user)
-    return { error: error?.message ?? null }
-  }
-
-  return <AuthContext.Provider value={{ user, loading, signIn, resetPassword, updateProfile, signOut }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ user, session, loading, isAuthenticated: !!session, isAdmin: !!user, signIn, signOut }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

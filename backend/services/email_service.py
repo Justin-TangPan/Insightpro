@@ -21,8 +21,6 @@ from settings import settings
 
 logger = logging.getLogger(__name__)
 SHANGHAI_TZ = timezone("Asia/Shanghai")
-
-
 def get_subscribers() -> list:
     with get_db() as conn:
         c = conn.cursor()
@@ -67,10 +65,11 @@ def add_subscriber(email: str, name: str = "", weekdays: Optional[list[int]] = N
             )
             c.execute("SELECT id FROM email_subscribers WHERE email=%s", (email,))
             recipient_id = c.fetchone()["id"]
-            for kind in email_types:
+            for kind in ("business", "technical"):
                 c.execute("""INSERT INTO email_subscriptions (recipient_id,email_type,enabled,weekdays,send_time)
-                    VALUES (%s,%s,TRUE,%s,%s) ON CONFLICT (recipient_id,email_type) DO UPDATE SET enabled=TRUE""",
-                    (recipient_id, kind, weekdays or list(range(7)), send_time))
+                    VALUES (%s,%s,%s,%s,%s) ON CONFLICT (recipient_id,email_type) DO UPDATE SET
+                    enabled=EXCLUDED.enabled,weekdays=EXCLUDED.weekdays,send_time=EXCLUDED.send_time""",
+                    (recipient_id, kind, kind in email_types, weekdays or list(range(7)), send_time))
         return True
     except Exception:
         return False
@@ -210,8 +209,9 @@ def _record_brief_delivery(subscriber: dict, day: str, delivery_type: str, sent:
 
 def send_email(to_addr: str, subject: str, html_content: str) -> bool:
     """Send email via SMTP"""
-    if not settings.SMTP_USER or not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your-qq-auth-code-here":
-        logger.warning("Email not configured: please set SMTP_PASSWORD in .env (QQ mail authorization code)")
+    config = smtp_config()
+    if not config["SMTP_USER"] or not config["SMTP_PASSWORD"]:
+        logger.warning("Email not configured: SMTP credentials are missing")
         return False
     try:
         msg = MIMEMultipart("alternative")
@@ -221,17 +221,45 @@ def send_email(to_addr: str, subject: str, html_content: str) -> bool:
         msg.attach(MIMEText(f"{plain}\n\n{links}", "plain", "utf-8"))
         msg.attach(MIMEText(html_content, "html", "utf-8"))
         msg["Subject"] = subject
-        msg["From"] = formataddr((str(Header("小雷达", "utf-8")), settings.EMAIL_FROM))
+        msg["From"] = formataddr((str(Header("小雷达", "utf-8")), config["EMAIL_FROM"]))
         msg["To"] = to_addr
         msg["X-Mailer"] = "小雷达"
-        with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT) as server:
-            server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
-            server.sendmail(settings.EMAIL_FROM, [to_addr], msg.as_string())
+        if config["SMTP_SSL"]:
+            server = smtplib.SMTP_SSL(config["SMTP_HOST"], config["SMTP_PORT"], timeout=20)
+        else:
+            server = smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"], timeout=20)
+        with server:
+            if not config["SMTP_SSL"]:
+                server.starttls()
+            server.login(config["SMTP_USER"], config["SMTP_PASSWORD"])
+            server.sendmail(config["EMAIL_FROM"], [to_addr], msg.as_string())
         logger.info(f"Email sent successfully: {to_addr}")
         return True
     except Exception as e:
         logger.warning(f"Email send failed: {e}")
         return False
+
+
+def smtp_config() -> dict:
+    config = {"SMTP_HOST": settings.SMTP_HOST, "SMTP_PORT": settings.SMTP_PORT,
+              "SMTP_USER": settings.SMTP_USER, "SMTP_PASSWORD": settings.SMTP_PASSWORD,
+              "EMAIL_FROM": settings.EMAIL_FROM, "SMTP_SSL": settings.SMTP_PORT == 465}
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT key,value FROM runtime_settings WHERE key LIKE 'SMTP_%' OR key='EMAIL_FROM'")
+        for row in cursor.fetchall():
+            key, value = row["key"], row["value"]
+            if key == "SMTP_PORT": value = int(value)
+            if key == "SMTP_SSL": value = value.lower() == "true"
+            config[key] = value
+    return config
+
+
+def save_smtp_config(values: dict) -> None:
+    with get_db() as conn:
+        conn.cursor().executemany("""INSERT INTO runtime_settings (key,value,updated_at) VALUES (%s,%s,NOW())
+            ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value,updated_at=NOW()""",
+            [(key, str(value)) for key, value in values.items()])
 
 
 def _subscription_due(subscription: dict, now: datetime) -> bool:

@@ -47,11 +47,15 @@ def get_page_snapshot(path: str) -> dict | None:
 async def publish_page_snapshots() -> dict:
     import httpx
     from main import app
+    from settings import settings
 
     token = BUILDING.set(True)
     try:
+        # In-process requests must carry the internal key so admin_api_guard
+        # lets them through while anonymous external access stays blocked.
+        headers = {"x-insight-internal-key": settings.HERMES_SSO_SECRET} if settings.HERMES_SSO_SECRET else {}
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://snapshot.local", timeout=90) as client:
-            responses = await asyncio.gather(*(client.get(path) for path in PATH_TO_PAGE))
+            responses = await asyncio.gather(*(client.get(path, headers=headers) for path in PATH_TO_PAGE))
         contents = {}
         for path, response in zip(PATH_TO_PAGE, responses):
             response.raise_for_status()

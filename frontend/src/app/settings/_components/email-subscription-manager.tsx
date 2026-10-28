@@ -44,6 +44,9 @@ export function EmailSubscriptionManager() {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [subscriberPage, setSubscriberPage] = useState(1);
   const pageSize = 25;
+  const [smtp, setSmtp] = useState({ SMTP_HOST: "smtp.qq.com", SMTP_PORT: 465, SMTP_USER: "", SMTP_PASSWORD: "", EMAIL_FROM: "", SMTP_SSL: true, password_configured: false });
+  const [smtpStatus, setSmtpStatus] = useState("");
+  const [smtpBusy, setSmtpBusy] = useState(false);
 
   const filteredSubscribers = useMemo(() => {
     const query = subscriberQuery.trim().toLowerCase();
@@ -82,7 +85,7 @@ export function EmailSubscriptionManager() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: newEmail, name: newName, weekdays: newWeekdays, send_time: newSendTime, language: newLanguage, email_types: newEmailTypes }),
       });
-      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
+      if (!res.ok) { const payload = await res.json().catch(() => null); throw new Error(payload?.detail || `API error: ${res.status}`); }
       await res.json();
       setEmailStatus(t("订阅成功", "Subscription added"));
       setEmailError(false);
@@ -159,13 +162,13 @@ export function EmailSubscriptionManager() {
       if (snapshotId) query.set("snapshot_id", snapshotId);
       if (emailType) query.set("email_type", emailType);
       const res = await authenticatedFetch(`${API}/api/email/subscribers/${subscriber.id}/send?${query}`, { method: "POST" });
-      if (!res.ok) { throw new Error(`API error: ${res.status}`); }
+      if (!res.ok) { const payload = await res.json().catch(() => null); throw new Error(payload?.detail || `API error: ${res.status}`); }
       await res.json();
       setEmailStatus(t("已发送", "Email sent"));
       setEmailError(false);
       if (snapshotId) setPreviewHtml("");
-    } catch {
-      setEmailStatus(t("发送失败，请检查 SMTP 配置", "Send failed. Check SMTP settings."));
+    } catch (error) {
+      setEmailStatus(error instanceof Error && error.message && !error.message.startsWith("API error") ? error.message : t("发送失败，请检查 SMTP 配置", "Send failed. Check SMTP settings."));
       setEmailError(true);
     } finally {
       setSendingId(null);
@@ -188,9 +191,29 @@ export function EmailSubscriptionManager() {
     }
   };
 
+  const saveSmtp = async (test = false) => {
+    setSmtpBusy(true);
+    try {
+      if (!test) {
+        const response = await authenticatedFetch(`${API}/api/email/smtp-config`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(smtp) });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        setSmtp(value => ({ ...value, ...data.config, SMTP_PASSWORD: "" }));
+        setSmtpStatus(t("SMTP 配置已保存", "SMTP settings saved"));
+      } else {
+        const response = await authenticatedFetch(`${API}/api/email/smtp-config/test`, { method: "POST" });
+        if (!response.ok) throw new Error();
+        setSmtpStatus(t("SMTP 连接与认证成功", "SMTP connection and authentication succeeded"));
+      }
+    } catch {
+      setSmtpStatus(test ? t("SMTP 连接失败，请检查配置", "SMTP connection failed; check settings") : t("SMTP 配置保存失败", "Could not save SMTP settings"));
+    } finally { setSmtpBusy(false); }
+  };
+
   useEffect(() => {
     if (authLoading || !isAdmin) return;
     const timer = window.setTimeout(() => void fetchSubscribers(), 0);
+    void authenticatedFetch(`${API}/api/email/smtp-config`).then(response => response.ok ? response.json() : null).then(data => data && setSmtp(value => ({ ...value, ...data })));
     return () => window.clearTimeout(timer);
   }, [authLoading, isAdmin]);
 
@@ -222,6 +245,19 @@ export function EmailSubscriptionManager() {
         <p className="mb-4 rounded-lg border border-grid bg-surface-subtle px-4 py-3 text-sm leading-6 text-ink-secondary">
           {t("可分别启用技术项目和商业洞察邮件，并为每种邮件设置投递星期、时间与时区。", "Choose each brief independently and set its own weekdays, time and timezone.")}
         </p>
+
+        <details className="mb-4 rounded-xl border border-grid p-4">
+          <summary className="cursor-pointer text-sm font-semibold">{t("SMTP 配置", "SMTP configuration")}</summary>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <input aria-label="SMTP host" className="ui-input px-3 py-2 text-sm" placeholder="SMTP Host" value={smtp.SMTP_HOST} onChange={e => setSmtp({ ...smtp, SMTP_HOST: e.target.value })} />
+            <input aria-label="SMTP port" type="number" className="ui-input px-3 py-2 text-sm" placeholder="Port" value={smtp.SMTP_PORT} onChange={e => setSmtp({ ...smtp, SMTP_PORT: Number(e.target.value) })} />
+            <input aria-label="SMTP user" className="ui-input px-3 py-2 text-sm" placeholder={t("SMTP 用户名", "SMTP user")} value={smtp.SMTP_USER} onChange={e => setSmtp({ ...smtp, SMTP_USER: e.target.value })} />
+            <input aria-label="SMTP password" type="password" autoComplete="new-password" className="ui-input px-3 py-2 text-sm" placeholder={smtp.password_configured ? t("留空表示不修改密码", "Leave blank to keep password") : t("SMTP 密码或授权码", "SMTP password or app code")} value={smtp.SMTP_PASSWORD} onChange={e => setSmtp({ ...smtp, SMTP_PASSWORD: e.target.value })} />
+            <input aria-label="Sender email" type="email" className="ui-input px-3 py-2 text-sm" placeholder={t("发件人邮箱", "From address")} value={smtp.EMAIL_FROM} onChange={e => setSmtp({ ...smtp, EMAIL_FROM: e.target.value })} />
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={smtp.SMTP_SSL} onChange={e => setSmtp({ ...smtp, SMTP_SSL: e.target.checked })} />{t("SSL（465）；关闭时使用 STARTTLS", "SSL (465); STARTTLS when disabled")}</label>
+          </div>
+          <div className="mt-3 flex items-center gap-2"><button type="button" disabled={smtpBusy} onClick={() => void saveSmtp()} className="ui-button-primary">{t("保存 SMTP", "Save SMTP")}</button><button type="button" disabled={smtpBusy} onClick={() => void saveSmtp(true)} className="ui-button-secondary">{t("测试连接", "Test connection")}</button>{smtpStatus && <span role="status" className="text-xs text-ink-secondary">{smtpStatus}</span>}</div>
+        </details>
 
         {/* Add subscriber */}
         <div className="mb-4 rounded-xl bg-surface-subtle p-4">
@@ -295,7 +331,7 @@ export function EmailSubscriptionManager() {
             <div className="text-center py-6">
               <p className="text-sm text-ink-muted">{subscriberError || t("暂无订阅者", "No subscribers yet")}</p>
               {subscriberError && (
-                <a href="/auth/login" className="mt-2 inline-flex rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white">
+                <a href="/admin/login" className="mt-2 inline-flex rounded-xl bg-primary px-3 py-1.5 text-xs font-semibold text-white">
                   {t("登录后查看订阅者", "Sign in to view subscribers")}
                 </a>
               )}

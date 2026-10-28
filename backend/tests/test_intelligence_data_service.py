@@ -17,11 +17,15 @@ def test_disabled_github_source_does_not_scrape(monkeypatch):
     assert github_crawler.refresh_and_store() == {"status": "skipped", "reason": "source_disabled"}
 
 
-def test_ai_application_month_precision_does_not_become_a_fabricated_day():
+def test_ai_application_month_precision_does_not_become_a_fabricated_day(monkeypatch):
+    from services import intelligence_data_service
+    raw_calls = []
+    monkeypatch.setattr(intelligence_data_service, "store_raw_version",
+                        lambda cursor, **kwargs: raw_calls.append(kwargs) or {"id": 10})
     class Cursor:
         def __init__(self):
             self.calls = []
-            self.results = iter(({"id": 10}, {"id": 20}))
+            self.results = iter(({"id": 20},))
 
         def execute(self, query, params=None):
             self.calls.append((query, params))
@@ -36,18 +40,19 @@ def test_ai_application_month_precision_does_not_become_a_fabricated_day():
         "source_text": "Official update", "source_verified": True,
     })
 
-    raw_params = cursor.calls[0][1]
-    event_params = cursor.calls[2][1]
-    assert raw_params[4] is None
+    event_params = cursor.calls[1][1]
+    assert raw_calls[0]["published_at"] is None
     assert event_params[3] is None
-    assert "INSERT INTO intelligence_event_evidence" in cursor.calls[3][0]
+    assert "INSERT INTO intelligence_event_evidence" in cursor.calls[2][0]
 
 
-def test_competitor_news_writes_event_and_original_evidence():
+def test_competitor_news_writes_event_and_original_evidence(monkeypatch):
+    from services import intelligence_data_service
+    monkeypatch.setattr(intelligence_data_service, "store_raw_version", lambda *args, **kwargs: {"id": 11})
     class Cursor:
         def __init__(self):
             self.calls = []
-            self.results = iter(({"id": 11}, {"id": 12}))
+            self.results = iter(({"id": 12},))
 
         def execute(self, query, params=None):
             self.calls.append((query, params))
@@ -58,12 +63,13 @@ def test_competitor_news_writes_event_and_original_evidence():
     cursor = Cursor()
     store_competitor_news(cursor, {"vendor": "OpenAI", "title": "Product update", "url": "https://example.com/update",
                                    "summary": "Verified source summary", "published_date": "2026-10-20"})
-    assert "competitor_news" in cursor.calls[0][0]
-    assert "competitor_dynamics" in cursor.calls[2][0]
-    assert cursor.calls[3][1] == (12, 11)
+    assert "competitor_dynamics" in cursor.calls[1][0]
+    assert cursor.calls[2][1] == (12, 11)
 
 
-def test_solution_event_key_is_scoped_to_the_solution_entity():
+def test_solution_event_key_is_scoped_to_the_solution_entity(monkeypatch):
+    from services import intelligence_data_service
+    monkeypatch.setattr(intelligence_data_service, "store_raw_version", lambda *args, **kwargs: {"id": 1, "change": "changed"})
     class Cursor:
         def __init__(self):
             self.calls = []
@@ -86,12 +92,14 @@ def test_solution_event_key_is_scoped_to_the_solution_entity():
     for row in rows:
         cursor = Cursor()
         store_catalog_change(cursor, "aliyun_solutions", row)
-        event_keys.append(cursor.calls[2][1][0])
+        event_keys.append(next(params[0] for query, params in cursor.calls if "INSERT INTO intelligence_events" in query))
 
     assert event_keys[0] != event_keys[1]
 
 
-def test_solution_baseline_uses_a_stable_catalog_event():
+def test_solution_baseline_uses_a_stable_catalog_event(monkeypatch):
+    from services import intelligence_data_service
+    monkeypatch.setattr(intelligence_data_service, "store_raw_version", lambda *args, **kwargs: {"id": 1, "change": "changed"})
     class Cursor:
         def __init__(self): self.calls = []
         def execute(self, query, params=None): self.calls.append((query, params))
@@ -114,11 +122,14 @@ def test_solution_baseline_uses_a_stable_catalog_event():
 
 def test_community_items_become_cross_source_events_with_evidence(monkeypatch):
     from services import intelligence_data_service
+    raw_calls = []
+    monkeypatch.setattr(intelligence_data_service, "store_raw_version",
+                        lambda cursor, **kwargs: raw_calls.append(kwargs) or {"id": 10 + len(raw_calls) - 1})
 
     class Cursor:
         def __init__(self):
             self.calls = []
-            self.results = iter(({"id": 10}, {"id": 20}, {"id": 11}, {"id": 20}))
+            self.results = iter(({"id": 20}, {"id": 20}))
 
         def execute(self, query, params=None):
             self.calls.append((query, params))
@@ -152,6 +163,5 @@ def test_community_items_become_cross_source_events_with_evidence(monkeypatch):
     evidence_writes = [params for query, params in conn.cursor_value.calls if "INSERT INTO intelligence_event_evidence" in query]
     assert event_writes[0][0] == event_writes[1][0]
     assert evidence_writes == [(20, 10), (20, 11)]
-    raw_write = next(params for query, params in conn.cursor_value.calls if "INSERT INTO intelligence_raw_items" in query)
-    assert raw_write[5] == "2026-10-23T08:00:00+08:00"
-    assert raw_write[-1] is None
+    assert raw_calls[0]["observed_at"] == "2026-10-23T08:00:00+08:00"
+    assert raw_calls[0]["published_at"] is None

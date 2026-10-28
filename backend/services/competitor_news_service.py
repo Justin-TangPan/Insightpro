@@ -26,29 +26,40 @@ def get_competitor_news(date: str = None) -> list:
 
 
 def get_competitor_summary(limit_per_vendor: int = 3) -> dict:
+    # W3: read from Events (single publication source) rather than the legacy
+    # competitor_news table. The legacy table stays for collection/audit only.
     with get_db() as conn:
         c = conn.cursor()
-        c.execute("""SELECT * FROM (
-            SELECT *, ROW_NUMBER() OVER (PARTITION BY vendor ORDER BY COALESCE(published_date, scrape_date::date) DESC, id DESC) AS rn
-            FROM competitor_news news
-            WHERE scrape_date=(SELECT MAX(latest.scrape_date) FROM competitor_news latest WHERE latest.vendor=news.vendor)
-        ) ranked WHERE rn <= %s ORDER BY vendor, rn""", (limit_per_vendor,))
+        c.execute("""WITH ranked AS (
+            SELECT event.id, event.title, event.summary, event.published_at,
+                   event.entity_key, event.scores, evidence.raw_item_id,
+                   COALESCE(raw.content->>'vendor', entity.metadata->>'vendor', 'Unknown') AS vendor,
+                   raw.canonical_url AS link, raw.content->>'category' AS category,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY COALESCE(raw.content->>'vendor', entity.metadata->>'vendor')
+                       ORDER BY event.published_at DESC, event.id DESC) AS rn
+            FROM intelligence_events event
+            JOIN intelligence_event_evidence evidence ON evidence.event_id = event.id
+            JOIN intelligence_raw_items raw ON raw.id = evidence.raw_item_id
+            LEFT JOIN intelligence_entities entity ON entity.entity_key = event.entity_key
+            WHERE event.status = 'active'
+              AND 'competitor_dynamics' = ANY(event.business_scopes)
+              AND event.event_type = 'competitor_update'
+        )
+        SELECT id, title, summary, published_at, vendor, link, category,
+               scores->'ai_analysis' AS analysis
+        FROM ranked WHERE rn <= %s ORDER BY vendor, rn""", (limit_per_vendor,))
         rows = [dict(r) for r in c.fetchall()]
-        c.execute("SELECT id, source_key, analysis FROM intelligence_analysis WHERE kind='competitor_update' AND source_key=ANY(%s)",
-                  ([_source_key({"url": row["link"], "title": row["title"]}) for row in rows if row.get("link")],))
-        analyses = {row["source_key"]: row for row in c.fetchall()}
-        grouped = {}
-        for row in rows:
-            v = row["vendor"]
-            if v not in grouped:
-                grouped[v] = []
-            item = {"id": row["id"], "vendor": v, "title": row["title"], "summary": row["summary"], "link": row["link"], "category": row["category"], "date": row.get("published_date") or row["scrape_date"]}
-            analysis = analyses.get(_source_key({"url": item["link"], "title": item["title"]})) if item.get("link") else None
-            item["analysis"] = analysis["analysis"] if analysis else None
-            item["analysis_id"] = analysis["id"] if analysis else None
-            item["intelligence"] = format_competitor(item)
-            grouped[v].append(item)
-        return grouped
+    grouped = {}
+    for row in rows:
+        vendor = row["vendor"]
+        grouped.setdefault(vendor, [])
+        item = {"id": row["id"], "vendor": vendor, "title": row["title"], "summary": row["summary"],
+                "link": row["link"], "category": row.get("category"), "date": row.get("published_at"),
+                "analysis": row.get("analysis"), "analysis_id": None}
+        item["intelligence"] = format_competitor(item)
+        grouped[vendor].append(item)
+    return grouped
 
 
 def _ensure_analyses(items: list[dict]) -> int:

@@ -24,6 +24,8 @@ from services.email_service import (
     get_subscribers,
     send_daily_digest,
     send_email,
+    smtp_config,
+    save_smtp_config,
     send_subscriber_briefs,
     update_subscriber,
     update_subscription,
@@ -92,6 +94,48 @@ class SubscriptionRequest(BaseModel):
 
 class LanguageRequest(BaseModel):
     language: Literal["zh", "en"]
+
+
+class SmtpConfigRequest(BaseModel):
+    SMTP_HOST: str = Field(min_length=1, max_length=255)
+    SMTP_PORT: int = Field(ge=1, le=65535)
+    SMTP_USER: str = Field(min_length=1, max_length=255)
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = Field(min_length=3, max_length=255)
+    SMTP_SSL: bool = True
+
+
+@router.get("/email/smtp-config")
+async def read_smtp_config(_=Depends(require_admin)):
+    config = smtp_config()
+    return {**{key: value for key, value in config.items() if key != "SMTP_PASSWORD"},
+            "password_configured": bool(config["SMTP_PASSWORD"])}
+
+
+@router.put("/email/smtp-config")
+async def write_smtp_config(req: SmtpConfigRequest, _=Depends(require_admin)):
+    values = req.model_dump()
+    if not values["SMTP_PASSWORD"]:
+        values.pop("SMTP_PASSWORD")
+    save_smtp_config(values)
+    return {"status": "success", "config": await read_smtp_config(_)}
+
+
+@router.post("/email/smtp-config/test")
+async def test_smtp_config(_=Depends(require_admin)):
+    config = smtp_config()
+    try:
+        import smtplib
+        server = (smtplib.SMTP_SSL(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15)
+                  if config["SMTP_SSL"] else smtplib.SMTP(config["SMTP_HOST"], config["SMTP_PORT"], timeout=15))
+        with server:
+            if not config["SMTP_SSL"]:
+                server.starttls()
+            server.login(config["SMTP_USER"], config["SMTP_PASSWORD"])
+        return {"status": "success"}
+    except Exception as error:
+        logger.warning("SMTP connection test failed: %s", error)
+        raise HTTPException(status_code=422, detail="SMTP 连接或认证失败，请检查服务器、端口和账号") from error
 
 
 @router.get("/email/subscribers")
@@ -184,7 +228,9 @@ async def send_to_subscriber(subscriber_id: int, snapshot_id: Optional[str] = No
     except ValueError as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     if not result["sent"]:
-        raise HTTPException(status_code=500, detail="Email send failed")
+        if result.get("blocked"):
+            raise HTTPException(status_code=409, detail="今日商业洞察简讯尚未生成，暂不能发送")
+        raise HTTPException(status_code=500, detail="Email send failed; verify SMTP configuration")
     return {"status": "success", "message": f"{result['deliveries']} emails sent to {subscriber['email']}"}
 
 

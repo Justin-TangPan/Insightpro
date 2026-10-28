@@ -81,7 +81,7 @@ export function useHotspotData(): HotspotDataState & HotspotDataActions {
 
   // ── Save practice ────────────────────────────────────────
   const savePractice = async (item: TrendingItem) => {
-    if (!user) return router.push("/auth/login?next=/insights/hotspots");
+    if (!user) return router.push("/admin/login?next=/insights/hotspots");
     setSavingRepo(item.repo_url);
     setSaveError("");
     try {

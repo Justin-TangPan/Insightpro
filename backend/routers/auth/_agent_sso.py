@@ -55,8 +55,8 @@ async def agent_callback(x_insight_sso_ticket: str = Header(default="")):
     except Exception:
         logger.warning("agent_callback: SSO user lookup failed", exc_info=True)
         raise HTTPException(status_code=401, detail="SSO user no longer valid")
-    auth_role = (auth_account.app_metadata or {}).get("role", "user")
-    agent_role = (agent_account.app_metadata or {}).get("role", "user")
+    auth_role = (auth_account.app_metadata or {}).get("role", "admin")
+    agent_role = (agent_account.app_metadata or {}).get("role", "admin")
     await _require_active_agent_user(auth_account)
     await _require_active_agent_user(agent_account)
     display_name = ((agent_account.user_metadata or {}).get("name") or (agent_account.email or "").split("@")[0]).strip()[:80]

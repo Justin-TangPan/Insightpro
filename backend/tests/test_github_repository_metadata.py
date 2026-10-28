@@ -53,11 +53,12 @@ def test_collect_repository_metadata_rejects_invalid_repository_names(monkeypatc
         raise AssertionError("invalid repository name accepted")
 
 
-def test_repository_metadata_becomes_metric_and_release_event_evidence():
+def test_repository_metadata_becomes_metric_and_release_event_evidence(monkeypatch):
+    monkeypatch.setattr("services.raw_evidence_service.store_raw_version", lambda *args, **kwargs: {"id": 71})
     class Cursor:
         def __init__(self):
             self.calls = []
-            self.results = iter(({"id": 71}, {"id": 11}, {"id": 12}))
+            self.results = iter(({"id": 11}, {"id": 12}))
 
         def execute(self, query, params=()):
             self.calls.append((query, params))

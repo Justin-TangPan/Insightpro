@@ -15,6 +15,7 @@ from services.entity_service import get_entity_detail
 from services.source_registry_service import list_sources, create_source, set_source_enabled, update_source, update_source_schedule, test_source_connection, preview_source
 from services.discovery_service import list_candidates, approve_candidate, ignore_candidate
 from services.prompt_service import list_prompts, create_draft, publish_prompt
+from services.event_reanalysis_service import start_reanalysis, execute_reanalysis
 from services.recall_benchmark_service import record_reference, recall_report
 from services.repository_service import list_trending_repositories
 from services.task_service import TASK_BY_KEY, COMMUNITY_ADAPTERS, source_task_key, recent_runs, run_task, set_task_schedule, task_trigger
@@ -98,6 +99,12 @@ class CandidateIgnore(BaseModel):
     reason: str = Field(min_length=3, max_length=500)
 
 
+class EventReanalysis(BaseModel):
+    scope: Literal["new_event", "recent_7_days", "pending_review", "active", "selected"]
+    business_scope: Optional[Literal["technology_ecosystem", "ai_applications", "solutions", "community_insights", "competitor_dynamics"]] = None
+    event_ids: list[int] = Field(default_factory=list, max_length=500)
+
+
 class PromptDraft(BaseModel):
     prompt_name: str = Field(min_length=3, max_length=100, pattern=r"^[a-z0-9_]+$")
     scenario: str = Field(min_length=3, max_length=100)
@@ -162,6 +169,18 @@ async def admin_events(status: Literal["active", "pending_review", "ignored", "a
                        limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
                        business_scope: Optional[str] = None, _=Depends(require_admin)):
     return await asyncio.to_thread(list_events, limit, offset, business_scope, status)
+
+
+@router.post("/admin/events/reanalyze", status_code=202)
+async def reanalyze_events(request: EventReanalysis, background_tasks: BackgroundTasks,
+                           admin=Depends(require_admin)):
+    try:
+        run = await asyncio.to_thread(start_reanalysis, request.scope, str(admin.id),
+                                      request.business_scope, request.event_ids)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    background_tasks.add_task(execute_reanalysis, run["run_id"], run["event_ids"], str(admin.id))
+    return {"status": "accepted", "run_id": run["run_id"], "input_count": len(run["event_ids"])}
 
 
 @router.get("/admin/events/{event_id}")

@@ -11,9 +11,11 @@ COPY . .
 ARG API_PROXY_TARGET=http://insight-backend:8000
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG SUPABASE_INTERNAL_URL=http://supabase-envoy:8000
 ENV API_PROXY_TARGET=${API_PROXY_TARGET} \
     NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL} \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY} \
+    SUPABASE_INTERNAL_URL=${SUPABASE_INTERNAL_URL} \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build
@@ -25,7 +27,8 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     HOSTNAME=0.0.0.0 \
     PORT=3000 \
-    API_PROXY_TARGET=http://insight-backend:8000
+    API_PROXY_TARGET=http://insight-backend:8000 \
+    SUPABASE_INTERNAL_URL=http://supabase-envoy:8000
 
 RUN groupadd --gid 10001 insight \
     && useradd --uid 10001 --gid insight --create-home insight

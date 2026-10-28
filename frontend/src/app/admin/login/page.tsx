@@ -1,23 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useAuth } from "@/components/auth-provider"
-import Link from "next/link"
 import { Radar } from "lucide-react"
 import { usePreferences } from "@/lib/preferences"
 
 export default function LoginPage() {
   const { preferences } = usePreferences()
   const en = preferences.language === "en"
-  const { user, loading: authLoading, signIn } = useAuth()
+  const { signIn } = useAuth()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (!authLoading && user) window.location.replace(returnPath())
-  }, [authLoading, user])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,7 +32,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <Radar className="mx-auto mb-4 h-16 w-16 rounded-2xl bg-blue-50 p-4 text-primary" aria-label="小雷达" />
-          <p className="type-body text-ink-muted">{en ? "Internal preview" : "内测用户登录"}</p>
+          <p className="type-body text-ink-muted">{en ? "Administrator access" : "管理员登录"}</p>
         </div>
 
         <div className="ui-card p-8">
@@ -62,7 +57,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <div className="mb-1.5 flex items-center justify-between"><label className="text-sm font-medium text-ink-secondary">{en ? "Password" : "密码"}</label><Link href="/auth/forgot-password" className="ui-link text-xs">{en ? "Forgot password?" : "忘记密码？"}</Link></div>
+              <label className="mb-1.5 block text-sm font-medium text-ink-secondary">{en ? "Password" : "密码"}</label>
               <input
                 type="password"
                 value={password}
@@ -90,5 +85,5 @@ export default function LoginPage() {
 
 function returnPath() {
   const requested = new URLSearchParams(window.location.search).get("next")
-  return requested?.startsWith("/") && !requested.startsWith("//") ? requested : "/"
+  return requested?.startsWith("/admin") && !requested.startsWith("//") ? requested : "/admin"
 }

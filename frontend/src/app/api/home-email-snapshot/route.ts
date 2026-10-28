@@ -1,3 +1,5 @@
+import { NextRequest } from "next/server";
+import { readFileSync } from "node:fs";
 import { selectRecentFocus, type FocusEvent } from "@/lib/home-focus";
 import { businessNames, displayTitle, insightKinds, usefulSummary } from "@/lib/home-content";
 
@@ -5,9 +7,12 @@ export const dynamic = "force-dynamic";
 
 type Event = FocusEvent & { image_url?: string };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  let secret = "";
+  try { secret = readFileSync("/run/secrets/insight-hermes-gateway", "utf8").trim(); } catch { return new Response("Unavailable", { status: 503 }); }
+  if (!secret || request.headers.get("x-insight-internal-key") !== secret) return new Response("Unauthorized", { status: 401 });
   const backend = process.env.API_PROXY_TARGET || "http://127.0.0.1:8000";
-  const response = await fetch(`${backend}/api/radar/intelligence`, { cache: "no-store" });
+  const response = await fetch(`${backend}/api/radar/intelligence`, { cache: "no-store", headers: { "x-insight-internal-key": secret } });
   if (!response.ok) return new Response("Homepage data unavailable", { status: 503 });
   const data = await response.json() as { as_of: string; events: Event[] };
   const keypoints = selectRecentFocus(data.events, data.as_of, 5);

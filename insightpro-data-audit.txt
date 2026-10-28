@@ -1,0 +1,109 @@
+## A. 数据链路总图
+
+```text
+intelligence_sources
+  → Adapter / Collector
+  → intelligence_raw_items
+  → intelligence_candidates + candidate_evidence
+  → intelligence_entities
+  → intelligence_events + event_evidence
+  → event.scores.ai_analysis
+  → 人工审核 / 发布
+  → /api/v2/events → 前台板块
+  → 简报 / 邮件（部分来自独立快照或传统业务表）
+```
+
+这条链路**并非每条数据都会经过全部节点**：本次抽样看到的知乎问题已关联待审核 Event，却没有 Candidate 关联；最新的媒体文章、arXiv 论文和 GitHub 仓库 Raw 尚未关联 Candidate/Event。也就是说，数据库中存在多条来源路径和未完成链路，不能把这张图当作所有业务数据的强制状态机。
+
+真实查询确认连接到配置的 Postgres，库名为 `postgres`。抽样记录包括：`community_zhihu` Raw `31608` → Event `21764`（pending_review）；`leiphone` Raw `31545` → Candidate `2455`（pending）；`arxiv_ai` Raw `31406` 和 `github_search` Raw `31401` 当前仅见 Raw。未能在本轮核验到三条完整的“不同来源→已发布→前台→邮件”数据链，因此不作此结论。
+
+## B. 数据对象关系
+
+| 阶段 | 数据表 / 关联键 | 写入与状态语义 |
+|---|---|---|
+| 来源 | `intelligence_sources.source_key` | 来源配置含 adapter、enabled、business_scopes、schedule、health。 |
+| Raw | `intelligence_raw_items.id`；唯一冲突键 `(source_key, external_id)` | `_store_discovery_raw` 对冲突执行 `DO NOTHING`；即使内容变化也不更新 Raw。该函数新插入 Raw 后按内容生成/更新 Entity。 |
+| Candidate | `intelligence_candidates.id`，`candidate_key`；证据表 `intelligence_candidate_evidence(candidate_id, raw_item_id)` | `_candidate_groups` 按 URL 或 `event_hint/归一标题` 聚合；`discover_candidates` 对同 key 仅在 Candidate 为 pending 时更新汇总字段并追加证据。已处理状态不会被同样方式覆盖。 |
+| Entity | `intelligence_entities.entity_key` | 当前发现采集路径中，仓库 key 为小写 GitHub 名称；其他对象通常为 URL 的 SHA-256。冲突时只更新 canonical_name 与时间，不更新类型、URL、metadata。 |
+| Event | `intelligence_events.id`，`entity_key/event_key`；证据表 `intelligence_event_evidence(event_id, raw_item_id)` | 批准 Candidate 创建或关联 Event；运营可编辑、合并、拆分、归档、忽略、恢复、发布。合并将来源 Event 设为 `merged` 并记录目标 ID。 |
+| AI 分析 | `intelligence_events.scores->ai_analysis`；审计写 `intelligence_audit` | `analyze_event_for_review` 读取事件证据和已发布 Prompt，验证输出后更新 JSON。它不是 `intelligence_analysis` 的 `event_id` 关联记录；本库该旧表只有 `id/kind/source_key/analysis/...` 列。 |
+| 发布/前台 | `intelligence_events.status/published_at`；公开 API `/api/v2/events` | `publish_event` 将状态设为 active 并写发布时间；前台 V2 事件流读取 active Event。 |
+| 邮件/快照 | 传统邮件快照、投递记录及业务服务 | 不能由本轮真实样本确认所有邮件都以 Event 为唯一输入；邮件链路可能使用独立业务表和页面快照。 |
+
+去重与更新细节：
+
+- **URL**：候选分组时去掉 `utm_*`、`ref`、`fbclid`、`gclid` 和 fragment，并去除尾部 `/`；Raw 存储本身不依靠此 canonicalization 做跨来源唯一约束。
+- **标题/内容**：标题仅压缩空白、casefold 后去标点做候选分组 key；短于 5 字符跳过。Raw 有 `content_hash`，但插入冲突不会比较并更新它，内容更新语义缺失。
+- **Candidate**：候选 key 优先取规范化 URL 分组结果，否则取 `event_hint` 或归一标题的 SHA-256。重复运行会 upsert pending Candidate 并对证据 `ON CONFLICT DO NOTHING`。
+- **跨来源同事件**：候选层可按 URL/提示/标题聚合不同来源；这不等于 Event 层自动发现所有相似事件。现有 Event 合并是运营操作；没有证据表明任意同主题 Event 会自动合并。
+- **幂等性**：Raw 按来源外部 ID 幂等；候选证据和事件证据也有冲突忽略。任务级锁可抑制并发，但这不能让已变化的同 ID 来源内容被刷新。
+- **Entity normalization**：按 adapter 产出的 key 规则写入；没有发现覆盖全体来源的统一实体规范化层。相同产品以 URL、GitHub key 或社区 topic key 入库，可能形成多个 Entity。
+
+## C. 发现的问题
+
+- **高：同 ID 内容变化被永久忽略。** Raw 的 `DO NOTHING` 让 `content_hash` 失去更新作用；候选/Event 下游自然无法基于新内容刷新。
+- **高：不存在贯穿所有输出的唯一事实源。** V2 Event 是已发布情报流的权威对象；Raw 是采集证据源；Candidate 是待处理队列；旧业务表及页面快照/邮件快照可能是独立发布对象。跨板块的“同一条情报”没有统一 ID 和自动传播保证。
+- **高：已解析 Candidate 的新证据只更新 Event 时间/热度，不重跑 AI。** 内容和证据变化可能与旧 AI 分析、旧审核结论并存。
+- **中高：来源、任务、分类、Prompt 的修改没有统一失效/重算机制。** 来源启停/域配置影响后续拉取或候选；已存在 Raw/Event 不会自动重分类。Prompt 发布影响后续分析，不自动回算旧 Event。Event 分类调整也不保证相关页面快照、邮件快照同步更新。
+- **中：Entity 冲突只更新名称。** URL、metadata、类型可能长期留旧值；一个外部实体的身份规则变更也不会迁移引用。
+- **中：数据源巡检状态有多种字符串。** 抽样同时见 `healthy/HEALTHY/NO_NEW_DATA/AI_PARTIAL/failed`；若监控只识别部分状态，界面状态可能失真。
+- **中：邮件/前台可能读不同数据快照。** 发布 Event 后的异步任务能刷新雷达/板块/页面快照，但是否同步所有邮件模板和传统表，需按模板单独验收。
+- **中：管理 UI 与数据库事实容易分叉。** 管理员改了字段，操作成功只说明数据库写入成功；缓存、快照、前台接口或邮件快照未失效时不会立即同步。
+
+## D. 可复现证据
+
+只读 SQL 样本：
+
+- Raw `31608`：`community_zhihu`，标题“OpenAI利用人工智能解决数学问题…”，关联 Event `21764`，状态 `pending_review`，Entity `community-topic:...`，无 Candidate 关联。
+- Raw `31545`：`leiphone`，关联 Candidate `2455`，状态 `pending`，暂无 Event。
+- Raw `31406`：`arxiv_ai`，标题 “Vision-Language Agents Can Learn in Their Own Latent Worlds”，未关联 Candidate/Event。
+- Raw `31401`：`github_search`，标题 `reddishz/designdoc`，未关联 Candidate/Event。
+
+代码证据：
+
+- `backend/services/discovery_service.py::_store_discovery_raw`：Raw 冲突执行 `DO NOTHING`。
+- `backend/services/discovery_service.py::discover_candidates`：只对 pending Candidate 更新；已有关联 Event 时追加证据、更新时间和热度。
+- `backend/services/event_service.py::analyze_event_for_review`：写 `scores.ai_analysis` 并写审计；没有调用 Prompt 变更后的全量重分析。
+- `backend/services/event_service.py::publish_event`：pending_review 发布前要求 AI 分析；发布后设置 active/published_at。
+- `backend/main.py`：部分传统刷新 API 成功后触发 `publish_page_snapshots`，但不是所有后台数据变更都经过这条中间件钩子。
+- 本轮试查 `intelligence_analysis.event_id` 失败，数据库报列不存在；确认该旧分析表不能直接作为 V2 Event 分析关联表。
+
+## E. 风险等级
+
+| 等级 | 风险 |
+|---|---|
+| 高 | Raw 不更新导致后续候选、AI、审核、前台都无法获得同 ID 内容的新版本。 |
+| 高 | V2 Event、传统业务表、快照和邮件快照并存，没有跨对象统一事实源及传播事务。 |
+| 高 | 新证据进入已解析事件后，AI 分析和人工审核状态仍可能基于旧内容。 |
+| 中高 | Prompt/分类/来源配置变更只影响部分后续流程，历史数据与缓存保持旧语义。 |
+| 中 | 来源状态口径与导出/巡检验收不统一，可能错误显示健康或掩盖失败。 |
+
+## F. 根因
+
+1. Raw 的身份键被当成“内容不变”的保证，但外部 ID 常稳定而内容会变。
+2. 下游由多个任务与服务松散触发，没有以 `raw_version/event_version` 为依据的重算/失效协议。
+3. V2 Event 与传统业务数据并行演进，页面快照和邮件投递又各自保存内容副本。
+4. 任务执行结果、快照刷新和邮件发送没有一个共同的版本号/水位线可核对。
+
+## G. 最小整改动作
+
+1. Raw 冲突时比较 `content_hash`：相同则忽略，不同则更新内容、哈希和更新时间，并保留版本/变更审计。
+2. 对内容变化或关键分类变更，标记 Candidate/Event 为需复核；不要静默覆盖已发布人工文案或审核状态。
+3. 给 Event 增加明确 `source_version/analysis_version/published_version`，新证据进入后标记分析过期；由审核人决定是否重分析和重新发布。
+4. 明确 V2 Event 为已发布情报唯一事实源；传统业务表通过显式投影/适配层供前台和邮件消费，禁止各自维护冲突文案。
+5. 对来源、任务、分类、Prompt 变更增加明确生效范围及重算操作；完成后失效对应快照并记录执行批次。
+6. 统一状态枚举，并在巡检记录中同时存开始/结束时间、采集数、变更数、失败阶段和重试结果。
+
+## H. 巡检 / 自动同步 / 导出功能验收结果
+
+| 功能 | 结论 | 证据与边界 |
+|---|---|---|
+| 巡检 | **部分完成** | 有来源健康字段、来源测试接口和覆盖分析；但未找到统一巡检批次/报告对象来串起 source、任务、前台新鲜度和投递状态。数据库状态存在多种大小写与分类，说明不能仅凭页面显示判定巡检完成。 |
+| 官网新增解决方案自动发现与同步 | **部分完成** | 存在华为/阿里云解决方案采集服务与对应传统业务 API/表；但本轮未证实新官网条目会自动映射到 V2 Entity/Event、完成去重审核并传播到前台与邮件。仅有采集器或刷新按钮不足以证明端到端自动同步。 |
+| 表格导出 | **未开始（管理情报侧）** | 检索管理后台相关页面/API 未发现候选、事件、覆盖或任务记录的导出链路。普通 AI Agent 产物下载不等于情报运营表格导出。 |
+
+## 可复现任务验证边界
+
+本轮只读查询数据库，未触发手动任务、连续执行任务、故障注入、重试或 Pipeline 恢复：这些操作会写生产库并可能触发外部采集、AI 调用、快照更新或邮件发送。因而不能声称已验证生产任务幂等、run history 准确性或 retry 生效。代码层可确认有任务锁、运行记录和 Pipeline 节点恢复逻辑，但故障场景仍须在隔离测试库/禁用外部投递的环境验证。
+
+**未做**生产任务写入测试、邮件实际投递、三条跨来源完整发布链抽样，也未修改代码。**风险**：此报告识别到的跨模块不一致是静态证据加有限只读样本；应在 staging 做故障注入和端到端版本追踪后再定整改顺序。

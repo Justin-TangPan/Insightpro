@@ -31,6 +31,8 @@ def test_topic_keywords_filter_noise_and_exclusions():
 
 def test_duplicate_raw_items_report_no_new_data(monkeypatch):
     from services import discovery_service
+    monkeypatch.setattr("services.raw_evidence_service.store_raw_version",
+                        lambda *args, **kwargs: {"change": "no_change"})
     class Cursor:
         def execute(self, *_): pass
         def fetchone(self): return None
@@ -223,9 +225,12 @@ def test_github_search_requests_are_rate_limited(monkeypatch):
 
 def test_github_search_raw_items_share_repository_entity_and_store_metrics(monkeypatch):
     statements = []
+    monkeypatch.setattr("services.raw_evidence_service.store_raw_version",
+                        lambda *args, **kwargs: {"id": 88, "observed_at": datetime.now(timezone.utc),
+                                                "content_version": 1, "change": "new"})
     class Cursor:
         def execute(self, query, params=()): statements.append((query, params))
-        def fetchone(self): return {"id": 88, "observed_at": datetime.now(timezone.utc)}
+        def fetchone(self): return {"id": 88, "observed_at": datetime.now(timezone.utc), "content_version": 1}
     class Connection:
         def __enter__(self): return self
         def __exit__(self, *_): pass

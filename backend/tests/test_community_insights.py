@@ -31,29 +31,41 @@ def test_community_feed_rejects_generic_node_agent_mentions():
     assert _tech(items) == []
 
 
-def test_source_change_invalidates_community_snapshot(monkeypatch):
+def test_get_community_insights_reads_active_events(monkeypatch):
     from services import community_insight_service as community
 
-    calls = []
-    monkeypatch.setattr(community, "_cache", (0, [], ()))
-    monkeypatch.setattr(community, "FEEDS", {
-        "community_zhihu": lambda url: calls.append(url) or [{"source": "知乎", "title": "AI Agent", "url": "https://example.com/agent"}],
-        "community_csdn": lambda url: calls.append(url) or [{"source": "CSDN", "title": "AI Infra", "url": "https://example.com/infra"}],
-    })
-    sources = [
-        {"source_key": "community_zhihu", "base_url": "https://example.test/zhihu", "enabled": True},
-        {"source_key": "community_csdn", "base_url": "https://example.test/csdn", "enabled": True},
+    rows = [
+        {"id": 1, "title": "AI Agent", "url": "https://example.com/agent", "summary": "s",
+         "topic_category": "Agent 与框架", "relevance": "high", "published_at": None,
+         "observed_at": None, "source_key": "community_zhihu"},
+        {"id": 2, "title": "AI Infra", "url": "https://example.com/infra", "summary": "s",
+         "topic_category": "AI Infra", "relevance": "high", "published_at": None,
+         "observed_at": None, "source_key": "community_csdn"},
     ]
-    monkeypatch.setattr(community, "list_sources", lambda: sources)
-    monkeypatch.setattr(community, "record_source_health", lambda *args: None)
-    monkeypatch.setattr(community, "store_community_raw", lambda items: len(items))
 
-    assert community.get_community_insights()["count"] == 2
-    sources[:] = sources[:1]
-    assert community.get_community_insights()["count"] == 1
-    sources[0]["base_url"] = "https://example.test/zhihu-updated"
-    assert community.get_community_insights()["count"] == 1
-    assert calls == ["https://example.test/csdn", "https://example.test/zhihu", "https://example.test/zhihu", "https://example.test/zhihu-updated"]
+    class Cursor:
+        def execute(self, sql, params=None):
+            pass
+
+        def fetchall(self):
+            return rows
+
+    class Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def cursor(self):
+            return Cursor()
+
+    monkeypatch.setattr(community, "get_db", lambda: Conn())
+    result = community.get_community_insights()
+    assert result["count"] == 2
+    labels = {item["source"] for item in result["items"]}
+    assert labels == {"知乎", "CSDN"}
+    assert {item["title"] for item in result["items"]} == {"AI Agent", "AI Infra"}
 
 
 def test_manual_community_refresh_updates_only_the_selected_source(monkeypatch):

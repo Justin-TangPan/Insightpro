@@ -298,6 +298,7 @@ def refresh_solution_catalogs() -> dict:
     from services.huawei_solution_service import refresh_huawei_solutions
     from services.source_registry_service import record_source_health, source_enabled
     from services.intelligence_data_service import store_catalog_change
+    from services.intelligence_decision_service import decide_event
     vendors = {
         "Alibaba Cloud": ("aliyun_solutions", refresh_aliyun_solutions),
         "Huawei Cloud": ("huawei_solutions", refresh_huawei_solutions),
@@ -310,6 +311,7 @@ def refresh_solution_catalogs() -> dict:
         try:
             result = refresh()
             if result["status"] == "success":
+                changed_event_ids = []
                 with get_db() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""SELECT title,url,vendor,category,source_description,summary,change_summary,
@@ -317,8 +319,27 @@ def refresh_solution_catalogs() -> dict:
                         WHERE vendor=%s AND (is_active OR removed_at::date=%s)""",
                         (vendor, result.get("checked_date")))
                     for row in cursor.fetchall():
-                        store_catalog_change(cursor, source_key, dict(row))
-            record_source_health(source_key, "healthy")
+                        stored = store_catalog_change(cursor, source_key, dict(row))
+                        if stored["raw_change"] != "no_change" and not row["is_baseline"]:
+                            changed_event_ids.append(stored["event_id"])
+                with get_db() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""SELECT id FROM intelligence_events
+                        WHERE id=ANY(%s) AND status='pending_review'""", (list(set(changed_event_ids)),))
+                    review_ids = [row["id"] for row in cursor.fetchall()]
+                result["candidate_count"] = len(changed_event_ids)
+                result["analysis_success"] = 0
+                result["analysis_failed"] = 0
+                for event_id in review_ids:
+                    try:
+                        decide_event(event_id)
+                        result["analysis_success"] += 1
+                    except Exception as exc:
+                        logger.exception("Solution Event %s decision failed", event_id)
+                        result["analysis_failed"] += 1
+                if result["analysis_failed"]:
+                    result["status"] = "partial"
+            record_source_health(source_key, "AI_PARTIAL" if result["status"] == "partial" else "healthy")
             results[vendor] = result
         except Exception as exc:
             logger.exception("%s solution catalogue refresh failed", vendor)

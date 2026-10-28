@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { ExportButtons } from "../export-buttons";
 import { usePreferences } from "@/lib/preferences";
 
 type Candidate = { id: number; business_scopes: string[]; title: string; canonical_url?: string; source_count: number; mention_count: number; evidence_count: number; discovery_score: number; sources: string[]; first_seen_at: string; last_seen_at: string };
@@ -45,6 +46,7 @@ export default function AdminCandidatesPage() {
   if (loading) return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Checking access…" : "正在验证权限…"}</div>;
   if (user?.app_metadata?.role !== "admin") return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Administrator access required." : "需要管理员权限。"}</div>;
   return <div className="page-stack">
+    <ExportButtons dataset="candidate" filters={{ status: "pending" }} />
     <SectionHeader badge="Admin / Discovery" title={en ? "Discovered candidates" : "发现候选"} subtitle={en ? "Repeated unlinked signals await human verification before becoming events." : "跨来源重复且尚未归档的信号先进入候选，经人工核验后才生成正式事件。"} action={<button className="ui-button-secondary" onClick={() => void load()}><RefreshCw size={15} />{en ? "Refresh" : "刷新"}</button>} />
     {error && <div role="alert" className="ui-card py-3 text-sm text-warning">{error}</div>}
     <section className="space-y-3">{items.map(item => <article key={item.id} className="ui-card">

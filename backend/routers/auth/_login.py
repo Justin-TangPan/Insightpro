@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from routers.auth import (
     supabase, supabase_anon, logger,
     get_current_user, require_admin,
-    LoginRequest, RegisterRequest, InviteRequest, TestUserCreate, MemberUpdateRequest,
+    LoginRequest, InviteRequest, MemberUpdateRequest,
     _member_payload, _member_status, _is_disabled, _is_internal_member,
 )
 from services import agent_audit_service, agent_runtime_service, agent_sso_service
@@ -44,11 +44,6 @@ async def auth_login(req: LoginRequest):
         raise HTTPException(status_code=401, detail="Login failed, please check your email and password")
 
 
-@router.post("/auth/register")
-async def auth_register(req: RegisterRequest):
-    raise HTTPException(status_code=403, detail="Access is by invitation only")
-
-
 @router.get("/auth/me")
 async def auth_me(user=Depends(get_current_user)):
     if not user:
@@ -58,7 +53,7 @@ async def auth_me(user=Depends(get_current_user)):
         "id": user.id,
         "email": user.email,
         "name": user.user_metadata.get("name", "") if user.user_metadata else "",
-        "role": (user.app_metadata or {}).get("role", "user"),
+        "role": "admin",
         "status": _member_status(user),
     }
 
@@ -66,13 +61,12 @@ async def auth_me(user=Depends(get_current_user)):
 @router.get("/auth/users")
 async def auth_users(_=Depends(require_admin)):
     users = await asyncio.to_thread(supabase.auth.admin.list_users, 1, 200)
-    return {"users": [_member_payload(item) for item in users], "total": len(users)}
+    admins = [item for item in users if (item.app_metadata or {}).get("role") == "admin"]
+    return {"users": [_member_payload(item) for item in admins], "total": len(admins)}
 
 
 @router.post("/auth/users/invite")
 async def invite_user(req: InviteRequest, _=Depends(require_admin)):
-    if req.role != "admin":
-        raise HTTPException(status_code=403, detail="Only administrator accounts are allowed")
     email = req.email.strip().lower()
     if "@" not in email or len(email) > 254:
         raise HTTPException(status_code=422, detail="Please enter a valid email")
@@ -80,11 +74,11 @@ async def invite_user(req: InviteRequest, _=Depends(require_admin)):
         result = await asyncio.to_thread(
             supabase.auth.admin.invite_user_by_email,
             email,
-            {"data": {"name": req.name.strip()[:80]}, "redirect_to": f"{settings.BASE_URL.rstrip('/')}/auth/login"},
+            {"data": {"name": req.name.strip()[:80]}, "redirect_to": f"{settings.BASE_URL.rstrip('/')}/admin/login"},
         )
         account = result.user
         account = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, account.id, {
-            "app_metadata": {"role": req.role, "status": "active"},
+            "app_metadata": {"role": "admin", "status": "active"},
         })).user
         return {"user": _member_payload(account), "message": "Invitation sent"}
     except Exception:
@@ -92,15 +86,8 @@ async def invite_user(req: InviteRequest, _=Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Invitation send failed, please try again later")
 
 
-@router.post("/auth/users/test", status_code=201)
-async def create_test_user(req: TestUserCreate, admin=Depends(require_admin)):
-    raise HTTPException(status_code=403, detail="Test accounts are disabled")
-
-
 @router.patch("/auth/users/{user_id}")
 async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(require_admin)):
-    if req.role == "user" or req.disabled is False and req.role != "admin":
-        raise HTTPException(status_code=403, detail="Only administrator accounts may be active")
     if str(admin.id) == str(user_id):
         raise HTTPException(status_code=400, detail="Cannot modify your own admin role or status")
     try:
@@ -108,14 +95,14 @@ async def update_user(user_id: UUID, req: MemberUpdateRequest, admin=Depends(req
     except Exception:
         logger.warning("update_user: user lookup failed for %s", user_id, exc_info=True)
         raise HTTPException(status_code=404, detail="User not found")
+    if (account.app_metadata or {}).get("role") != "admin":
+        raise HTTPException(status_code=404, detail="Administrator not found")
     metadata = dict(account.app_metadata or {})
-    if req.role is not None:
-        metadata["role"] = req.role
     if req.disabled is not None:
         metadata["status"] = "disabled" if req.disabled else "active"
     try:
         updated = (await asyncio.to_thread(supabase.auth.admin.update_user_by_id, str(user_id), {"app_metadata": metadata})).user
-        if req.disabled or req.role is not None:
+        if req.disabled:
             await asyncio.to_thread(agent_sso_service.revoke_member_gateway_sessions, str(user_id))
             try:
                 await agent_runtime_service.stop(str(user_id))

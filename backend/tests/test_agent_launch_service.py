@@ -342,8 +342,8 @@ def test_read_hides_raw_json_and_duplicate_language_page(monkeypatch):
     import datetime
     fingerprint = service._source_fingerprint({"vendor": "Kimi", "title": "Kimi Agent", "kind": "product", "published": "", "source_text": "English source"})
     rows = [
-        {"id": 1, "vendor": "Kimi", "name": "Kimi Agent for reports", "url": "https://www.kimi.com/en/agent", "kind": "product", "published_at": "", "summary": "{\"summary\":", "capability": "", "opportunity": "", "limitation": "", "source_text": "English source", "analysis_status": "done", "analyzed_at": "2026-10-23T00:00:00+00:00", "source_updated_at": "2026-10-23T00:00:00+00:00", "source_fingerprint": "a", "analyzed_source_fingerprint": "a"},
-        {"id": 2, "vendor": "Kimi", "name": "Kimi Agent", "url": "https://www.kimi.com/agent", "kind": "product", "published_at": "", "summary": "可生成文档和报告。", "capability": "生成报告", "opportunity": "", "limitation": "", "source_text": "English source", "analysis_status": "done", "analyzed_at": "2026-10-23T00:00:00+00:00", "source_updated_at": "2026-10-23T00:00:00+00:00", "source_fingerprint": "a", "analyzed_source_fingerprint": "a"},
+        {"analysis_id": 1, "vendor": "Kimi", "title": "Kimi Agent for reports", "url": "https://www.kimi.com/en/agent", "kind": "product", "published_at": "", "summary": "{\"summary\":", "capability": "", "opportunity": "", "limitation": "", "source_text": "English source", "analysis_status": "done", "analyzed_at": "2026-10-23T00:00:00+00:00", "source_updated_at": "2026-10-23T00:00:00+00:00", "source_fingerprint": "a", "analyzed_source_fingerprint": "a"},
+        {"analysis_id": 2, "vendor": "Kimi", "title": "Kimi Agent", "url": "https://www.kimi.com/agent", "kind": "product", "published_at": "", "summary": "可生成文档和报告。", "capability": "生成报告", "opportunity": "", "limitation": "", "source_text": "English source", "analysis_status": "done", "analyzed_at": "2026-10-23T00:00:00+00:00", "source_updated_at": "2026-10-23T00:00:00+00:00", "source_fingerprint": "a", "analyzed_source_fingerprint": "a"},
     ]
     for row in rows:
         row.update(analysis_status="done", analyzed_at=datetime.datetime(2026, 10, 23), source_updated_at=datetime.datetime(2026, 10, 23), source_fingerprint=fingerprint, analyzed_source_fingerprint=fingerprint)
@@ -363,7 +363,7 @@ def test_read_hides_raw_json_and_duplicate_language_page(monkeypatch):
 
 
 def test_read_hides_analysis_when_source_fingerprint_changed(monkeypatch):
-    row = {"id": 3, "vendor": "Kimi", "name": "Kimi Agent", "url": "https://www.kimi.com/agent", "kind": "product", "published_at": "", "summary": "旧摘要。", "capability": "旧能力", "opportunity": "旧机会", "limitation": "旧限制", "source_text": "updated source", "analysis_status": "done", "analyzed_at": "2026-10-22", "source_updated_at": "2026-10-23", "source_fingerprint": "new", "analyzed_source_fingerprint": "old"}
+    row = {"analysis_id": 3, "vendor": "Kimi", "title": "Kimi Agent", "url": "https://www.kimi.com/agent", "kind": "product", "published_at": "", "summary": "旧摘要。", "capability": "旧能力", "opportunity": "旧机会", "limitation": "旧限制", "source_text": "updated source", "analysis_status": "done", "analyzed_at": "2026-10-22", "source_updated_at": "2026-10-23", "source_fingerprint": "new", "analyzed_source_fingerprint": "old"}
     class Connection:
         def __enter__(self): return self
         def __exit__(self, *_): pass

@@ -30,9 +30,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="app-header-actions">
           <div className="header-search"><SearchBar /></div>
           <Link href="/search" className="header-search-link ui-icon-button border border-grid bg-surface-elevated" aria-label="打开全局搜索"><Search className="h-4 w-4" /></Link>
+          <a href="https://github.com/Justin-TangPan/Insightpro" target="_blank" rel="noopener noreferrer" className="ui-icon-button border border-grid bg-surface-elevated" aria-label="打开 GitHub 项目仓库" title="GitHub 项目仓库"><Image src="/brand-logos/github.png" alt="" width={16} height={16} /></a>
           <button type="button" className="ui-icon-button border border-grid bg-surface-elevated" onClick={() => updatePreferences({ theme: preferences.theme === "dark" ? "light" : "dark" })} aria-label={preferences.theme === "dark" ? "切换浅色主题" : "切换深色主题"} title={preferences.theme === "dark" ? "浅色主题" : "深色主题"}>{preferences.theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
           {user?.app_metadata?.role === "admin" && <Link href={inAdmin ? "/" : "/admin"} aria-label={inAdmin ? "返回洞察区" : "进入管理区"} className="ui-icon-button border border-grid bg-surface-elevated"><Shield className="h-4 w-4" /></Link>}
-          {!user && <Link href="/auth/login" aria-label="管理员登录" title="管理员登录" className="ui-icon-button border border-grid bg-surface-elevated"><LogIn className="h-4 w-4" /></Link>}
+          {!user && <Link href="/admin/login" aria-label="管理员登录" title="管理员登录" className="ui-icon-button border border-grid bg-surface-elevated"><LogIn className="h-4 w-4" /></Link>}
           {user && <button type="button" onClick={async () => { await signOut(); window.location.href = "/"; }} className="ui-icon-button border border-grid bg-surface-elevated" aria-label="退出登录" title="退出登录"><LogOut className="h-4 w-4" /></button>}
         </div>
       </div>

@@ -83,6 +83,7 @@ def test_source_to_event_data_path(monkeypatch):
             cursor.execute("DELETE FROM intelligence_events WHERE event_key=%s", (event_key,))
             cursor.execute("DELETE FROM intelligence_metric_snapshots WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_raw_items WHERE source_key=ANY(%s)", (source_keys,))
+            cursor.execute("DELETE FROM intelligence_source_objects WHERE source_key=ANY(%s)", (source_keys,))
             cursor.execute("DELETE FROM intelligence_entities WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_audit WHERE object_key=ANY(%s)", (source_keys,))
             cursor.execute("DELETE FROM intelligence_sources WHERE source_key=ANY(%s)", (source_keys,))
@@ -151,6 +152,7 @@ def test_rss_source_reaches_candidate_event_and_coverage(monkeypatch):
             cursor.execute("DELETE FROM intelligence_events WHERE event_key=%s", (event_key,))
             cursor.execute("DELETE FROM intelligence_metric_snapshots WHERE entity_key LIKE %s", (f"url:%{suffix}",))
             cursor.execute("DELETE FROM intelligence_raw_items WHERE source_key=ANY(%s)", (source_keys,))
+            cursor.execute("DELETE FROM intelligence_source_objects WHERE source_key=ANY(%s)", (source_keys,))
             cursor.execute("DELETE FROM intelligence_entities WHERE canonical_url=%s", (f"https://example.test/signals/{suffix}",))
             cursor.execute("DELETE FROM intelligence_audit WHERE object_key=ANY(%s)", (source_keys,))
             cursor.execute("DELETE FROM intelligence_sources WHERE source_key=ANY(%s)", (source_keys,))
@@ -204,6 +206,7 @@ def test_repository_evaluation_is_saved_on_the_event(monkeypatch):
             cursor.execute("DELETE FROM intelligence_events WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_metric_snapshots WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_raw_items WHERE canonical_url=%s", (item["repo_url"],))
+            cursor.execute("DELETE FROM intelligence_source_objects WHERE canonical_url=%s", (item["repo_url"],))
             cursor.execute("DELETE FROM intelligence_entities WHERE entity_key=%s", (entity_key,))
 
 
@@ -255,4 +258,5 @@ def test_repository_metadata_and_release_event_are_queryable(monkeypatch):
             cursor.execute("DELETE FROM intelligence_events WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_metric_snapshots WHERE entity_key=%s", (entity_key,))
             cursor.execute("DELETE FROM intelligence_raw_items WHERE canonical_url=%s", (repo_url,))
+            cursor.execute("DELETE FROM intelligence_source_objects WHERE canonical_url=%s", (repo_url,))
             cursor.execute("DELETE FROM intelligence_entities WHERE entity_key=%s", (entity_key,))

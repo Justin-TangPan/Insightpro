@@ -16,6 +16,7 @@ pytestmark = pytest.mark.skipif(
 def test_labeled_recall_benchmark_distinguishes_missed_and_event_linked_signals(monkeypatch):
     from db import get_db
     from services.recall_benchmark_service import recall_report, record_reference
+    from services.raw_evidence_service import store_raw_version
 
     test_url = os.environ["INSIGHT_POSTGRES_TEST_URL"]
     parsed = urlparse(test_url)
@@ -37,11 +38,9 @@ def test_labeled_recall_benchmark_distinguishes_missed_and_event_linked_signals(
             cursor = conn.cursor()
             cursor.execute("""INSERT INTO intelligence_entities(entity_key,entity_type,canonical_name,canonical_url)
                               VALUES (%s,'technology_signal',%s,%s)""", (entity_key, suffix, captured_url))
-            cursor.execute("""INSERT INTO intelligence_raw_items
-                              (source_key,external_id,canonical_url,title,content,observed_at)
-                              VALUES ('github_trending',%s,%s,'captured signal','{}'::jsonb,%s)
-                              RETURNING id""", (suffix, captured_url, reference_at + timedelta(minutes=1)))
-            raw_id = cursor.fetchone()["id"]
+            raw_id = store_raw_version(cursor, source_key="github_trending", url=captured_url,
+                                       title="captured signal", content={}, content_hash="benchmark",
+                                       observed_at=reference_at + timedelta(minutes=1))["id"]
             cursor.execute("""INSERT INTO intelligence_events(event_key,entity_key,event_type,title)
                               VALUES (%s,%s,'benchmark_signal','Captured signal') RETURNING id""",
                            (event_key, entity_key))
@@ -71,5 +70,6 @@ def test_labeled_recall_benchmark_distinguishes_missed_and_event_linked_signals(
             cursor.execute("DELETE FROM intelligence_recall_benchmark WHERE canonical_url=ANY(%s)",
                            ([captured_url, missed_url],))
             cursor.execute("DELETE FROM intelligence_events WHERE event_key=%s", (event_key,))
-            cursor.execute("DELETE FROM intelligence_raw_items WHERE source_key='github_trending' AND external_id=%s", (suffix,))
+            cursor.execute("DELETE FROM intelligence_raw_items WHERE id=%s", (raw_id,))
+            cursor.execute("DELETE FROM intelligence_source_objects WHERE source_key='github_trending' AND identity_key=%s", (captured_url,))
             cursor.execute("DELETE FROM intelligence_entities WHERE entity_key=%s", (entity_key,))

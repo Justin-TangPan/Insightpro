@@ -135,7 +135,7 @@ function InsightAgentShell() {
       throw new Error("请先停止当前生成，再执行其他任务");
     if (!user)
       return router.push(
-        `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
+        `/admin/login?next=${encodeURIComponent(pathname || "/")}`,
       );
     await discardEmptySession();
     const response = await authenticatedFetch("/api/agent/routes", {
@@ -612,7 +612,7 @@ function InsightAgentShell() {
                   ),
                 )
               : router.push(
-                  `/auth/login?next=${encodeURIComponent(pathname || "/")}`,
+                  `/admin/login?next=${encodeURIComponent(pathname || "/")}`,
                 )
           }
           className="flex min-h-14 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[var(--shadow-elevated)] transition hover:bg-primary-dark"

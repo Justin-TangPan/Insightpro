@@ -81,6 +81,26 @@ def test_task_runner_records_one_success(monkeypatch):
     assert updates[0][0] == "success"
 
 
+def test_empty_task_run_is_retained_for_pipeline_audit(monkeypatch):
+    statements = []
+
+    class Cursor:
+        def execute(self, sql, params=()):
+            statements.append(sql)
+            self.row = {"acquired": True} if "pg_try_advisory_lock" in sql else {"id": 7}
+        def fetchone(self): return self.row
+
+    class Connection:
+        def __enter__(self): return self
+        def __exit__(self, *_): pass
+        def cursor(self): return Cursor()
+
+    monkeypatch.setattr(task_service, "get_db", Connection)
+    assert task_service.run_task("cleanup", "manual", lambda: {"total": 0}) == {"total": 0}
+    assert any("UPDATE platform_task_runs SET status=%s" in sql for sql in statements)
+    assert not any("DELETE FROM platform_task_runs" in sql for sql in statements)
+
+
 def test_task_runner_records_partial_results_as_failed_with_details(monkeypatch):
     statements = []
 

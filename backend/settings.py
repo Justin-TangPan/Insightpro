@@ -25,7 +25,7 @@ def _required_env(name: str) -> str:
 
 
 class Settings:
-    APP_VERSION: str = os.getenv("APP_VERSION", "1.1.1")
+    APP_VERSION: str = os.getenv("APP_VERSION", "1.1.7")
     # ── AI ──
     CHAT_API_URL: str = os.getenv("CHAT_API_URL", "")
     CHAT_API_KEY: str = os.getenv("CHAT_API_KEY", "")
@@ -43,7 +43,7 @@ class Settings:
     HERMES_COOKIE_SECURE: bool = os.getenv("HERMES_COOKIE_SECURE", "true").lower() in {"1", "true", "yes", "on"}
 
     # ── Database ──
-    SUPABASE_URL: str = os.getenv("NEXT_PUBLIC_SUPABASE_URL", "")
+    SUPABASE_URL: str = os.getenv("SUPABASE_INTERNAL_URL", os.getenv("NEXT_PUBLIC_SUPABASE_URL", ""))
     SUPABASE_ANON_KEY: str = os.getenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
     SUPABASE_SERVICE_KEY: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     DIRECT_URL: str = os.getenv("DIRECT_URL", "")
@@ -63,6 +63,7 @@ class Settings:
     STARTUP_CATCHUP_ENABLED: bool = os.getenv("STARTUP_CATCHUP_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
     SCHEDULER_ENABLED: bool = os.getenv("SCHEDULER_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
     REQUIREMENT_ABSORPTION_ON_STARTUP: bool = os.getenv("REQUIREMENT_ABSORPTION_ON_STARTUP", "true").lower() in {"1", "true", "yes", "on"}
+    STARTUP_SCHEMA_ENABLED: bool = os.getenv("STARTUP_SCHEMA_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
     CORS_ORIGINS: list[str] = [
         origin.strip()
         for origin in _required_env("CORS_ORIGINS").split(",")

@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${backend}/api/:path*`,
       },
+      {
+        source: "/supabase/:path*",
+        destination: `${process.env.SUPABASE_INTERNAL_URL || "http://supabase-envoy:8000"}/:path*`,
+      },
     ];
   },
 };

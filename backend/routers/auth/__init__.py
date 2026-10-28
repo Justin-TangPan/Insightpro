@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from uuid import UUID
-from typing import Literal, Optional
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -67,12 +67,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class RegisterRequest(BaseModel):
-    email: str
-    password: str
-    name: str = ""
-
-
 class AgentTicketRequest(BaseModel):
     target_user_id: Optional[UUID] = None
     agent_session_id: Optional[UUID] = None
@@ -81,18 +75,9 @@ class AgentTicketRequest(BaseModel):
 class InviteRequest(BaseModel):
     email: str
     name: str = ""
-    role: Literal["user", "admin"] = "user"
-
-
-class TestUserCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=32)
-    password: str = Field(min_length=8, max_length=128)
-    name: str = Field(default="", max_length=80)
-    role: Literal["user", "admin"] = "user"
 
 
 class MemberUpdateRequest(BaseModel):
-    role: Optional[Literal["user", "admin"]] = None
     disabled: Optional[bool] = None
 
 
@@ -120,7 +105,7 @@ def _member_payload(account) -> dict:
         "id": str(account.id),
         "email": account.email,
         "name": (getattr(account, "user_metadata", None) or {}).get("name", ""),
-        "role": (getattr(account, "app_metadata", None) or {}).get("role", "user"),
+        "role": "admin",
         "status": status,
         "agent_space_status": "disabled" if status == "disabled" else "Auto-created on first access",
         "created_at": account.created_at,
@@ -138,8 +123,8 @@ def _is_internal_member(account) -> bool:
 
 
 async def _require_active_agent_user(user):
-    if _is_disabled(user):
-        raise HTTPException(status_code=403, detail="Account disabled, cannot access Insight-Agent")
+    if not _is_internal_member(user):
+        raise HTTPException(status_code=403, detail="Administrator access required")
     return user
 
 
@@ -156,7 +141,7 @@ from routers.auth._agent_sso import router as agent_sso_router
 
 # ── Re-export route handler functions for test access ──
 from routers.auth._agent_sso import create_agent_ticket, agent_callback, verify_agent_gateway, revoke_agent_sessions
-from routers.auth._login import auth_login, auth_register, auth_me, auth_users, invite_user, create_test_user, update_user, auth_logout
+from routers.auth._login import auth_login, auth_me, auth_users, invite_user, update_user, auth_logout
 from routers.auth._admin import (
     agent_spaces, runtime_config, verify_runtime_config, update_runtime_config,
     start_agent_space, stop_agent_space,

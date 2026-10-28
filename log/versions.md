@@ -1,6 +1,58 @@
 # 版本日志
 
-当前正式版本：`1.1.1`。
+当前正式版本：`1.1.7`。
+
+## [1.1.7] - 2026-10-28（正式）
+
+- 情报决策全自动化：新增 `intelligence_decision_service`，AI 一次输出 `decision(publish/drop)` + `rationale` + 分析文案 + `confidence/importance` + `prompt_version`，自动执行发布/丢弃并写审计留痕；采集任务完成后自动跑 `decide_pending`，取消人工 publish 兜底（全自动、零人工，但可回溯可撤销）。
+- W3 事件单一发布事实源：友商动态、AI 应用、社区热点前台读取从原始表/实时抓取改为主查 `intelligence_events`（active 事件）；GitHub 趋势此前已走 Event；解决方案保留目录主查 + Event 发布状态关联（目录与事件互补）。社区由实时热榜改为读已发布事件。
+- 生产库执行 5+1 个迁移至 `a5c6e7f8b9d0`：新增 `intelligence_source_objects`、`intelligence_raw_changes`、`intelligence_inspection_results` 及 Raw/Event/Pipeline 计数与版本字段；历史 Event Evidence 零修改（仅追加 legacy competitor backfill）；修复同名 revision `a4c5e6f7b8d9` 冲突（拆为 legacy_competitor_events + chain_inspections）。
+- 修复页面快照发布 401→500 连环故障、`admin_api_guard` 拦截前台快照 API 的回归（快照路径匿名放行、管理 API 仍保护）、`store_catalog_change` 测试红线、宿主机看门狗脚本缺失可执行权限。
+
+### 验证
+
+- 后端单元测试 309 passed；新增 `test_intelligence_decision_service.py` 4 passed；改造后的友商/AI 应用/社区读取在真实库返回正确分组数据。
+- `health-check.sh full` 通过；前后端 `1.1.7` 容器 healthy；快照 API 匿名 200、管理 API 匿名 401。
+- 后端语法编译 0 错误，前端 `tsc --noEmit` 0 错误，页面快照发布 30 端点全部成功。
+
+### 已知遗留
+
+- W2 存在 1 个死代码触发器（`intelligence_event_raw_update`，Raw 已不可变故不触发，无害，待清理）。
+- 友商 vendor 名称不统一（`Azure` vs `Microsoft Azure`、`Volcengine` vs `火山云`）。
+- W9 端到端 9 场景尚未在隔离库逐一动态验收。
+- 宿主机单测环境尚未配置 `supabase-db` 的 loopback 访问，25 个 DB 集成测试无法在宿主机直接跑。
+
+## [1.1.6-rc.1] - 2026-10-28（候选）
+
+- 情报决策全自动化与 W3 事件单一发布事实源的候选版，验证后并入正式版 1.1.7。
+
+## [1.1.5-rc.1] - 2026-10-28（开发中）
+
+- 架构整改进行中：新增 Source Object 与不可变 Raw Version，保留历史 Event Evidence；Event 分析过期、Pipeline 计数和超时恢复已实现基础能力。W1 隔离库六场景通过；W3–W9 尚未完成，不可部署或视为整体验收通过。
+
+## [1.1.5] - 2026-10-28（正式）
+
+- 收缩为 Supabase 管理员登录：仅 `/admin/login` 提供登录，所有业务页面与 API 验证有效管理员身份；删除普通用户注册、密码找回和个人资料编辑入口，管理员账号列表只显示 admin。
+- 数据库未做 DROP；保留 Supabase Auth 用户数据。回滚使用 1.1.4 镜像及停止的容器。
+
+## [1.1.4] - 2026-10-28（正式）
+
+- 候选发现 AI 相关性判定遇到空响应、截断响应或单条重试失败时，仅跳过无法判定的条目并记录来源告警；已成功采集的来源及其余条目继续处理，避免单条模型异常阻断整条流水线。
+- 验证及部署：后端语法检查、前端生产构建、部署健康检查通过。
+- 回滚保留：当前 1.1.4、上一个小版本 1.1.3；上一个大版本无可用镜像。
+
+## [1.1.3] - 2026-10-28（正式）
+
+- 候选发现中少量 AI 相关性分类未能判定时，保留来源健康告警并跳过这些条目，不再把已成功采集的整项发现任务判为失败，避免阻断后续聚合流水线。
+- 验证及部署：后端语法检查、前端生产构建、部署健康检查通过。
+- 回滚保留：当前 1.1.3、上一个小版本 1.1.2；当前无可用的大版本回滚镜像。
+
+## [1.1.2] - 2026-10-28（正式）
+
+- 修复邮件手动发送失败提示，商业洞察未生成时明确提示阻塞原因；SMTP 配置支持管理员在订阅管理中保存并测试，支持 SSL 与 STARTTLS。
+- 顶部 GitHub 图标直达 InsightPro 仓库。
+- 验证及部署：版本一致性检查、后端语法检查、前端生产构建与部署健康检查通过。
+- 回滚保留：当前 1.1.2、上一个小版本 1.1.1；当前无可用的大版本回滚镜像。
 
 ## [1.1.1] - 2026-10-27（正式）
 

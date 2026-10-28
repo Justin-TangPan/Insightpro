@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import zlib
 from time import monotonic
 
 from db import get_db
@@ -39,6 +40,12 @@ def start_pipeline(domain: str, resume_from: int | None = None) -> dict:
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (f"pipeline:{domain}",))
+        cursor.execute("SELECT pg_try_advisory_xact_lock(%s) AS acquired", (zlib.crc32(f"pipeline:{domain}".encode()),))
+        if cursor.fetchone()["acquired"]:
+            cursor.execute("""UPDATE platform_task_runs SET status='failed',finished_at=NOW(),
+                error='Worker stopped before completing the pipeline'
+                WHERE task_key=%s AND status='running' AND heartbeat_at < NOW()-INTERVAL '2 hours'""",
+                (f"pipeline:{domain}",))
         cursor.execute("SELECT id FROM platform_task_runs WHERE task_key=%s AND status='running' LIMIT 1", (f"pipeline:{domain}",))
         if cursor.fetchone():
             raise ValueError("Pipeline is already running")
@@ -60,6 +67,16 @@ def start_pipeline(domain: str, resume_from: int | None = None) -> dict:
 
 
 def execute_pipeline(run_id: int, domain: str, steps: list[dict]) -> None:
+    lock_id = zlib.crc32(f"pipeline:{domain}".encode())
+    with get_db() as lock_conn:
+        lock_conn.cursor().execute("SELECT pg_advisory_lock(%s)", (lock_id,))
+        try:
+            _execute_pipeline(run_id, domain, steps)
+        finally:
+            lock_conn.cursor().execute("SELECT pg_advisory_unlock(%s)", (lock_id,))
+
+
+def _execute_pipeline(run_id: int, domain: str, steps: list[dict]) -> None:
     for step in steps:
         if step["status"] == "success":
             continue
@@ -111,16 +128,29 @@ def _output_count(key: str, domain: str, result: dict) -> int | None:
 
 
 def _save(run_id: int, domain: str, steps: list[dict], status: str = "running", error: str | None = None) -> None:
+    counts = {name: 0 for name in ("input_count", "new_count", "changed_count", "skipped_count", "failed_count")}
+    for step in steps:
+        result = step.get("result") or {}
+        for name, keys in {"input_count": ("input_count", "collected", "total"),
+                           "new_count": ("new_count", "new_items", "inserted"),
+                           "changed_count": ("changed_count", "updated"),
+                           "skipped_count": ("skipped_count", "unchanged")}.items():
+            value = next((result[key] for key in keys if type(result.get(key)) is int), 0)
+            counts[name] += max(0, value)
+        counts["failed_count"] += step.get("failed_count", 0)
     with get_db() as conn:
-        conn.cursor().execute("""UPDATE platform_task_runs SET status=%s,result=%s::jsonb,error=%s,
-            finished_at=CASE WHEN %s='running' THEN NULL ELSE NOW() END WHERE id=%s AND task_key=%s""",
+        conn.cursor().execute("""UPDATE platform_task_runs SET status=%s,result=%s::jsonb,error=%s,heartbeat_at=NOW(),
+            finished_at=CASE WHEN %s='running' THEN NULL ELSE NOW() END,
+            input_count=%s,new_count=%s,changed_count=%s,skipped_count=%s,failed_count=%s
+            WHERE id=%s AND task_key=%s""",
             (status, json.dumps({"domain": domain, "steps": steps}, ensure_ascii=False, default=str),
-             error, status, run_id, f"pipeline:{domain}"))
+             error, status, *(counts[name] for name in counts), run_id, f"pipeline:{domain}"))
 
 
 def recent_pipelines(limit: int = 20) -> list[dict]:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("""SELECT id,task_key,trigger,status,started_at,finished_at,result,error
+        cursor.execute("""SELECT id,task_key,trigger,status,started_at,finished_at,result,error,
+            input_count,new_count,changed_count,skipped_count,failed_count
             FROM platform_task_runs WHERE task_key LIKE 'pipeline:%%' ORDER BY started_at DESC LIMIT %s""", (limit,))
         return [dict(row) for row in cursor.fetchall()]

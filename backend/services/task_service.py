@@ -145,7 +145,8 @@ def _resolve(target: str) -> Callable:
 def recover_orphaned_runs() -> int:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT task_key FROM platform_task_runs WHERE status='running'")
+        cursor.execute("""SELECT DISTINCT task_key FROM platform_task_runs WHERE status='running'
+            AND (task_key NOT LIKE 'pipeline:%%' OR heartbeat_at < NOW()-INTERVAL '2 minutes')""")
         task_keys = [row["task_key"] for row in cursor.fetchall()]
 
     recovered = 0
@@ -196,23 +197,27 @@ def run_task(key: str, trigger: str = "scheduled", function: Callable | None = N
                 except (TypeError, ValueError):
                     accepts_run_id = False
                 result = target(task_run_id=run_id) if accepts_run_id else target()
+                if task.source_task:
+                    try:
+                        from services.intelligence_decision_service import decide_pending
+                        decision = decide_pending(limit=50)
+                        if isinstance(result, dict):
+                            result["decision"] = decision
+                    except Exception:
+                        logger.exception("Automatic intelligence decision failed for %s", key)
                 payload = result if isinstance(result, dict) else {"result": result}
                 task_failed = payload.get("status") in {"partial", "partial_success", "failed", "blocked"}
                 error = payload.get("error") or (json.dumps(payload.get("source_errors"), ensure_ascii=False)
                                                    if payload.get("source_errors") else
                                                    f"Task returned {payload.get('status')}" if task_failed else None)
-                if not task.record_empty and not payload.get("total"):
-                    with get_db() as conn:
-                        conn.cursor().execute("DELETE FROM platform_task_runs WHERE id=%s", (run_id,))
-                else:
-                    with get_db() as conn:
-                        conn.cursor().execute(
-                            "UPDATE platform_task_runs SET status=%s, finished_at=NOW(), result=%s::jsonb, error=%s WHERE id=%s",
-                            ("blocked" if payload.get("status") == "blocked" else
-                             "partial_success" if key == "daily_ai_brief" and payload.get("status") == "partial_success" else
-                             "failed" if task_failed else "success", json.dumps(payload, ensure_ascii=False, default=str),
-                             str(error)[:1000] if error else None, run_id),
-                        )
+                with get_db() as conn:
+                    conn.cursor().execute(
+                        "UPDATE platform_task_runs SET status=%s, finished_at=NOW(), result=%s::jsonb, error=%s WHERE id=%s",
+                        ("blocked" if payload.get("status") == "blocked" else
+                         "partial_success" if key == "daily_ai_brief" and payload.get("status") == "partial_success" else
+                         "failed" if task_failed else "success", json.dumps(payload, ensure_ascii=False, default=str),
+                         str(error)[:1000] if error else None, run_id),
+                    )
                 return result
             except Exception as exc:
                 with get_db() as conn:

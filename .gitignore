@@ -62,3 +62,9 @@ insight-pro-design.zip
 
 # Local upstream source dependency; retain locally, never stage or push.
 /vendor/hermes-agent/
+
+# Local agent tooling / runtime residue
+.codeartsdoer/
+.playwright-mcp/
+backend/*.db-wal
+backend/*.db-shm

@@ -12,6 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from crawlers.baidu_crawler import _fetch_baidu_hotsearch_sync
+from db import get_db
 from services.intelligence_data_service import store_community_raw
 from services.source_registry_service import list_sources, record_source_health
 
@@ -108,38 +109,73 @@ def refresh_community_source(source_key: str) -> dict:
     return {"status": "success", "source_key": source_key, "total": len(items), "stored": stored}
 
 
-def collect_daily() -> dict:
-    result = get_community_insights(force=True)
-    return {"total": result["count"], "sources": result["sources"]}
-
-
-def get_community_insights(force: bool = False) -> dict:
-    global _cache
+def _collect_sources() -> list[dict]:
+    """Realtime-fetch community feeds and persist them as Events (collector path)."""
     sources = {source["source_key"]: source for source in list_sources()
                if source["source_key"] in FEEDS and source["enabled"]}
     signature = tuple(sorted((key, source.get("base_url") or "") for key, source in sources.items()))
-    if not force and time.time() - _cache[0] < 10800 and _cache[2] == signature:
-        items = _cache[1]
-    else:
-        items = []
-        def safe_fetch(entry):
-            source_key, base_url = entry
-            try:
-                return source_key, FEEDS[source_key](base_url), None
-            except Exception as error:
-                return source_key, [], str(error)
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            for source_key, fetch_items, error in pool.map(safe_fetch, signature):
-                record_source_health(source_key, "failed" if error else "healthy" if fetch_items else "empty", error)
-                items.extend(fetch_items)
-        observed_at = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="minutes")
-        unique = {}
-        for item in items:
-            url = str(item.get("url") or "").split("#", 1)[0].rstrip("/")
-            if url and url not in unique:
-                unique[url] = {**item, "url": url, "published_at": item.get("published_at"), "observed_at": observed_at}
-        items = list(unique.values())
-        store_community_raw(items)
-        _cache = (time.time(), items, signature)
-    source_names = sorted({item["source"] for item in items})
-    return {"items": items, "count": len(items), "sources": [{"name": name, "count": sum(item["source"] == name for item in items)} for name in source_names]}
+    items = []
+    def safe_fetch(entry):
+        source_key, base_url = entry
+        try:
+            return source_key, FEEDS[source_key](base_url), None
+        except Exception as error:
+            return source_key, [], str(error)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for source_key, fetch_items, error in pool.map(safe_fetch, signature):
+            record_source_health(source_key, "failed" if error else "healthy" if fetch_items else "empty", error)
+            items.extend(fetch_items)
+    observed_at = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat(timespec="minutes")
+    unique = {}
+    for item in items:
+        url = str(item.get("url") or "").split("#", 1)[0].rstrip("/")
+        if url and url not in unique:
+            unique[url] = {**item, "url": url, "published_at": item.get("published_at"), "observed_at": observed_at}
+    items = list(unique.values())
+    store_community_raw(items)
+    return items
+
+
+def collect_daily() -> dict:
+    items = _collect_sources()
+    return {"total": len(items), "sources": sorted({item["source"] for item in items})}
+
+
+_SOURCE_LABELS = {"community_zhihu": "知乎", "community_baidu": "百度热搜",
+                  "community_tencent": "腾讯云社区", "community_csdn": "CSDN"}
+
+
+def get_community_insights(force: bool = False) -> dict:
+    # W3: read from Events (single publication source). force triggers a fresh
+    # collect + decision first; the frontend no longer shows live-crawled lists.
+    if force:
+        _collect_sources()
+        from services.intelligence_decision_service import decide_pending
+        decide_pending(scope="community_insights")
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""SELECT DISTINCT ON (raw.canonical_url)
+            event.id, event.title, event.published_at,
+            raw.canonical_url AS url, raw.content->>'summary' AS summary,
+            raw.content->>'topic_category' AS topic_category, raw.content->>'relevance' AS relevance,
+            raw.observed_at, raw.source_key
+            FROM intelligence_events event
+            JOIN intelligence_event_evidence evidence ON evidence.event_id = event.id
+            JOIN intelligence_raw_items raw ON raw.id = evidence.raw_item_id
+            WHERE event.status = 'active'
+              AND 'community_insights' = ANY(event.business_scopes)
+              AND event.event_type = 'community_topic'
+            ORDER BY raw.canonical_url, raw.observed_at DESC, event.id DESC""")
+        rows = [dict(row) for row in cursor.fetchall()]
+    items = []
+    for row in rows:
+        items.append({"title": row["title"], "url": row["url"], "summary": row.get("summary") or "",
+                      "source": _SOURCE_LABELS.get(row["source_key"], row["source_key"]),
+                      "topic_category": row.get("topic_category"), "relevance": row.get("relevance"),
+                      "published_at": row.get("published_at"), "observed_at": row.get("observed_at"),
+                      "id": row["id"]})
+    counts = {}
+    for item in items:
+        counts[item["source"]] = counts.get(item["source"], 0) + 1
+    return {"items": items, "count": len(items),
+            "sources": [{"name": name, "count": count} for name, count in sorted(counts.items())]}

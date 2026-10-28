@@ -125,19 +125,16 @@ def _recent_repository_metadata(repo_url: str) -> dict | None:
 
 
 def _store_repository_metadata(cursor, item: dict, metadata: dict, scrape_date: str, scrape_time: str) -> None:
+    from services.raw_evidence_service import store_raw_version
     repo = item["repo_name"].strip().lower()
     entity_key = f"github:{repo}"
     observed_at = f"{scrape_date} {scrape_time}"
     content_hash = hashlib.sha256(json.dumps(metadata, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    cursor.execute("""INSERT INTO intelligence_raw_items
-        (source_key,external_id,canonical_url,title,content,content_hash,observed_at,published_at)
-        VALUES ('github_trending',%s,%s,%s,%s::jsonb,%s,%s::timestamp AT TIME ZONE 'Asia/Shanghai',%s::timestamptz)
-        ON CONFLICT (source_key,external_id) DO UPDATE SET content=EXCLUDED.content,
-          content_hash=EXCLUDED.content_hash,observed_at=EXCLUDED.observed_at,published_at=EXCLUDED.published_at
-        RETURNING id""", (f"repository-metadata:{repo}:{scrape_date}", item["repo_url"], item["repo_name"],
-              json.dumps(metadata, ensure_ascii=False), content_hash, observed_at,
-              (metadata.get("latest_release") or {}).get("published_at")))
-    raw_id = cursor.fetchone()["id"]
+    raw_id = store_raw_version(cursor, source_key="github_trending", url=item["repo_url"],
+                               title=item["repo_name"], content=metadata, content_hash=content_hash,
+                               observed_at=f"{observed_at}+08:00",
+                               published_at=(metadata.get("latest_release") or {}).get("published_at"),
+                               identity_suffix="#raw=repository_metadata")["id"]
     cursor.execute("""SELECT id FROM intelligence_events WHERE entity_key=%s AND status='active'
         ORDER BY CASE WHEN event_type='github_trending' THEN 0 ELSE 1 END,id LIMIT 1""", (entity_key,))
     repository_event = cursor.fetchone()

@@ -1,7 +1,9 @@
 """Administrator task-center routes."""
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, Literal
+from datetime import date
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from routers.auth import require_admin
@@ -9,6 +11,8 @@ from services.task_service import TASK_BY_KEY, list_tasks, recent_runs, run_task
 from services.system_health_service import get_collection_report
 from services.pipeline_service import start_pipeline, execute_pipeline, recent_pipelines
 from services.admin_overview_service import overview
+from services.chain_inspection_service import inspect_chain, recent_inspections
+from services.table_export_service import export_table
 
 router = APIRouter()
 
@@ -27,6 +31,35 @@ async def admin_overview(_=Depends(require_admin)):
 async def collection_status(_=Depends(require_admin)):
     from asyncio import to_thread
     return await to_thread(get_collection_report)
+
+
+@router.get("/admin/inspections")
+async def inspections(_=Depends(require_admin)):
+    from asyncio import to_thread
+    return await to_thread(recent_inspections)
+
+
+@router.post("/admin/inspections/run")
+async def run_inspections(_=Depends(require_admin)):
+    from asyncio import to_thread
+    return await to_thread(inspect_chain)
+
+
+@router.get("/admin/exports/{dataset}")
+async def export_admin_table(dataset: Literal["event", "candidate", "data_source", "pipeline_run", "inspection_result"],
+                             format: Literal["csv", "xlsx"] = "csv", status: Optional[str] = None,
+                             business_scope: Optional[str] = None, date_from: Optional[date] = None,
+                             date_to: Optional[date] = None, sort: Literal["asc", "desc"] = "desc",
+                             _=Depends(require_admin)):
+    from asyncio import to_thread
+    try:
+        content = await to_thread(export_table, dataset, format, status=status, business_scope=business_scope,
+                                  date_from=date_from, date_to=date_to, sort=sort)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    media_type = "text/csv; charset=utf-8" if format == "csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return Response(content, media_type=media_type,
+                    headers={"Content-Disposition": f'attachment; filename="{dataset}.{format}"'})
 
 
 @router.get("/admin/tasks")

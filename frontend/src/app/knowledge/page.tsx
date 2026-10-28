@@ -86,7 +86,7 @@ export default function KnowledgePage() {
     finally { setAsking(false); }
   }
 
-  if (!authLoading && !user) return <div className="ui-card mx-auto mt-20 max-w-lg py-12 text-center"><BookOpenText className="mx-auto h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink"> {en ? "Sign in to view the knowledge base" : "登录后查看知识库"}</h1><p className="mt-2 text-sm text-ink-muted"> {en ? "Team knowledge and personal answers follow their access permissions." : "团队知识和个人回答会按权限分别展示。"}</p><Link href="/auth/login?next=/knowledge" className="ui-button-primary mt-5"> {en ? "Sign in" : "前往登录"}</Link></div>;
+  if (!authLoading && !user) return <div className="ui-card mx-auto mt-20 max-w-lg py-12 text-center"><BookOpenText className="mx-auto h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink"> {en ? "Sign in to view the knowledge base" : "登录后查看知识库"}</h1><p className="mt-2 text-sm text-ink-muted"> {en ? "Team knowledge and personal answers follow their access permissions." : "团队知识和个人回答会按权限分别展示。"}</p><Link href="/admin/login?next=/knowledge" className="ui-button-primary mt-5"> {en ? "Sign in" : "前往登录"}</Link></div>;
 
   const sources = overview?.sources || [];
   const totalDocuments = Math.max(overview?.documents || 0, 1);

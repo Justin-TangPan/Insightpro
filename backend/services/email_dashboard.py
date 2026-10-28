@@ -10,7 +10,7 @@ from settings import settings
 
 
 def homepage_snapshot() -> dict:
-    response = requests.get(os.getenv('INSIGHT_FRONTEND_URL', 'http://frontend:3000').rstrip('/') + '/api/home-email-snapshot', timeout=40)
+    response = requests.get(os.getenv('INSIGHT_FRONTEND_URL', 'http://frontend:3000').rstrip('/') + '/api/home-email-snapshot', headers={'x-insight-internal-key': settings.HERMES_SSO_SECRET}, timeout=40)
     response.raise_for_status()
     return response.json()
 

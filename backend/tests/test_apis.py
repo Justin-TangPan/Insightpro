@@ -24,7 +24,9 @@ class TestAPIEndpoints:
         assert "message" in resp.json()
         assert resp.json()["version"] == settings.APP_VERSION
 
-    def test_configured_frontend_origin_is_allowed(self):
+    def test_configured_frontend_origin_is_allowed(self, monkeypatch):
+        from routers.auth import require_admin
+        monkeypatch.setitem(client.app.dependency_overrides, require_admin, lambda: SimpleNamespace(id=uuid4()))
         origin = settings.CORS_ORIGINS[0]
         resp = client.get(
             "/api/github-trending/business-eval",
@@ -102,6 +104,8 @@ class TestAPIEndpoints:
         client.app.dependency_overrides.pop(require_admin, None)
 
     def test_v2_repository_entity_detail_uses_shared_entity_service(self, monkeypatch):
+        from routers.auth import require_admin
+        monkeypatch.setitem(client.app.dependency_overrides, require_admin, lambda: SimpleNamespace(id=uuid4()))
         from routers import intelligence_v2
         requested = []
         monkeypatch.setattr(intelligence_v2, "get_entity_detail",
@@ -114,6 +118,8 @@ class TestAPIEndpoints:
         assert response.json()["entity"]["entity_key"] == "github:org/repo"
 
     def test_v2_repository_trending_reads_service(self, monkeypatch):
+        from routers.auth import require_admin
+        monkeypatch.setitem(client.app.dependency_overrides, require_admin, lambda: SimpleNamespace(id=uuid4()))
         from routers import intelligence_v2
         requested = []
         monkeypatch.setattr(intelligence_v2, "list_trending_repositories", lambda *args: requested.append(args) or {
@@ -146,6 +152,8 @@ class TestAPIEndpoints:
         client.app.dependency_overrides.pop(require_admin, None)
 
     def test_business_evaluation_read_uses_v2_without_live_crawl(self, monkeypatch):
+        from routers.auth import require_admin
+        monkeypatch.setitem(client.app.dependency_overrides, require_admin, lambda: SimpleNamespace(id=uuid4()))
         from routers import hotspots
         from services import page_snapshot_service
         monkeypatch.setattr(page_snapshot_service, "get_page_snapshot", lambda *_: {"id": 1, "snapshot_date": date(2026, 10, 25), "content": {"source": "event_store", "date": "2026-10-23", "items": [{"repo_name": "org/repo", "repo_url": "https://github.com/org/repo", "summary": "Evidence based", "evaluation_mode": "ai"}]}})

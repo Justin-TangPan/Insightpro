@@ -7,7 +7,7 @@ from services import email_dashboard, email_service, email_technical_dashboard
 def test_smtp_sender_header_is_rfc_encoded(monkeypatch):
     sent = []
     class SMTP:
-        def __init__(self, *_): pass
+        def __init__(self, *_, **__): pass
         def __enter__(self): return self
         def __exit__(self, *_): pass
         def login(self, *_): pass

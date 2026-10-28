@@ -8,6 +8,7 @@ import re
 from db import get_db
 from services.scoring_service import persist_github_hot_score
 from services.data_semantics import time_fields, published_date, explicit_timestamp, map_taxonomy
+from services.raw_evidence_service import store_raw_version
 
 
 def parse_metric(value: str | int | float | None) -> float | None:
@@ -29,20 +30,10 @@ def store_github_signal(cursor, item: dict, scrape_date: str, scrape_time: str, 
     observed_at = f"{scrape_date} {scrape_time}"
     content = {**item, "rank": rank}
     content_hash = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-    cursor.execute("""
-        INSERT INTO intelligence_raw_items (source_key, external_id, canonical_url, title, content, content_hash, observed_at)
-        VALUES ('github_trending', %s, %s, %s, %s::jsonb, %s, %s::timestamp AT TIME ZONE 'Asia/Shanghai')
-        ON CONFLICT (source_key, external_id) DO NOTHING
-        RETURNING id
-    """, (f"{scrape_date}:{scrape_time}:{item['category']}:{repo}", item["repo_url"], item["repo_name"],
-          json.dumps(content, ensure_ascii=False), content_hash, observed_at))
-    inserted = cursor.fetchone()
-    if inserted:
-        raw_item_id = inserted["id"]
-    else:
-        cursor.execute("SELECT id FROM intelligence_raw_items WHERE source_key='github_trending' AND external_id=%s",
-                       (f"{scrape_date}:{scrape_time}:{item['category']}:{repo}",))
-        raw_item_id = cursor.fetchone()["id"]
+    raw_item_id = store_raw_version(cursor, source_key="github_trending", url=item["repo_url"],
+                                    title=item["repo_name"], content=content, content_hash=content_hash,
+                                    observed_at=f"{observed_at}+08:00",
+                                    identity_suffix=f"#raw={item['category']}")["id"]
 
     cursor.execute("""
         INSERT INTO intelligence_entities (entity_key, entity_type, canonical_name, canonical_url, metadata)
@@ -62,7 +53,7 @@ def store_github_signal(cursor, item: dict, scrape_date: str, scrape_time: str, 
             VALUES (%s, %s, 'github_trending', ARRAY['technology_ecosystem'], %s,
                     %s::timestamp AT TIME ZONE 'Asia/Shanghai',
                     %s::timestamp AT TIME ZONE 'Asia/Shanghai')
-            ON CONFLICT (event_key) DO UPDATE SET title=EXCLUDED.title,
+            ON CONFLICT (event_key) DO UPDATE SET
               first_seen_at=LEAST(intelligence_events.first_seen_at, EXCLUDED.first_seen_at),
               last_seen_at=GREATEST(intelligence_events.last_seen_at, EXCLUDED.last_seen_at), updated_at=NOW()
             RETURNING id, merged_into_id
@@ -110,20 +101,9 @@ def store_community_raw(items: list[dict], taxonomy_aliases: dict[str, str] | No
             content = {key: item.get(key) for key in ("title", "summary", "url", "topic_category", "relevance")}
             content["topic_category"] = map_taxonomy(content["topic_category"] or "", taxonomy_aliases)
             digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
-            cursor.execute("""
-                INSERT INTO intelligence_raw_items
-                  (source_key, external_id, canonical_url, title, content, observed_at, content_hash, published_at)
-                VALUES (%s, %s, %s, %s, %s::jsonb, %s::timestamptz, %s, %s::timestamptz)
-                ON CONFLICT (source_key, external_id) DO NOTHING
-                RETURNING id
-            """, (source_key, digest, item["url"], item["title"],
-                  json.dumps(content, ensure_ascii=False), times["observed_at"], digest, times["published_at"]))
-            raw = cursor.fetchone()
-            if not raw:
-                cursor.execute("SELECT id FROM intelligence_raw_items WHERE source_key=%s AND external_id=%s",
-                               (source_key, digest))
-                raw = cursor.fetchone()
-            raw_id = raw["id"]
+            raw_id = store_raw_version(cursor, source_key=source_key, url=item["url"], title=item["title"],
+                                       content=content, content_hash=digest, published_at=times["published_at"],
+                                       observed_at=times["observed_at"])["id"]
             normalized_title = " ".join(item["title"].casefold().split())
             entity_key = f"community-topic:{hashlib.sha256(normalized_title.encode()).hexdigest()}"
             cursor.execute("""INSERT INTO intelligence_entities (entity_key,entity_type,canonical_name,canonical_url)
@@ -133,7 +113,6 @@ def store_community_raw(items: list[dict], taxonomy_aliases: dict[str, str] | No
                 (event_key,entity_key,event_type,business_scopes,title,summary,first_seen_at,last_seen_at)
                 VALUES (%s,%s,'community_topic',ARRAY['community_insights'],%s,%s,%s::timestamptz,%s::timestamptz)
                 ON CONFLICT (event_key) DO UPDATE SET
-                  summary=COALESCE(NULLIF(EXCLUDED.summary,''),intelligence_events.summary),
                   first_seen_at=LEAST(intelligence_events.first_seen_at,EXCLUDED.first_seen_at),
                   last_seen_at=GREATEST(intelligence_events.last_seen_at,EXCLUDED.last_seen_at),updated_at=NOW()
                 RETURNING id""",
@@ -144,23 +123,14 @@ def store_community_raw(items: list[dict], taxonomy_aliases: dict[str, str] | No
     return len(items)
 
 
-def store_catalog_change(cursor, source_key: str, row: dict) -> None:
+def store_catalog_change(cursor, source_key: str, row: dict) -> dict:
     content = {key: row.get(key) for key in ("vendor", "category", "source_description", "summary", "change_summary", "content_snapshot", "is_active", "is_baseline", "removed_at")}
     fingerprint = {**content, "content_snapshot": {key: value for key, value in (content.get("content_snapshot") or {}).items() if key != "image_url"}}
     digest = hashlib.sha256(json.dumps(fingerprint, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
     entity_key = f"solution:{hashlib.sha256(row['url'].encode()).hexdigest()}"
-    external_id = f"{row['url']}:{digest}"
-    cursor.execute("""INSERT INTO intelligence_raw_items
-        (source_key, external_id, canonical_url, title, content, content_hash)
-        VALUES (%s,%s,%s,%s,%s::jsonb,%s) ON CONFLICT (source_key, external_id) DO UPDATE SET content=EXCLUDED.content
-        WHERE intelligence_raw_items.content->'content_snapshot'->>'image_url' IS DISTINCT FROM EXCLUDED.content->'content_snapshot'->>'image_url'
-        RETURNING id""", (source_key, external_id, row["url"], row["title"], json.dumps(content, ensure_ascii=False, default=str), digest))
-    raw = cursor.fetchone()
-    if raw:
-        raw_id = raw["id"]
-    else:
-        cursor.execute("SELECT id FROM intelligence_raw_items WHERE source_key=%s AND external_id=%s", (source_key, external_id))
-        raw_id = cursor.fetchone()["id"]
+    raw = store_raw_version(cursor, source_key=source_key, url=row["url"], title=row["title"],
+                            content=content, content_hash=digest)
+    raw_id = raw["id"]
     cursor.execute("""INSERT INTO intelligence_entities (entity_key, entity_type, canonical_name, canonical_url)
         VALUES (%s,'solution',%s,%s) ON CONFLICT (entity_key) DO UPDATE SET canonical_name=EXCLUDED.canonical_name,
         updated_at=NOW()""", (entity_key, row["title"], row["url"]))
@@ -171,31 +141,33 @@ def store_catalog_change(cursor, source_key: str, row: dict) -> None:
     cursor.execute("""INSERT INTO intelligence_events
         (event_key, entity_key, event_type, business_scopes, title, summary)
         VALUES (%s,%s,%s,ARRAY['solutions'],%s,%s)
-        ON CONFLICT (event_key) DO UPDATE SET title=EXCLUDED.title,
-        summary=COALESCE(NULLIF(EXCLUDED.summary,''),intelligence_events.summary),updated_at=NOW() RETURNING id""",
+        ON CONFLICT (event_key) DO UPDATE SET updated_at=NOW() RETURNING id""",
         (event_key, entity_key, "solution_catalog_entry" if row.get("is_baseline") else "solution_catalog_change",
          title, row.get("change_summary") or row.get("source_description") or row.get("summary")))
     event_id = cursor.fetchone()["id"]
     cursor.execute("INSERT INTO intelligence_event_evidence (event_id,raw_item_id) VALUES (%s,%s) ON CONFLICT DO NOTHING", (event_id, raw_id))
+    if raw["change"] != "no_change":
+        candidate_key = hashlib.sha256(f"solution:{source_key}:{raw_id}".encode()).hexdigest()
+        cursor.execute("""INSERT INTO intelligence_candidates
+            (candidate_key,title,canonical_url,entity_type,business_scopes,mention_count,source_count,
+            discovery_score,status,resolution_event_id,first_seen_at,last_seen_at)
+            VALUES (%s,%s,%s,'solution',ARRAY['solutions'],1,1,100,'approved',%s,NOW(),NOW())
+            ON CONFLICT (candidate_key) DO NOTHING RETURNING id""",
+            (candidate_key, row["title"], row["url"], event_id))
+        candidate = cursor.fetchone()
+        if candidate:
+            cursor.execute("""INSERT INTO intelligence_candidate_evidence(candidate_id,raw_item_id)
+                VALUES (%s,%s) ON CONFLICT DO NOTHING""", (candidate["id"], raw_id))
+    return {"event_id": event_id, "raw_change": raw["change"]}
 
 
 def store_ai_application(cursor, item: dict) -> None:
     content = {key: item.get(key) for key in ("vendor", "kind", "published", "source_text", "source_verified", "image_url")}
     digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
     entity_key = f"ai-application:{hashlib.sha256(item['url'].encode()).hexdigest()}"
-    external_id = f"{item['url']}:{digest}"
     published = published_date(item.get("published"))
-    cursor.execute("""INSERT INTO intelligence_raw_items
-        (source_key, external_id, canonical_url, title, content, published_at, content_hash)
-        VALUES ('ai_app_official',%s,%s,%s,%s::jsonb,%s::date,%s)
-        ON CONFLICT (source_key, external_id) DO NOTHING RETURNING id""",
-        (external_id, item["url"], item["title"], json.dumps(content, ensure_ascii=False), published, digest))
-    raw = cursor.fetchone()
-    if raw:
-        raw_id = raw["id"]
-    else:
-        cursor.execute("SELECT id FROM intelligence_raw_items WHERE source_key='ai_app_official' AND external_id=%s", (external_id,))
-        raw_id = cursor.fetchone()["id"]
+    raw_id = store_raw_version(cursor, source_key="ai_app_official", url=item["url"], title=item["title"],
+                               content=content, content_hash=digest, published_at=published)["id"]
     cursor.execute("""INSERT INTO intelligence_entities (entity_key,entity_type,canonical_name,canonical_url,metadata)
         VALUES (%s,'ai_application',%s,%s,%s::jsonb) ON CONFLICT (entity_key) DO UPDATE SET
         canonical_name=EXCLUDED.canonical_name,updated_at=NOW()""",
@@ -210,27 +182,20 @@ def store_ai_application(cursor, item: dict) -> None:
                    (cursor.fetchone()["id"], raw_id))
 
 
-def store_competitor_news(cursor, item: dict) -> None:
+def store_competitor_news(cursor, item: dict) -> int | None:
     url = (item.get("url") or item.get("link") or "").strip()
     title = (item.get("title") or "").strip()
     if not url or not title:
         return
     content = {key: item.get(key) for key in ("vendor", "category", "summary", "published_date")}
     digest = hashlib.sha256(json.dumps(content, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+    if item.get("legacy_origin"):
+        content["legacy_origin"] = item["legacy_origin"]
     entity_key = f"competitor:{hashlib.sha256(url.encode()).hexdigest()}"
-    external_id = f"{url}:{digest}"
-    cursor.execute("""INSERT INTO intelligence_raw_items
-        (source_key,external_id,canonical_url,title,content,content_hash,published_at)
-        VALUES ('competitor_news',%s,%s,%s,%s::jsonb,%s,%s::timestamptz)
-        ON CONFLICT (source_key,external_id) DO NOTHING RETURNING id""",
-        (external_id, url, title, json.dumps(content, ensure_ascii=False, default=str), digest,
-         item.get("published_date")))
-    raw = cursor.fetchone()
-    if raw:
-        raw_id = raw["id"]
-    else:
-        cursor.execute("SELECT id FROM intelligence_raw_items WHERE source_key='competitor_news' AND external_id=%s", (external_id,))
-        raw_id = cursor.fetchone()["id"]
+    raw_id = store_raw_version(cursor, source_key="competitor_news", url=url, title=title,
+                               content=content, content_hash=digest,
+                               published_at=item.get("published_date"),
+                               observed_at=item.get("created_at"))["id"]
     cursor.execute("""INSERT INTO intelligence_entities
         (entity_key,entity_type,canonical_name,canonical_url,metadata)
         VALUES (%s,'competitor_update',%s,%s,%s::jsonb)
@@ -241,8 +206,9 @@ def store_competitor_news(cursor, item: dict) -> None:
     cursor.execute("""INSERT INTO intelligence_events
         (event_key,entity_key,event_type,business_scopes,title,summary,published_at,event_at)
         VALUES (%s,%s,'competitor_update',ARRAY['competitor_dynamics'],%s,%s,%s::timestamptz,%s::timestamptz)
-        ON CONFLICT (event_key) DO UPDATE SET summary=EXCLUDED.summary,updated_at=NOW() RETURNING id""",
+        ON CONFLICT (event_key) DO UPDATE SET updated_at=NOW() RETURNING id""",
         (event_key, entity_key, title, item.get("summary"), item.get("published_date"), item.get("published_date")))
     event_id = cursor.fetchone()["id"]
     cursor.execute("INSERT INTO intelligence_event_evidence (event_id,raw_item_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
                    (event_id, raw_id))
+    return event_id

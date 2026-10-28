@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import asyncio
 import logging
+import hmac
 import threading
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -45,9 +46,9 @@ def schedule_jobs(scheduler: BackgroundScheduler):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    from services.startup_service import ensure_runtime_schema
-
-    ensure_runtime_schema(absorb_requirements=settings.REQUIREMENT_ABSORPTION_ON_STARTUP)
+    if settings.STARTUP_SCHEMA_ENABLED:
+        from services.startup_service import ensure_runtime_schema
+        ensure_runtime_schema(absorb_requirements=settings.REQUIREMENT_ABSORPTION_ON_STARTUP)
     from services.task_service import recover_orphaned_runs
     recover_orphaned_runs()
     from services import embedding_config_service, runtime_config_service
@@ -65,7 +66,8 @@ async def lifespan(app: FastAPI):
         logger.info("Context search initialized")
     except Exception as e:
         logger.warning("Context search init failed: %s", e)
-    init_crawler_tables()
+    if settings.STARTUP_SCHEMA_ENABLED:
+        init_crawler_tables()
     if settings.SCHEDULER_ENABLED:
         from services.page_snapshot_service import bootstrap_page_snapshots_sync
         threading.Thread(target=bootstrap_page_snapshots_sync, name="insight-page-snapshot-startup", daemon=True).start()
@@ -139,6 +141,33 @@ async def latest_page_snapshot(page: str):
         return JSONResponse({"detail": "Daily page snapshot is being prepared"}, status_code=503)
     return {"date": max(row["snapshot_date"] for row in snapshots.values()),
             "content": {path: row["content"] for path, row in snapshots.items()}}
+
+
+@app.middleware("http")
+async def admin_api_guard(request, call_next):
+    from services.page_snapshot_service import PATH_TO_PAGE
+
+    path = request.url.path
+    public = {"/api/system/health/live", "/api/system/health/ready", "/api/auth/login", "/api/auth/agent/callback", "/api/auth/agent/verify"}
+    if path in {"/api/auth/register", "/api/auth/users/test", "/api/industry-news", "/api/policy/list", "/api/bidding/list", "/api/demand/signals"}:
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    full_path = path + ("?" + request.url.query if request.url.query else "")
+    internal_snapshot = bool(settings.HERMES_SSO_SECRET) and full_path in PATH_TO_PAGE and hmac.compare_digest(request.headers.get("x-insight-internal-key", ""), settings.HERMES_SSO_SECRET)
+    # Snapshot paths are served by the published_page_reads middleware from the
+    # daily page_snapshots cache and must stay anonymously readable for the
+    # public frontend; otherwise the guard would 401 them before the cache.
+    snapshot_path = full_path in PATH_TO_PAGE
+    if path.startswith("/api/") and path not in public and not internal_snapshot and not snapshot_path and request.method != "OPTIONS" and auth.require_admin not in request.app.dependency_overrides:
+        header = request.headers.get("authorization", "")
+        if not header.startswith("Bearer ") or not auth.supabase:
+            return JSONResponse({"detail": "Administrator login required"}, status_code=401)
+        try:
+            account = auth.supabase.auth.get_user(header[7:]).user
+        except Exception:
+            return JSONResponse({"detail": "Login expired"}, status_code=401)
+        if not auth._is_internal_member(account):
+            return JSONResponse({"detail": "Administrator access required"}, status_code=401)
+    return await call_next(request)
 
 
 app.add_middleware(

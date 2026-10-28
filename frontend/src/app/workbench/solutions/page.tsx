@@ -47,7 +47,7 @@ export default function SolutionsPage() {
     return (
       <div className="ui-card mx-auto mt-20 flex max-w-lg flex-col items-center py-12 text-center">
         <Blocks className="h-8 w-8 text-primary" /><h1 className="mt-4 type-h2 text-ink">{en ? "Sign in for solution practices" : "方案实践需要登录"}</h1>
-        <p className="mt-2 text-sm text-ink-muted">{en ? "Manage your solution context after signing in." : "登录后可管理自己的方案背景。"}</p><Link href="/auth/login" className="ui-button-primary mt-5">{en ? "Sign in" : "前往登录"}</Link>
+        <p className="mt-2 text-sm text-ink-muted">{en ? "Manage your solution context after signing in." : "登录后可管理自己的方案背景。"}</p><Link href="/admin/login" className="ui-button-primary mt-5">{en ? "Sign in" : "前往登录"}</Link>
       </div>
     );
   }

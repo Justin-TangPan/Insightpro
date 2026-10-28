@@ -621,13 +621,23 @@ def _read_structured(limit: int | None = 180) -> list[dict]:
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT id, vendor, name, url, kind, published_at, summary, capability, opportunity, limitation, source_text,
-                       (SELECT raw.content->>'image_url' FROM intelligence_raw_items raw
-                        WHERE raw.canonical_url=vendor_ai_applications.url AND raw.source_key='ai_app_official'
-                        ORDER BY raw.observed_at DESC, raw.id DESC LIMIT 1) AS image_url,
-                       analysis_status, analyzed_at, source_updated_at, source_fingerprint, analyzed_source_fingerprint
-                FROM vendor_ai_applications
-                ORDER BY (published_at IS NULL OR published_at = '') ASC, published_at DESC, id DESC
+                SELECT event.id, event.title, event.published_at,
+                       COALESCE(raw.content->>'vendor', entity.metadata->>'vendor') AS vendor,
+                       raw.canonical_url AS url, raw.content->>'kind' AS kind,
+                       raw.content->>'source_text' AS source_text, raw.content->>'image_url' AS image_url,
+                       app.id AS analysis_id, app.summary, app.capability, app.opportunity, app.limitation,
+                       app.analysis_status, app.analyzed_at, app.source_updated_at,
+                       app.source_fingerprint, app.analyzed_source_fingerprint
+                FROM intelligence_events event
+                JOIN intelligence_event_evidence evidence ON evidence.event_id = event.id
+                JOIN intelligence_raw_items raw ON raw.id = evidence.raw_item_id
+                LEFT JOIN intelligence_entities entity ON entity.entity_key = event.entity_key
+                LEFT JOIN vendor_ai_applications app ON app.url = raw.canonical_url
+                    AND app.vendor = COALESCE(raw.content->>'vendor', entity.metadata->>'vendor')
+                WHERE event.status = 'active'
+                  AND 'ai_applications' = ANY(event.business_scopes)
+                  AND event.event_type = 'official_ai_application'
+                ORDER BY (event.published_at IS NULL) ASC, event.published_at DESC, event.id DESC
                 LIMIT %s
             """, (limit,))
             rows = [dict(row) for row in cursor.fetchall()]
@@ -649,14 +659,14 @@ def _read_structured(limit: int | None = 180) -> list[dict]:
             fields.update(opportunity="", limitation="")
         if not _parse_structured(fields["summary"]):
             fields = {key: "" for key in fields}
-        title = row.get("name") or ""
+        title = row.get("title") or ""
         if not re.search(r"[\u4e00-\u9fff]", title) and len(title.split()) > 2 and fields["summary"]:
             title = fields["summary"].split("。", 1)[0][:64]
         items.append({"vendor": row["vendor"], "title": title,
                       "published": row.get("published_at") or "", "url": row["url"],
                       "kind": row.get("kind") or "launch", "source_text": (row.get("source_text") or "")[:300],
                       "image_url": row.get("image_url") or "",
-                      "analysis": _compose_analysis(fields), "analysis_id": row["id"],
+                      "analysis": _compose_analysis(fields), "analysis_id": row["analysis_id"],
                       "analysis_status": "stale" if analysis_stale else row.get("analysis_status"),
                       "analysis_stale": analysis_stale, "analyzed_at": row.get("analyzed_at"),
                       "source_updated_at": row.get("source_updated_at"),

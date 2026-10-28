@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth-provider";
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { ExportButtons } from "../export-buttons";
 import { usePreferences } from "@/lib/preferences";
 
 type Event = { id: number; title: string; event_type: string; business_scopes: string[]; tags: string[]; scores: Record<string, unknown>; last_seen_at: string; evidence_count: number; evidence_ids: number[]; source_count: number; event_key: string; status: "active" | "pending_review" | "ignored" | "archived" | "merged" };
@@ -65,6 +66,7 @@ export default function AdminEventsPage() {
   if (loading) return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Checking access…" : "正在验证权限…"}</div>;
   if (user?.app_metadata?.role !== "admin") return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Administrator access required." : "需要管理员权限。"}</div>;
   return <div className="page-stack">
+    <ExportButtons dataset="event" filters={{ status, ...(domain ? { business_scope: domain } : {}) }} />
     <SectionHeader badge="Admin / Events" title={en ? "Events" : "事件管理"} subtitle={en ? "Correct classification, merge, restore or archive events." : "纠正分类、合并、恢复或归档事件。"} action={<button className="ui-button-secondary" onClick={() => void load()}><RefreshCw size={15} />{en ? "Refresh" : "刷新"}</button>} />
     <label className="flex max-w-xs flex-col gap-1 text-xs text-ink-muted">{en ? "Event status" : "事件状态"}<select className="ui-input min-h-10 px-3 text-sm" value={status} onChange={event => setStatus(event.target.value as typeof status)}>{([["active", en ? "Active" : "已发布"], ["pending_review", en ? "Pending review" : "待审核"], ["ignored", en ? "Ignored" : "已忽略"], ["archived", en ? "Archived" : "已归档"], ["all", en ? "All" : "全部"]] as const).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
     {error && <div role="status" className="ui-card py-3 text-sm text-ink-secondary">{error}</div>}

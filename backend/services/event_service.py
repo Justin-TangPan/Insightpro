@@ -43,7 +43,7 @@ def list_events(limit: int = 30, offset: int = 0, business_scope: str | None = N
                        ORDER BY length(COALESCE(raw.content->>'description',raw.content->>'summary',raw.content->>'source_text','')) DESC
                        LIMIT 1
                    )) AS summary, e.event_at, e.published_at, e.first_seen_at, e.last_seen_at,
-                   e.status, e.tags, e.scores,
+                   e.status, e.tags, e.scores, e.content_version, e.analysis_version, e.analysis_status,
                    MIN(entity.entity_type) AS entity_type,
                    COALESCE(entity.metadata->>'vendor', MIN(raw.content->>'vendor')) AS vendor,
                    ARRAY_REMOVE(ARRAY_AGG(DISTINCT raw.content->>'kind'), NULL) AS kinds,
@@ -254,7 +254,7 @@ def rescore_event(event_id: int, actor_user_id: str) -> dict:
 def publish_event(event_id: int, actor_user_id: str) -> dict:
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id,status,business_scopes,title,scores,entity_key,event_key,last_seen_at FROM intelligence_events WHERE id=%s FOR UPDATE", (event_id,))
+        cursor.execute("SELECT id,status,business_scopes,title,scores,entity_key,event_key,last_seen_at,analysis_status FROM intelligence_events WHERE id=%s FOR UPDATE", (event_id,))
         event = cursor.fetchone()
         if not event:
             raise LookupError("Event not found")
@@ -264,6 +264,8 @@ def publish_event(event_id: int, actor_user_id: str) -> dict:
             raise ValueError("Title and target business are required")
         if event["status"] == "pending_review" and not (event.get("scores") or {}).get("ai_analysis"):
             raise ValueError("AI analysis is required before publication")
+        if event["status"] == "pending_review" and event["analysis_status"] != "fresh":
+            raise ValueError("AI analysis is stale; analyze the current evidence before publication")
         cursor.execute("SELECT COUNT(*)::int AS count FROM intelligence_event_evidence WHERE event_id=%s", (event_id,))
         if cursor.fetchone()["count"] < 1:
             raise ValueError("Event needs original evidence before publication")
@@ -296,25 +298,37 @@ def analyze_event_for_review(event_id: int, actor_user_id: str) -> dict:
     facts = [{"source": item["source_name"], "title": item["title"],
               "published_at": str(item["published_at"] or ""), "summary": (item.get("original_summary") or "")[:1800],
               "url": item["canonical_url"]} for item in evidence]
-    raw = ai_service.chat_complete(system_prompt=system,
-                                   user_prompt=json.dumps({"event_title": event["title"], "event_type": event["event_type"],
-                                                           "evidence": facts}, ensure_ascii=False), temperature=0.1,
-                                   max_tokens=1200, timeout=60)
-    analysis = ai_service.extract_json(raw)
-    fields = ("what_happened", "why_important", "technical_impact", "business_impact")
-    if not isinstance(analysis, dict) or any(not isinstance(analysis.get(key), str) or not analysis[key].strip() for key in fields):
-        raise ValueError("AI returned an incomplete event analysis")
-    if any(type(analysis.get(key)) not in (int, float) or not 0 <= analysis[key] <= 100 for key in ("confidence", "importance")):
-        raise ValueError("AI returned invalid confidence or importance")
-    analysis = {key: analysis[key] for key in (*fields, "confidence", "importance")}
+    with get_db() as conn:
+        conn.cursor().execute("UPDATE intelligence_events SET analysis_status='processing' WHERE id=%s AND content_version=%s",
+                              (event_id, event["content_version"]))
+    try:
+        raw = ai_service.chat_complete(system_prompt=system,
+                                       user_prompt=json.dumps({"event_title": event["title"], "event_type": event["event_type"],
+                                                               "evidence": facts}, ensure_ascii=False), temperature=0.1,
+                                       max_tokens=1200, timeout=60)
+        analysis = ai_service.extract_json(raw)
+        fields = ("what_happened", "why_important", "technical_impact", "business_impact")
+        if not isinstance(analysis, dict) or any(not isinstance(analysis.get(key), str) or not analysis[key].strip() for key in fields):
+            raise ValueError("AI returned an incomplete event analysis")
+        if any(type(analysis.get(key)) not in (int, float) or not 0 <= analysis[key] <= 100 for key in ("confidence", "importance")):
+            raise ValueError("AI returned invalid confidence or importance")
+        analysis = {key: analysis[key] for key in (*fields, "confidence", "importance")}
+    except Exception:
+        with get_db() as conn:
+            conn.cursor().execute("UPDATE intelligence_events SET analysis_status='failed' WHERE id=%s AND content_version=%s",
+                                  (event_id, event["content_version"]))
+        raise
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT status FROM intelligence_events WHERE id=%s FOR UPDATE", (event_id,))
+        cursor.execute("SELECT status,content_version FROM intelligence_events WHERE id=%s FOR UPDATE", (event_id,))
         current = cursor.fetchone()
         if not current or current["status"] not in {"pending_review", "active"}:
             raise ValueError("Event status changed during analysis")
+        if current["content_version"] != event["content_version"]:
+            raise ValueError("Event evidence changed during analysis")
         cursor.execute("""UPDATE intelligence_events SET scores=jsonb_set(COALESCE(scores,'{}'::jsonb),
-            '{ai_analysis}',%s::jsonb,true),updated_at=NOW() WHERE id=%s""", (json.dumps(analysis, ensure_ascii=False), event_id))
+            '{ai_analysis}',%s::jsonb,true),analysis_version=content_version,analysis_status='fresh',updated_at=NOW()
+            WHERE id=%s""", (json.dumps(analysis, ensure_ascii=False), event_id))
         cursor.execute("""INSERT INTO intelligence_audit (actor_user_id,action,object_type,object_key,after_state)
             VALUES (%s::uuid,'event_analyzed','event',%s,%s::jsonb)""",
             (actor_user_id, str(event_id), json.dumps(analysis, ensure_ascii=False)))

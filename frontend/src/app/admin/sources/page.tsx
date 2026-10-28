@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth-provider";
 import { SectionHeader } from "@/components/section-header";
 import { API } from "@/lib/api";
 import { authenticatedFetch } from "@/lib/authenticated-fetch";
+import { ExportButtons } from "../export-buttons";
 import { usePreferences } from "@/lib/preferences";
 
 type Source = { source_key: string; name: string; adapter: string; base_url?: string; business_scopes: string[]; authority: string; priority: number; schedule: Record<string, unknown>; enabled: boolean; health_status: string; last_success_at?: string; last_run_at?: string; last_new_count?: number; consecutive_failures?: number; success_rate?: number | null; source_role?: string; language?: string; last_error?: string };
@@ -117,6 +118,7 @@ export default function AdminSourcesPage() {
   if (loading) return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Checking access…" : "正在验证权限…"}</div>;
   if (user?.app_metadata?.role !== "admin") return <div className="ui-card py-12 text-center text-sm text-ink-muted">{en ? "Administrator access required." : "需要管理员权限。"}</div>;
   return <div className="page-stack">
+    <ExportButtons dataset="data_source" filters={domain ? { business_scope: domain } : {}} />
     <nav aria-label="数据源模块" className="flex flex-wrap gap-2"><button type="button" className={tab === "list" ? "ui-button-primary" : "ui-button-secondary"} onClick={() => setTab("list")}>来源列表</button><button type="button" className={tab === "coverage" ? "ui-button-primary" : "ui-button-secondary"} onClick={() => setTab("coverage")}>覆盖分析</button></nav>
     {tab === "coverage" ? <Coverage /> : null}
     {tab === "list" && <><SectionHeader badge="Admin / Sources" title={en ? "Sources" : "数据源"} subtitle={en ? "Control connected collectors and review source health." : "启停已接入来源、查看采集健康状态。"} action={<button className="ui-button-secondary" onClick={() => void load()}><RefreshCw size={15} />{en ? "Refresh" : "刷新"}</button>} />

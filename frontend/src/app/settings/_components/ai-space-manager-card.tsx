@@ -37,7 +37,7 @@ export function AiSpaceManagerCard({ onStatusChange, onMemberUpdated, refreshVer
     void fetchAgentSpaces();
   };
 
-  const updateMember = async (account: AccountUser, changes: { role?: "user" | "admin"; disabled?: boolean }) => {
+  const updateMember = async (account: AccountUser, changes: { disabled?: boolean }) => {
     onStatusChange("");
     const response = await authenticatedFetch(`${API}/api/auth/users/${account.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
     const data = await response.json();
