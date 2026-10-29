@@ -37,7 +37,10 @@ async def agent_launches_progress(_=Depends(require_admin)):
 @router.get("/daily-ai-brief")
 async def daily_ai_brief(date: Optional[str] = None, version: Optional[int] = Query(None, ge=1)):
     from services.daily_ai_brief_service import read
-    return await asyncio.to_thread(read, date, version)
+    payload = await asyncio.to_thread(read, date, version)
+    for field in ("email_status", "email_error", "email_sent_at", "email_recipient_count", "email_failed_count", "email_template_version"):
+        payload.pop(field, None)
+    return payload
 
 
 @router.get("/daily-ai-brief/history")

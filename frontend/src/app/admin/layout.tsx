@@ -2,15 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, Database, LayoutDashboard, Radar, Settings2 } from "lucide-react";
+import { ClipboardList, Database, LayoutDashboard, Settings2 } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 
 const navigation = [
-  { href: "/admin", label: "总览", icon: LayoutDashboard, paths: ["/admin"] },
+  { href: "/admin", label: "任务健康", icon: LayoutDashboard, paths: ["/admin"] },
   { href: "/admin/tasks", label: "任务中心", icon: ClipboardList, paths: ["/admin/tasks", "/admin/jobs", "/admin/scheduler"] },
   { href: "/admin/sources", label: "数据源", icon: Database, paths: ["/admin/sources"] },
-  { href: "/admin/operations", label: "情报运营", icon: Radar, paths: ["/admin/operations", "/admin/events", "/admin/candidates", "/admin/coverage"] },
-  { href: "/admin/system", label: "系统设置", icon: Settings2, paths: ["/admin/system", "/admin/llm", "/admin/prompts", "/admin/knowledge", "/admin/users", "/admin/access", "/admin/emails", "/admin/runtime", "/admin/dashboard"] },
+  { href: "/admin/system", label: "系统设置", icon: Settings2, paths: ["/admin/system", "/admin/llm", "/admin/prompts", "/admin/knowledge", "/admin/users", "/admin/access", "/admin/emails", "/admin/runtime"] },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

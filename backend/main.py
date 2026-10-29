@@ -153,11 +153,12 @@ async def admin_api_guard(request, call_next):
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     full_path = path + ("?" + request.url.query if request.url.query else "")
     internal_snapshot = bool(settings.HERMES_SSO_SECRET) and full_path in PATH_TO_PAGE and hmac.compare_digest(request.headers.get("x-insight-internal-key", ""), settings.HERMES_SSO_SECRET)
+    public_brief_read = path == "/api/daily-ai-brief" and request.method == "GET"
     # Snapshot paths are served by the published_page_reads middleware from the
     # daily page_snapshots cache and must stay anonymously readable for the
     # public frontend; otherwise the guard would 401 them before the cache.
     snapshot_path = full_path in PATH_TO_PAGE
-    if path.startswith("/api/") and path not in public and not internal_snapshot and not snapshot_path and request.method != "OPTIONS" and auth.require_admin not in request.app.dependency_overrides:
+    if path.startswith("/api/") and path not in public and not public_brief_read and not internal_snapshot and not snapshot_path and request.method != "OPTIONS" and auth.require_admin not in request.app.dependency_overrides:
         header = request.headers.get("authorization", "")
         if not header.startswith("Bearer ") or not auth.supabase:
             return JSONResponse({"detail": "Administrator login required"}, status_code=401)
